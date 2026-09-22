@@ -50,7 +50,8 @@ def main() -> None:
             name = 'agent_authored'
         else:
             name, _ = engine.route(text, seed=seed)
-        estimate = 25 if name.startswith("water_") else 15
+        estimate = (checked["agent_report"]["estimated_wall_time_s"]["p90"]
+                    if scene is not None else (25 if name.startswith("water_") else 15))
         supported = estimate <= task["limits"]["wall_time_seconds"]
         reason = "" if supported else "insufficient_time_budget"
     except engine.UnsupportedRequest:

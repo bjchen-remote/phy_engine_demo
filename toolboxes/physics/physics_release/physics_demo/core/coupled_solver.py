@@ -108,7 +108,7 @@ def _load_library(deadline: float) -> tuple[C.CDLL, float, str]:
     return load_library(directory / "coupled_native.c", prefix="libcoupled-", name="Coupled",
                         deadline=deadline, libraries=_LIBRARIES, bind=_bind_library,
                         extra_sources=(directory / "physics_native.c", directory / "mesh_native.c"),
-                        dependencies=(directory / "rigid_math.h",), pthread=True)
+                        dependencies=(directory / "rigid_math.h", directory / "particle_gravity.h"), pthread=True)
 
 
 def _pack_particles(scene, plan, particles, fields, masks, frames, deadline):

@@ -12,6 +12,12 @@ from .limits import MAX_SCENE_FILE_BYTES
 
 
 EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
+    "self_gravitating_liquid": {
+        "file": "self_gravitating_liquid.json",
+        "use_for": ["mutually attracting liquid blobs", "liquid merger with self-gravity"],
+        "limitations": "Incompressible visual particles with one reference density and explicit scaled G; not stellar gas or point-mass/particle exchange.",
+        "common_patches": ["/interactions/gravity_G", "/interactions/softening", "/interactions/gravity_theta", "/interactions/particle_gravity_density", "/world/duration"],
+    },
     "three_body_queries": {
         "file": "three_body_queries.json",
         "use_for": ["finite-window three-body stability", "quantitative orbit data"],
@@ -33,7 +39,7 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     "three_body": {
         "file": "three_body.json",
         "use_for": ["three-body orbit", "softened N-body gravity"],
-        "limitations": "Point masses only; particle matter is not gravitationally coupled.",
+        "limitations": "Point-mass model only; use self_gravitating_liquid for particle-only self-gravity. Point-mass/particle exchange is unavailable.",
         "common_patches": ["/world/duration", "/entities/@body-a/position", "/entities/@body-a/velocity"],
     },
     "droplet_ground": {

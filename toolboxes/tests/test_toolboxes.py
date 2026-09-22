@@ -90,6 +90,32 @@ class RegistryTests(unittest.TestCase):
 
 
 class PhysicsProtocolTests(unittest.TestCase):
+    def test_self_gravity_prepare_probe_and_help_are_discoverable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            job=Path(temporary);(job/'work').mkdir()
+            registry.write_json(job/'task.json',{'schema_version':1,
+                'request':{'text':'Liquid volumes with mutual attraction','plan_required':True},
+                'limits':{'wall_time_seconds':180}})
+            model=json.loads((ROOT.parent/'examples/self_gravitating_liquid.json').read_text())
+            def api(operation, arguments):
+                registry.write_json(job/'work/toolbox-call.json',{'schema_version':1,
+                    'operation':operation,'arguments':arguments})
+                subprocess.run([sys.executable,str(ROOT/'physics/toolbox_adapter.py'),
+                    '--phase','api','--task',str(job/'task.json')],check=True,
+                    capture_output=True,timeout=10)
+                return registry.read_json(job/'work/toolbox-response.json')['result']
+            help_result=api('help',{'topic':'particle-gravity'})
+            self.assertTrue(help_result['ok'])
+            ready=api('physics_prepare',{'scene_json':json.dumps(model)})
+            self.assertTrue(ready['ok'] and ready['ready_to_simulate'],ready)
+            self.assertIn('particle_gravity',ready['agent_report'])
+            subprocess.run([sys.executable,str(ROOT/'physics/toolbox_adapter.py'),
+                '--phase','probe','--task',str(job/'task.json')],check=True,
+                capture_output=True,timeout=10)
+            probe=registry.read_json(job/'capability.json')
+            self.assertTrue(probe['supported'])
+            self.assertEqual(probe['estimated_seconds'],ready['agent_report']['estimated_wall_time_s']['p90'])
+
     def probe(self, text, budget=30):
         with tempfile.TemporaryDirectory() as temporary:
             job = Path(temporary)

@@ -131,7 +131,8 @@
             "solid_spring_water",
             "ghost_spring_water",
             "water_soft_sheet",
-            "water_sheet_spring_rigid"
+            "water_sheet_spring_rigid",
+            "self_gravitating_liquid"
           ]
         }
       },

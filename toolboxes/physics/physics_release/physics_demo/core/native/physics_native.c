@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "physics_native.h"
+#include "particle_gravity.h"
 
 #include <float.h>
 #include <math.h>
@@ -68,6 +69,9 @@ typedef struct {
     PhyDiagnostics *diagnostics;
     ThreadPool pool;
     CompactGrid grid;
+    PGTree gravity_tree;
+    double *gravity_ax, *gravity_ay, *gravity_az;
+    double particle_gravity_maximum;
     double h;
     double h2;
     double volume;
@@ -727,6 +731,12 @@ static int solver_initialize(Solver *solver, PhySimulation *input, PhyDiagnostic
     if (!pool_initialize(&solver->pool, input->thread_count)) return 0;
     if (!grid_initialize(&solver->grid, input->particle_count)) return 0;
     size_t count = input->particle_count > 0 ? (size_t)input->particle_count : 1u;
+    if (input->gravity_G > 0 && input->particle_count > 0) {
+        if (!pg_init(&solver->gravity_tree, input->particle_count) ||
+            !allocate_double_array(&solver->gravity_ax, count) ||
+            !allocate_double_array(&solver->gravity_ay, count) ||
+            !allocate_double_array(&solver->gravity_az, count)) return 0;
+    }
     return allocate_double_array(&solver->prev_x, count) &&
            allocate_double_array(&solver->prev_y, count) &&
            allocate_double_array(&solver->prev_z, count) &&
@@ -766,6 +776,8 @@ static int solver_initialize(Solver *solver, PhySimulation *input, PhyDiagnostic
 }
 
 static void solver_destroy(Solver *solver) {
+    pg_destroy(&solver->gravity_tree);
+    free(solver->gravity_ax); free(solver->gravity_ay); free(solver->gravity_az);
     free(solver->prev_x);
     free(solver->prev_y);
     free(solver->prev_z);
@@ -801,6 +813,44 @@ static void solver_destroy(Solver *solver) {
     memset(solver, 0, sizeof(*solver));
 }
 
+static void particle_gravity_job(void *opaque, int begin, int end) {
+    Solver *s = opaque;
+    PhySimulation *in = s->input;
+    double gm = in->gravity_G * in->particle_gravity_density * s->volume;
+    for (int i = begin; i < end; ++i) {
+        if ((i & 7) == 0 && solver_deadline_reached(s)) return;
+        double a[3];
+        pg_acceleration(&s->gravity_tree, i, in->gravity_theta, in->softening, gm, a);
+        s->gravity_ax[i] = a[0]; s->gravity_ay[i] = a[1]; s->gravity_az[i] = a[2];
+    }
+}
+
+static int prepare_particle_gravity(Solver *s) {
+    if (!s->gravity_ax) return 1;
+    PhySimulation *in = s->input;
+    if (!finite3(in->x[0], in->y[0], in->z[0])) return 0;
+    pg_build(&s->gravity_tree, in->x, in->y, in->z);
+    pool_run(&s->pool, in->particle_count, particle_gravity_job, s);
+    if (solver_deadline_reached(s)) return 0;
+    double mean[3] = {0};
+    for (int i = 0; i < in->particle_count; ++i) {
+        mean[0] += s->gravity_ax[i] / in->particle_count;
+        mean[1] += s->gravity_ay[i] / in->particle_count;
+        mean[2] += s->gravity_az[i] / in->particle_count;
+    }
+    s->particle_gravity_maximum = 0;
+    for (int i = 0; i < in->particle_count; ++i) {
+        /* Equal inertial masses: remove the tree's net internal-force error.
+         * This preserves linear, but not exact angular, momentum. */
+        s->gravity_ax[i] -= mean[0]; s->gravity_ay[i] -= mean[1]; s->gravity_az[i] -= mean[2];
+        double a = sqrt(s->gravity_ax[i]*s->gravity_ax[i] +
+            s->gravity_ay[i]*s->gravity_ay[i] + s->gravity_az[i]*s->gravity_az[i]);
+        if (!isfinite(a)) return 0;
+        s->particle_gravity_maximum = fmax(s->particle_gravity_maximum, a);
+    }
+    return 1;
+}
+
 static void save_previous_and_apply_gravity_job(void *opaque, int begin, int end) {
     Solver *solver = (Solver *)opaque;
     PhySimulation *input = solver->input;
@@ -812,6 +862,9 @@ static void save_previous_and_apply_gravity_job(void *opaque, int begin, int end
         double ax = input->gravity[0];
         double ay = input->gravity[1];
         double az = input->gravity[2];
+        if (solver->gravity_ax) {
+            ax += solver->gravity_ax[index]; ay += solver->gravity_ay[index]; az += solver->gravity_az[index];
+        }
         if (input->field_count > 0) {
             force_field_acceleration(
                 input, input->particle_field_mask[index],
@@ -2193,6 +2246,11 @@ static int validate_input(const PhySimulation *input) {
         !isfinite(input->output_fps) || !isfinite(input->gravity_G) ||
         !isfinite(input->softening) || !isfinite(input->water_sand_drag) ||
         !isfinite(input->wetting_rate) || !isfinite(input->deadline_seconds)) return 0;
+    if (!isfinite(input->particle_gravity_density) || !isfinite(input->gravity_theta) ||
+        input->gravity_theta < 0 || input->gravity_theta > 0.7) return 0;
+    if (input->particle_count > 0 && input->gravity_G > 0 &&
+        (input->body_count > 0 || input->particle_gravity_density <= 0 ||
+         input->particle_gravity_density > 30000 || input->softening < 1e-6)) return 0;
     if (floor(input->output_fps) != input->output_fps) return 0;
     double required_intervals_value = ceil(input->duration * input->output_fps - 1.0e-10);
     if (!isfinite(required_intervals_value) || required_intervals_value > (double)INT32_MAX - 1.0) return 0;
@@ -2257,11 +2315,11 @@ uint32_t phy_abi_version(void) {
 
 const char *phy_build_string(void) {
 #if defined(__clang__)
-    return "c11-dfsph-v5-observers-soa-pthreads/clang-" __clang_version__;
+    return "c11-dfsph-v6-particle-gravity-soa-pthreads/clang-" __clang_version__;
 #elif defined(__GNUC__)
-    return "c11-dfsph-v5-observers-soa-pthreads/gcc-" __VERSION__;
+    return "c11-dfsph-v6-particle-gravity-soa-pthreads/gcc-" __VERSION__;
 #else
-    return "c11-dfsph-v5-observers-soa-pthreads/unknown-compiler";
+    return "c11-dfsph-v6-particle-gravity-soa-pthreads/unknown-compiler";
 #endif
 }
 
@@ -2337,6 +2395,25 @@ int phy_simulate(PhySimulation *input, PhyDiagnostics *diagnostics) {
                 }
                 double segment_end = next_force_boundary(input, simulation_time, nominal_end);
                 double segment_dt = segment_end - simulation_time;
+                if (!prepare_particle_gravity(&solver)) {
+                    timed_out = atomic_load_explicit(&solver.deadline_exceeded, memory_order_relaxed);
+                    failed = !timed_out;
+                    break;
+                }
+                if (solver.gravity_ax) {
+                    /* Re-evaluate on every shared-clock substep; never clamp a
+                     * stiff gravitational event to the ordinary CFL work cap. */
+                    double safe_dt = 0.2 / sqrt(input->gravity_G * input->particle_gravity_density);
+                    if (solver.particle_gravity_maximum > 0)
+                        safe_dt = fmin(safe_dt, 0.2 * sqrt(input->spacing / solver.particle_gravity_maximum));
+                    for (int i = 0; i < input->particle_count; ++i) {
+                        double speed = sqrt(input->vx[i]*input->vx[i] + input->vy[i]*input->vy[i] + input->vz[i]*input->vz[i]);
+                        if (speed > 0) safe_dt = fmin(safe_dt, 0.25 * input->spacing / speed);
+                    }
+                    segment_dt = fmin(segment_dt, safe_dt);
+                    segment_end = simulation_time + segment_dt;
+                    if (segment_end <= simulation_time || segment_dt < 1e-12) { failed = 1; break; }
+                }
                 solver.current_dt = segment_dt;
                 solver.current_time = simulation_time;
                 if (!gravity_substep(&solver) || !particle_substep(&solver)) {
@@ -2438,7 +2515,9 @@ struct PhyContext {
 static int validate_context_input(const PhySimulation *input) {
     /* Bound counts before validate_input follows any caller-owned array. These
      * caps cover the public particle quality presets and coupled-world limits. */
-    if (!input || input->particle_count < 0 || input->particle_count > 24000 ||
+    /* Persistent contact contexts have an external shared clock. Full
+     * particle self-gravity uses phy_simulate and its own adaptive scheduler. */
+    if (!input || input->gravity_G != 0 || input->particle_count < 0 || input->particle_count > 24000 ||
         input->body_count < 0 || input->body_count > 64 ||
         input->collider_count < 0 || input->collider_count > 64 ||
         input->field_count < 0 || input->field_count > 32 ||

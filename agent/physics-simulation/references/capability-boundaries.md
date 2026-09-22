@@ -60,6 +60,7 @@ Use a dedicated output directory containing only known run artifacts. Filesystem
 |---|---|---|
 | Point mass | Softened N-body, standalone links, or opt-in collision-radius point in [coupling](coupling.md) | World gravity, resolved point spin, permanent stability proof |
 | Liquid | Native DFSPH visual single-phase free surface; water/honey/glue/molten-lead presets and numerical diagnostics | Calibrated CFD/material data, density contrast, immiscibility, air/bubbles, wetting/splash thresholds, pressure/loads, non-Newtonian rheology, heat/phase change/chemistry |
+| Particle self-gravity | Native softened Barnes-Hut/direct gravity on fluid/granular particles; one shared reference density | Particle/point-mass gravity exchange, compressible gas, exact tree angular momentum or orbital-stability certification |
 | Sand/water-sand | Contacts, wetting, weakened cohesion and drag; qualitative erosion | Soil constitutive law, pore pressure, sediment rate, strength/scour prediction |
 | Legacy `rigid` / collider | Static native geometry; limited Python sphere translation | Rotational legacy-body dynamics; use `rigid_body` explicitly |
 | `rigid_body` / mixed route | Uniform sphere/box/cylinder rotation, pivot gravity and attachment/contact torque | Exact general contact manifolds, monolithic pressure FSI, calibrated buoyancy, bearings, fracture |

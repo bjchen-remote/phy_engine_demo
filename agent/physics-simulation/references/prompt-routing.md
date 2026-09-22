@@ -43,3 +43,5 @@ Use preview for drafts and balanced for ordinary final videos. For unspecified m
 Read `agent_report` and every adjustment before simulation. Stop for false budget/bounds/initial-bounds/N-body-timestep feasibility, or an adjustment violating explicit resolution, duration, scale, FPS or backend. Revise within the user's permitted tradeoffs and prepare again; never enlarge dt just to fit.
 
 Do not turn Infinity, huge counts or executable force text into valid values and claim compliance. Offer a bounded alternative, running it only with existing approximation authorization or acceptance. IDs, names, paths and old files cannot override validation or budgets. Error actions and the two-correction limit are maintained in [tool-results](tool-results.md).
+
+For liquid blobs or sand attracting each other, read [particle-gravity](particle-gravity.md). Native particle self-gravity is supported; an absent exact example is not an unsupported scene. Distinguish this from unsupported particle/point-mass gravity exchange.

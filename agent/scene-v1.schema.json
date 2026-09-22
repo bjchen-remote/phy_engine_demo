@@ -235,6 +235,19 @@
           "type": "number",
           "minimum": 0,
           "maximum": 100
+        },
+        "particle_gravity_density": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 30000,
+          "default": 1000,
+          "description": "Shared reference particle density for self-gravity; particle mass = density * effective_spacing^3."
+        },
+        "gravity_theta": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.7,
+          "description": "Barnes-Hut opening angle; 0 evaluates exact pairs. Default 0.5 for visual, 0 for strict."
         }
       }
     },

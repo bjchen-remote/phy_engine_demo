@@ -27,7 +27,7 @@ from physics_demo.core.liquids import preserve_render_representatives, render_ma
 from physics_demo.analysis.observers import EntitySpec, metric_specs, unpack_observations
 
 
-ABI_VERSION = 5
+ABI_VERSION = 6
 STATUS_NAMES = {
     0: "ok",
     1: "invalid_argument",
@@ -108,6 +108,8 @@ class CSimulation(ctypes.Structure):
         ("bounds_min", c_double * 3),
         ("bounds_max", c_double * 3),
         ("gravity_G", c_double),
+        ("particle_gravity_density", c_double),
+        ("gravity_theta", c_double),
         ("softening", c_double),
         ("water_sand_drag", c_double),
         ("wetting_rate", c_double),
@@ -267,6 +269,7 @@ def _compile_library(deadline_seconds: float) -> tuple[Path, float]:
     digest = hashlib.sha256()
     digest.update(source.read_bytes())
     digest.update(header.read_bytes())
+    digest.update(source.with_name("particle_gravity.h").read_bytes())
     digest.update(compiler_version.encode("utf-8"))
     digest.update("\0".join(flags).encode("utf-8"))
     cache = Path(tempfile.gettempdir()) / "physics-agent-demo-native"
@@ -593,6 +596,8 @@ def run_scene_native(scene: dict[str, Any], plan: dict[str, Any], deadline: floa
         bounds_min=(c_double * 3)(*bounds["min"]),
         bounds_max=(c_double * 3)(*bounds["max"]),
         gravity_G=gravity_constant,
+        particle_gravity_density=float(interactions.get("particle_gravity_density", 1000)),
+        gravity_theta=float(interactions.get("gravity_theta", 0)),
         softening=float(interactions["softening"]),
         water_sand_drag=float(interactions["water_sand_drag"]),
         wetting_rate=float(interactions["wetting_rate"]),
@@ -690,6 +695,7 @@ def run_scene_native(scene: dict[str, Any], plan: dict[str, Any], deadline: floa
             "positional-collider-friction",
             "swept-box-contact",
         ],
+        "particle_gravity": plan.get("particle_gravity"),
         "boundary_pressure_coupling": "explicit plane colliders provide pressure support and optional water adhesion; sphere, box, capsule, and world bounds use positional projection",
     })
     selected_particles = [particles[index] for index in render_indices]

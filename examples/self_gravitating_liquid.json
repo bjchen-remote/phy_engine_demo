@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "name": "self-gravitating-liquid-merger",
+  "world": {
+    "gravity": [
+      0,
+      0,
+      0
+    ],
+    "duration": 2.5,
+    "dt": 0.004,
+    "output_fps": 24,
+    "bounds": {
+      "min": [
+        -2,
+        -2,
+        -2
+      ],
+      "max": [
+        2,
+        2,
+        2
+      ]
+    }
+  },
+  "budget": {
+    "quality": "balanced",
+    "backend": "native",
+    "validation": "visual",
+    "wall_time_s": 60
+  },
+  "entities": [
+    {
+      "id": "left",
+      "type": "fluid",
+      "shape": {
+        "type": "sphere",
+        "center": [
+          -0.7,
+          0,
+          0
+        ],
+        "radius": 0.22
+      },
+      "spacing": 0.055,
+      "velocity": [
+        0,
+        0.06,
+        0
+      ],
+      "preset": "water"
+    },
+    {
+      "id": "right",
+      "type": "fluid",
+      "shape": {
+        "type": "sphere",
+        "center": [
+          0.7,
+          0,
+          0
+        ],
+        "radius": 0.3
+      },
+      "spacing": 0.055,
+      "velocity": [
+        0,
+        -0.02,
+        0
+      ],
+      "preset": "water"
+    }
+  ],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": true,
+    "gravity_G": 0.02,
+    "softening": 0.035,
+    "particle_gravity_density": 800,
+    "gravity_theta": 0.5
+  }
+}

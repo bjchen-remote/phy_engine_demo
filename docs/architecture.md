@@ -196,3 +196,23 @@ Physics and canonical result files are never rerun or modified for this operatio
 The shared task deadline includes compression. Result verification.delivery records the bytes,
 resolution and whether presentation compression was needed. A compression failure returns
 stage=presentation, retryable=false; do not change a requested duration or label it unsupported physics.
+
+
+## Particle self-gravity
+
+`core/native/particle_gravity.h` is a small, independent equal-mass force kernel:
+bounded octree construction and traversal, with a direct-pair reference mode.
+`physics_native.c` owns its workspace, thread-pool dispatch, mean-force correction,
+substep clock and deadline. It applies the resulting acceleration before the existing
+DFSPH pressure/contact update. Native ABI 6 adds the density and opening-angle controls;
+all native compilation caches include the new header. Disabled self-gravity retains
+the previous particle solver path.
+
+`io/schema.py` owns capability discovery, finite controls and unsupported route checks;
+`io/planning.py` owns force cost and represented-mass disclosure. The native-only guard
+in `core/backend.py` prevents a fallback from silently dropping gravity. A separate
+reference manual and catalog example make the capability discoverable to agents.
+Tests compare the kernel to an independent direct sum, check convergence and degenerate
+positions, exercise actual attraction and centroid symmetry, and reject missing-native
+or unsupported mixed-domain execution. Particle/point-mass gravitational exchange is
+not implemented. This module does not change the messaging bridge.

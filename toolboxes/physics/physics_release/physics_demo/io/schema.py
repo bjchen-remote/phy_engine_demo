@@ -79,6 +79,15 @@ CAPABILITIES: dict[str, Any] = {
             "accuracy": "quantitative for the configured softened point-mass model",
             "limits": {"max_bodies": 64},
         },
+        "particle_gravity": {
+            "algorithm": "C11 Barnes-Hut octree with Plummer softening; theta=0 direct reference",
+            "enable": "interactions.mutual_gravity=true on native fluid/granular scenes",
+            "controls": {"gravity_G": "explicit G", "softening": "metres, >=1e-6",
+                         "particle_gravity_density": "shared reference kg/m3, default 1000",
+                         "gravity_theta": "0 direct; visual default 0.5; strict default 0"},
+            "mass": "each particle has density * effective_spacing^3; disclose represented mass after planning",
+            "limits": "no particle/point-mass exchange, mesh/rigid coupling or Python fallback; incompressible visual matter, not stellar gas or calibrated astrophysical hydro",
+        },
         "fluid": {
             "algorithm": "native C11 DFSPH density/divergence projection, consistent cubic kernel, and Akinci surface tension",
             "use_for": ["drops", "pools", "liquid blobs", "flow around simple solids"],
@@ -785,10 +794,12 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
     if not isinstance(interactions, dict):
         errors.append(_issue("interactions_type", "interactions", "interactions must be an object."))
         interactions = scene["interactions"] = {}
-    _unknown_fields(interactions, {"mutual_gravity", "gravity_G", "softening", "water_sand_drag", "wetting_rate"}, "interactions", errors)
+    _unknown_fields(interactions, {"mutual_gravity", "gravity_G", "softening", "water_sand_drag", "wetting_rate", "particle_gravity_density", "gravity_theta"}, "interactions", errors)
     defaults = {
         "mutual_gravity": point_masses >= 2,
         "gravity_G": 1.0,
+        "particle_gravity_density": 1000.0,
+        "gravity_theta": 0.0 if budget.get("validation", "strict") == "strict" else 0.5,
         "softening": 0.02,
         "water_sand_drag": 0.16,
         "wetting_rate": 1.8,
@@ -814,6 +825,16 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("gravity_singularity", "interactions.softening", "Mutual gravity with multiple bodies requires softening of at least 1e-6 m."))
 
     requested = estimate_particle_count(scene)
+    if not 0 < interactions["particle_gravity_density"] <= 30000:
+        errors.append(_issue("gravity_density", "interactions.particle_gravity_density", "Use a finite reference density in (0, 30000] kg/m3."))
+    if not 0 <= interactions["gravity_theta"] <= 0.7:
+        errors.append(_issue("gravity_theta", "interactions.gravity_theta", "Use 0 for direct gravity, or a tree opening angle in (0, 0.7]."))
+    if interactions["mutual_gravity"] and requested:
+        if interactions["softening"] < 1e-6:
+            errors.append(_issue("gravity_singularity", "interactions.softening", "Particle self-gravity requires explicit Plummer softening of at least 1e-6 m."))
+        if point_masses or dynamic_spheres or budget["backend"] == "python":
+            errors.append(_issue("particle_gravity_route", "interactions.mutual_gravity", "Particle self-gravity requires native/auto, fluid/granular matter and static colliders. Point-mass/particle gravitational exchange and dynamic rigid spheres are not implemented."))
+        warnings.append(_issue("particle_gravity_model", "interactions", "Self-gravity acts on every particle with mass density*effective_spacing^3. One reference density is shared by all materials; liquid presets do not change it. Tree forces are approximate; theta=0 evaluates direct pairs."))
     quality = budget["quality"] if isinstance(budget["quality"], str) and budget["quality"] in QUALITY_LIMITS else "preview"
     limit = QUALITY_LIMITS[quality]["particles"]
     if requested > limit:
@@ -822,7 +843,7 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
             "entities",
             f"Requested approximately {requested} particles; the {quality} budget caps this at {limit} by increasing spacing.",
         ))
-    if point_masses and requested and not coupled_enabled(scene):
+    if point_masses and requested and not interactions["mutual_gravity"] and not coupled_enabled(scene):
         warnings.append(_issue("decoupled_gravity", "entities", "Point-mass gravity and particle matter share the scene but are not mutually coupled in this demo."))
     if dynamic_spheres and not native_only_preset:
         if budget["backend"] == "native":
