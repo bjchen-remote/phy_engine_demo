@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "three-body-window-stability-query",
+  "world": {
+    "gravity": [0, 0, 0], "duration": 6.3259, "dt": 0.005, "output_fps": 24,
+    "bounds": {"min": [-2, -2, -1], "max": [2, 2, 1]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "preview", "backend": "auto"},
+  "entities": [
+    {"id": "body-a", "type": "point_mass", "mass": 1, "position": [-0.97000436, 0.24308753, 0], "velocity": [0.466203685, 0.43236573, 0]},
+    {"id": "body-b", "type": "point_mass", "mass": 1, "position": [0.97000436, -0.24308753, 0], "velocity": [0.466203685, 0.43236573, 0]},
+    {"id": "body-c", "type": "point_mass", "mass": 1, "position": [0, 0, 0], "velocity": [-0.93240737, -0.86473146, 0]}
+  ],
+  "colliders": [],
+  "interactions": {"mutual_gravity": true, "gravity_G": 1, "softening": 0.0001},
+  "queries": [
+    {"id": "orbit-bounds", "type": "nbody_stability", "max_radius": 1.5, "min_separation": 0.2},
+    {"id": "pair-distance", "type": "series", "metric": {"type": "center_distance", "entities": ["body-a", "body-b"]}}
+  ]
+}

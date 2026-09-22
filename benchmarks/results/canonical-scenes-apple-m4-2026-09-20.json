@@ -1,0 +1,14 @@
+{
+  "date": "2026-09-20",
+  "hardware": "Apple M4, 10 CPU cores, 16 GB memory",
+  "measurement": "warm native build, no video, 60 s budget per scene",
+  "scenes": [
+    {"scene": "three_body.json", "particles": 0, "solver_s": 0.000092, "end_to_end_s": 0.018219, "substeps": 1266},
+    {"scene": "droplet_ground.json", "particles": 2008, "solver_s": 1.505921, "end_to_end_s": 1.853545, "substeps": 485},
+    {"scene": "droplet_pool.json", "particles": 5760, "solver_s": 2.997051, "end_to_end_s": 4.072021, "substeps": 336},
+    {"scene": "droplet_sphere.json", "particles": 1647, "solver_s": 1.279923, "end_to_end_s": 1.584410, "substeps": 531},
+    {"scene": "water_blob.json", "particles": 3407, "solver_s": 2.394915, "end_to_end_s": 3.169354, "substeps": 505},
+    {"scene": "sandcastle_wash.json", "particles": 4020, "solver_s": 2.722519, "end_to_end_s": 3.770930, "substeps": 557}
+  ],
+  "all_completed": true
+}

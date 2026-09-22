@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "name": "product-pour-into-tumbler",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 2.3,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-1.4, 0, -1.1], "max": [1.5, 2.5, 1.1]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "product-liquid",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [-0.55, 1.95, 0], "size": [0.34, 0.64, 0.38]},
+      "spacing": 0.04,
+      "velocity": [1.5, -0.05, 0],
+      "properties": {"viscosity": 0.06, "surface_tension": 0.09}
+    }
+  ],
+  "colliders": [
+    {"id": "counter", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.24},
+    {"id": "glass-base", "type": "box", "center": [0.25, 0.07, 0], "size": [1.0, 0.14, 0.9], "friction": 0.16},
+    {"id": "glass-left", "type": "box", "center": [-0.25, 0.55, 0], "size": [0.1, 0.96, 0.9], "friction": 0.12, "appearance": "glass"},
+    {"id": "glass-right", "type": "box", "center": [0.75, 0.55, 0], "size": [0.1, 0.96, 0.9], "friction": 0.12, "appearance": "glass"},
+    {"id": "glass-front", "type": "box", "center": [0.25, 0.55, -0.45], "size": [1.0, 0.96, 0.1], "friction": 0.12, "appearance": "glass"},
+    {"id": "glass-back", "type": "box", "center": [0.25, 0.55, 0.45], "size": [1.0, 0.96, 0.1], "friction": 0.12, "appearance": "glass"}
+  ],
+  "force_fields": [],
+  "interactions": {}
+}

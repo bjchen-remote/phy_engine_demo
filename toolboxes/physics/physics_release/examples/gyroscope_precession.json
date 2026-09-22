@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "name": "Gravity driven gyroscope precession",
+  "world": {
+    "duration": 4,
+    "dt": 0.005,
+    "output_fps": 30,
+    "gravity": [
+      0,
+      -9.81,
+      0
+    ],
+    "bounds": {
+      "min": [
+        -2.5,
+        -0.3,
+        -2
+      ],
+      "max": [
+        2.5,
+        3,
+        2
+      ]
+    }
+  },
+  "budget": {
+    "wall_time_s": 60,
+    "quality": "balanced",
+    "backend": "native"
+  },
+  "coupling": {
+    "substeps": 8,
+    "iterations": 5,
+    "friction": 0.1
+  },
+  "entities": [
+    {
+      "id": "top",
+      "type": "rigid_body",
+      "shape": {
+        "type": "cylinder",
+        "radius": 0.36,
+        "height": 0.12
+      },
+      "position": [
+        -0.21574149237189136,
+        1.0449121528506677,
+        0
+      ],
+      "mass": 1,
+      "orientation": [
+        0.9689124217106447,
+        0,
+        0,
+        0.24740395925452294
+      ],
+      "angular_velocity": [
+        -19.17702154416812,
+        35.10330247561491,
+        0.0
+      ],
+      "pivot": {
+        "point": [
+          0,
+          0.65,
+          0
+        ],
+        "local_point": [
+          0,
+          -0.45,
+          0
+        ]
+      }
+    }
+  ],
+  "connections": [],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": false
+  },
+  "queries": [
+    {
+      "id": "tilt",
+      "type": "series",
+      "metric": {
+        "type": "axis_tilt",
+        "entity": "top"
+      }
+    },
+    {
+      "id": "spin",
+      "type": "series",
+      "metric": {
+        "type": "angular_speed",
+        "entity": "top"
+      }
+    },
+    {
+      "id": "vertical-angular-momentum",
+      "type": "series",
+      "metric": {
+        "type": "angular_momentum",
+        "entity": "top",
+        "axis": "y"
+      }
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "name": "Water hits a freely suspended massive elastic tube",
+  "world": {
+    "duration": 1.5,
+    "dt": 0.005,
+    "output_fps": 30,
+    "gravity": [
+      0,
+      0,
+      0
+    ],
+    "bounds": {
+      "min": [
+        -2.5,
+        -1,
+        -2
+      ],
+      "max": [
+        2.5,
+        3,
+        2
+      ]
+    }
+  },
+  "budget": {
+    "wall_time_s": 60,
+    "quality": "balanced",
+    "backend": "native"
+  },
+  "coupling": {
+    "substeps": 8,
+    "iterations": 5,
+    "friction": 0.1
+  },
+  "entities": [
+    {
+      "id": "water",
+      "type": "fluid",
+      "shape": {
+        "type": "sphere",
+        "center": [
+          0,
+          1.9,
+          0
+        ],
+        "radius": 0.22
+      },
+      "spacing": 0.06,
+      "velocity": [
+        0,
+        -1.5,
+        0
+      ]
+    },
+    {
+      "id": "a",
+      "type": "point_mass",
+      "position": [
+        -0.8,
+        1,
+        0
+      ],
+      "mass": 4,
+      "collision_radius": 0.08
+    },
+    {
+      "id": "b",
+      "type": "point_mass",
+      "position": [
+        0.8,
+        1,
+        0
+      ],
+      "mass": 4,
+      "collision_radius": 0.08
+    }
+  ],
+  "connections": [
+    {
+      "id": "tube",
+      "type": "spring",
+      "entities": [
+        "a",
+        "b"
+      ],
+      "rest_length": 1.6,
+      "stiffness": 25,
+      "damping": 0.1,
+      "solid": {
+        "radius": 0.12,
+        "mass": 1
+      }
+    }
+  ],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": false
+  },
+  "queries": [
+    {
+      "id": "endpoint-y",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "a",
+        "axis": "y"
+      }
+    },
+    {
+      "id": "water-y",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "water",
+        "axis": "y"
+      }
+    },
+    {
+      "id": "length",
+      "type": "series",
+      "metric": {
+        "type": "connection_length",
+        "connection": "tube"
+      }
+    }
+  ]
+}

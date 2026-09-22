@@ -1,0 +1,2560 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.physics.demo/scene-v1.schema.json",
+  "title": "Agent Physics Demo Scene v1 (v1.0.0 routes)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "name",
+    "world",
+    "budget",
+    "entities",
+    "colliders"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "$ref": "#/$defs/identifier"
+    },
+    "world": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gravity",
+        "duration",
+        "dt",
+        "output_fps",
+        "bounds"
+      ],
+      "properties": {
+        "gravity": {
+          "$ref": "#/$defs/acceleration_vec3"
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 30
+        },
+        "dt": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 0.05
+        },
+        "output_fps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "bounds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "min",
+            "max"
+          ],
+          "properties": {
+            "min": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "max": {
+              "$ref": "#/$defs/coordinate_vec3"
+            }
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wall_time_s",
+        "quality"
+      ],
+      "properties": {
+        "wall_time_s": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "quality": {
+          "enum": [
+            "preview",
+            "balanced",
+            "high"
+          ]
+        },
+        "backend": {
+          "enum": [
+            "auto",
+            "native",
+            "python"
+          ]
+        },
+        "validation": {
+          "enum": [
+            "visual",
+            "strict"
+          ],
+          "description": "visual: prioritize video delivery, keep precision warnings; strict: require all numerical checks. Raw API default strict."
+        }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "point_mass"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 64
+        }
+      ],
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/point_mass"
+          },
+          {
+            "$ref": "#/$defs/fluid"
+          },
+          {
+            "$ref": "#/$defs/granular"
+          },
+          {
+            "$ref": "#/$defs/rigid"
+          },
+          {
+            "$ref": "#/$defs/mesh"
+          },
+          {
+            "$ref": "#/$defs/slider"
+          },
+          {
+            "$ref": "#/$defs/rigid_body"
+          }
+        ]
+      }
+    },
+    "colliders": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/collider"
+      }
+    },
+    "force_fields": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/force_field"
+      }
+    },
+    "queries": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/query"
+      }
+    },
+    "connections": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/coupled_connection"
+      }
+    },
+    "connection_settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "substeps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        }
+      }
+    },
+    "mesh_settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "substeps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      }
+    },
+    "interactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mutual_gravity": {
+          "type": "boolean"
+        },
+        "gravity_G": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "softening": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "water_sand_drag": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "wetting_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "coupling": {
+      "$ref": "#/$defs/coupling_settings"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": [
+              "connections"
+            ]
+          },
+          {
+            "not": {
+              "$ref": "#/$defs/coupled_route"
+            }
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "entities": {
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/$defs/connection_point_mass"
+            }
+          },
+          "world": {
+            "properties": {
+              "duration": {
+                "minimum": 0.0001
+              }
+            }
+          },
+          "colliders": {
+            "maxItems": 0
+          },
+          "budget": {
+            "properties": {
+              "backend": {
+                "enum": [
+                  "auto",
+                  "native"
+                ]
+              }
+            }
+          },
+          "interactions": {
+            "properties": {
+              "mutual_gravity": {
+                "const": false
+              }
+            }
+          },
+          "connections": {
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/connection"
+            }
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "connection_settings"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "entities": {
+            "contains": {
+              "type": "object",
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "const": "slider"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "entities": {
+            "maxItems": 16,
+            "items": {
+              "$ref": "#/$defs/slider"
+            }
+          },
+          "colliders": {
+            "maxItems": 0
+          },
+          "force_fields": {
+            "maxItems": 0
+          },
+          "budget": {
+            "properties": {
+              "backend": {
+                "enum": [
+                  "auto",
+                  "python"
+                ]
+              }
+            }
+          },
+          "interactions": {
+            "properties": {
+              "mutual_gravity": {
+                "const": false
+              }
+            }
+          },
+          "world": {
+            "properties": {
+              "gravity": {
+                "prefixItems": [
+                  {
+                    "const": 0
+                  },
+                  {
+                    "$ref": "#/$defs/acceleration_component"
+                  },
+                  {
+                    "const": 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "entities": {
+            "contains": {
+              "type": "object",
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "const": "mesh"
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "if": {
+          "not": {
+            "$ref": "#/$defs/coupled_route"
+          }
+        },
+        "then": {
+          "properties": {
+            "entities": {
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/mesh"
+              },
+              "contains": {
+                "properties": {
+                  "motion": {
+                    "const": "soft"
+                  }
+                }
+              },
+              "minContains": 0,
+              "maxContains": 4
+            },
+            "force_fields": {
+              "maxItems": 0
+            },
+            "budget": {
+              "properties": {
+                "backend": {
+                  "enum": [
+                    "auto",
+                    "native"
+                  ]
+                }
+              }
+            },
+            "world": {
+              "properties": {
+                "duration": {
+                  "minimum": 0.0001
+                }
+              }
+            },
+            "interactions": {
+              "properties": {
+                "mutual_gravity": {
+                  "const": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "mesh_settings"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "$ref": "#/$defs/coupled_route"
+      },
+      "then": {
+        "not": {
+          "required": [
+            "connection_settings"
+          ]
+        },
+        "properties": {
+          "entities": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/coupled_point_mass"
+                },
+                {
+                  "$ref": "#/$defs/fluid"
+                },
+                {
+                  "$ref": "#/$defs/granular"
+                },
+                {
+                  "$ref": "#/$defs/mesh"
+                },
+                {
+                  "$ref": "#/$defs/rigid_body"
+                }
+              ]
+            },
+            "allOf": [
+              {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "rigid_body"
+                    }
+                  }
+                },
+                "minContains": 0,
+                "maxContains": 16
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "mesh"
+                    }
+                  }
+                },
+                "minContains": 0,
+                "maxContains": 16
+              },
+              {
+                "contains": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "type"
+                      ],
+                      "properties": {
+                        "type": {
+                          "const": "mesh"
+                        }
+                      }
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "not": {
+                            "required": [
+                              "motion"
+                            ]
+                          }
+                        },
+                        {
+                          "properties": {
+                            "motion": {
+                              "const": "soft"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "minContains": 0,
+                "maxContains": 4
+              }
+            ]
+          },
+          "connections": {
+            "maxItems": 128,
+            "items": {
+              "$ref": "#/$defs/coupled_connection"
+            }
+          },
+          "budget": {
+            "properties": {
+              "backend": {
+                "enum": [
+                  "auto",
+                  "native"
+                ]
+              }
+            }
+          },
+          "interactions": {
+            "properties": {
+              "mutual_gravity": {
+                "const": false
+              }
+            }
+          },
+          "world": {
+            "properties": {
+              "duration": {
+                "minimum": 0.0001
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "entities": {
+            "items": {
+              "not": {
+                "required": [
+                  "collision_radius"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "connection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "entities",
+            "rest_length",
+            "stiffness"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "spring"
+            },
+            "entities": {
+              "$ref": "#/$defs/connection_endpoints"
+            },
+            "rest_length": {
+              "type": "number",
+              "minimum": 1e-06,
+              "maximum": 1000
+            },
+            "stiffness": {
+              "type": "number",
+              "minimum": 1e-09,
+              "maximum": 10000000
+            },
+            "damping": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "entities",
+            "rest_length"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "enum": [
+                "rod",
+                "rope"
+              ]
+            },
+            "entities": {
+              "$ref": "#/$defs/connection_endpoints"
+            },
+            "rest_length": {
+              "type": "number",
+              "minimum": 1e-06,
+              "maximum": 1000
+            }
+          }
+        }
+      ],
+      "description": "Massless links between distinct existing point masses. Connection IDs must be unique; endpoint references and numerical feasibility are checked at runtime. Spring stiffness is N/m and damping N*s/m. Rod length is fixed; rope is tension-only."
+    },
+    "connection_endpoints": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/identifier"
+      }
+    },
+    "connection_point_mass": {
+      "properties": {
+        "mass": {
+          "minimum": 1e-09
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/point_mass"
+        },
+        {
+          "if": {
+            "required": [
+              "fixed"
+            ],
+            "properties": {
+              "fixed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "velocity": {
+                "const": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mesh_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "description",
+            "image",
+            "imagined"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "enum": [
+                  "image",
+                  "imagined"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "notes"
+            ],
+            "properties": {
+              "notes": {
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mesh_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "vertex_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "triangle_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edge_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "boundary_edges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "connected": {
+          "type": "boolean"
+        },
+        "consistent_orientation": {
+          "type": "boolean"
+        },
+        "self_intersection_checked": {
+          "type": "boolean"
+        },
+        "signed_volume": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "surface_area": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "min_edge": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bounds": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          }
+        },
+        "recipe": {
+          "enum": [
+            "raw",
+            "ellipsoid",
+            "box",
+            "torus",
+            "lathe",
+            "extrusion",
+            "cloth"
+          ]
+        },
+        "provenance": {
+          "$ref": "#/$defs/mesh_provenance"
+        },
+        "units": {
+          "const": "metres"
+        }
+      }
+    },
+    "mesh_asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vertices",
+        "triangles"
+      ],
+      "properties": {
+        "vertices": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 4096,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          }
+        },
+        "triangles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8192,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4095
+            }
+          }
+        },
+        "metadata": {
+          "$ref": "#/$defs/mesh_metadata"
+        }
+      },
+      "description": "One connected, consistently wound triangle surface. Runtime checks indices, degeneracy, manifold edges/vertices, self-intersection and outward closed winding; saved audit fields are recomputed."
+    },
+    "mesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "mesh"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "mesh"
+        },
+        "mesh": {
+          "$ref": "#/$defs/mesh_asset"
+        },
+        "motion": {
+          "enum": [
+            "soft",
+            "static",
+            "kinematic"
+          ]
+        },
+        "position": {
+          "$ref": "#/$defs/coordinate_vec3"
+        },
+        "velocity": {
+          "$ref": "#/$defs/velocity_vec3"
+        },
+        "mass": {
+          "type": "number",
+          "minimum": 1e-06,
+          "maximum": 1000000.0
+        },
+        "edge_compliance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "bending_compliance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "volume_compliance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "damping": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "thickness": {
+          "type": "number",
+          "minimum": 1e-05,
+          "maximum": 0.25
+        },
+        "pinned_vertices": {
+          "type": "array",
+          "maxItems": 4096,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        "color": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "motion"
+            ],
+            "properties": {
+              "motion": {
+                "const": "static"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "velocity": {
+                "const": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "motion"
+            ],
+            "properties": {
+              "motion": {
+                "enum": [
+                  "static",
+                  "kinematic"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "pinned_vertices": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "coordinate": {
+      "type": "number",
+      "minimum": -10000,
+      "maximum": 10000
+    },
+    "velocity_component": {
+      "type": "number",
+      "minimum": -500,
+      "maximum": 500
+    },
+    "acceleration_component": {
+      "type": "number",
+      "minimum": -250,
+      "maximum": 250
+    },
+    "positive_shape_extent": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000
+    },
+    "mass": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "positive_mass": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000000000000
+    },
+    "vec3": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "coordinate_vec3": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/coordinate"
+        },
+        {
+          "$ref": "#/$defs/coordinate"
+        },
+        {
+          "$ref": "#/$defs/coordinate"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "velocity_vec3": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/velocity_component"
+        },
+        {
+          "$ref": "#/$defs/velocity_component"
+        },
+        {
+          "$ref": "#/$defs/velocity_component"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "acceleration_vec3": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/acceleration_component"
+        },
+        {
+          "$ref": "#/$defs/acceleration_component"
+        },
+        {
+          "$ref": "#/$defs/acceleration_component"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "positive_shape_extent_vec3": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/positive_shape_extent"
+        },
+        {
+          "$ref": "#/$defs/positive_shape_extent"
+        },
+        {
+          "$ref": "#/$defs/positive_shape_extent"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "volume_shape": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "center",
+            "radius"
+          ],
+          "properties": {
+            "type": {
+              "const": "sphere"
+            },
+            "center": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "radius": {
+              "$ref": "#/$defs/positive_shape_extent"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "center",
+            "size"
+          ],
+          "properties": {
+            "type": {
+              "const": "box"
+            },
+            "center": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "size": {
+              "$ref": "#/$defs/positive_shape_extent_vec3"
+            }
+          }
+        }
+      ]
+    },
+    "rigid_shape": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ],
+          "properties": {
+            "type": {
+              "const": "sphere"
+            },
+            "radius": {
+              "$ref": "#/$defs/positive_shape_extent"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "size"
+          ],
+          "properties": {
+            "type": {
+              "const": "box"
+            },
+            "size": {
+              "$ref": "#/$defs/positive_shape_extent_vec3"
+            }
+          }
+        }
+      ]
+    },
+    "point_mass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "mass",
+        "position"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "point_mass"
+        },
+        "mass": {
+          "$ref": "#/$defs/positive_mass"
+        },
+        "position": {
+          "$ref": "#/$defs/coordinate_vec3"
+        },
+        "velocity": {
+          "$ref": "#/$defs/velocity_vec3",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "fixed": {
+          "type": "boolean"
+        },
+        "collision_radius": {
+          "oneOf": [
+            {
+              "const": 0
+            },
+            {
+              "type": "number",
+              "minimum": 0.0001,
+              "maximum": 10
+            }
+          ],
+          "default": 0,
+          "description": "Coupled route only. Zero disables contact; values in [0.0001,10] m provide a collision sphere around the point."
+        }
+      }
+    },
+    "fluid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "shape",
+        "spacing",
+        "velocity"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "fluid"
+        },
+        "shape": {
+          "$ref": "#/$defs/volume_shape"
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 0.5
+        },
+        "velocity": {
+          "$ref": "#/$defs/velocity_vec3"
+        },
+        "preset": {
+          "enum": [
+            "water",
+            "honey",
+            "glue",
+            "molten_lead"
+          ],
+          "default": "water",
+          "description": "Canonical liquid behavior and appearance preset. Explicit properties override its model coefficients."
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "viscosity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "surface_tension": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10
+            }
+          }
+        }
+      }
+    },
+    "granular": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "shape",
+        "spacing",
+        "velocity"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "granular"
+        },
+        "shape": {
+          "$ref": "#/$defs/volume_shape"
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 0.5
+        },
+        "velocity": {
+          "$ref": "#/$defs/velocity_vec3"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "friction": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "cohesion": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "rigid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "shape",
+        "position",
+        "velocity",
+        "mass"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "rigid"
+        },
+        "shape": {
+          "$ref": "#/$defs/rigid_shape"
+        },
+        "position": {
+          "$ref": "#/$defs/coordinate_vec3"
+        },
+        "velocity": {
+          "$ref": "#/$defs/velocity_vec3"
+        },
+        "mass": {
+          "$ref": "#/$defs/mass"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "shape": {
+                "properties": {
+                  "type": {
+                    "const": "box"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "mass": {
+                "const": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "slider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "slider"
+        },
+        "position": {
+          "$ref": "#/$defs/coordinate_vec3"
+        },
+        "velocity": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/velocity_component"
+            },
+            {
+              "const": 0
+            },
+            {
+              "const": 0
+            }
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/positive_shape_extent_vec3"
+        },
+        "mass": {
+          "type": "number",
+          "minimum": 1e-12,
+          "maximum": 1000000000000
+        },
+        "acceleration": {
+          "$ref": "#/$defs/acceleration_component"
+        },
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "restitution": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "description": "Common X-rail model only; all slider centre Y/Z and size Y/Z must agree and initial X extents must not overlap. Runtime validates cross-entity constraints."
+    },
+    "query_metric": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "connection"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "connection_length",
+                "connection_extension",
+                "spring_force",
+                "spring_energy"
+              ]
+            },
+            "connection": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entity",
+            "plane",
+            "origin"
+          ],
+          "properties": {
+            "type": {
+              "const": "spread_radius"
+            },
+            "entity": {
+              "$ref": "#/$defs/identifier"
+            },
+            "plane": {
+              "enum": [
+                "xy",
+                "xz",
+                "yz"
+              ]
+            },
+            "origin": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number",
+                "minimum": -1000000,
+                "maximum": 1000000
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entity",
+            "axis"
+          ],
+          "properties": {
+            "type": {
+              "const": "centroid"
+            },
+            "entity": {
+              "$ref": "#/$defs/identifier"
+            },
+            "axis": {
+              "enum": [
+                "x",
+                "y",
+                "z"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entity"
+          ],
+          "properties": {
+            "type": {
+              "const": "speed"
+            },
+            "entity": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entity"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "volume_ratio",
+                "max_displacement",
+                "max_edge_strain"
+              ]
+            },
+            "entity": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entities"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "center_distance",
+                "surface_gap"
+              ]
+            },
+            "entities": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entity"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "angular_speed",
+                "rotational_energy",
+                "axis_tilt"
+              ]
+            },
+            "entity": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "entity",
+            "axis"
+          ],
+          "properties": {
+            "type": {
+              "const": "angular_momentum"
+            },
+            "entity": {
+              "$ref": "#/$defs/identifier"
+            },
+            "axis": {
+              "enum": [
+                "x",
+                "y",
+                "z"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "Connection metrics target an existing connection; spring_force/spring_energy require a spring. Entity targets must name existing entities. spread_radius requires particles or mesh vertices; volume_ratio requires a closed mesh, max_displacement/max_edge_strain require a mesh. surface_gap requires two rigid spheres, two static boxes, or two sliders and excludes arbitrary meshes. Runtime validates those semantic restrictions. Angular metrics require rigid_body: world angular speed (rad/s), world angular-momentum axis component (kg*m^2/s), rotational kinetic energy (J), and angle between body +Y and world +Y (rad). Pivot momentum/energy are about the fixed anchor."
+    },
+    "query": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "metric",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "threshold"
+            },
+            "metric": {
+              "$ref": "#/$defs/query_metric"
+            },
+            "operator": {
+              "enum": [
+                "gte",
+                "lte"
+              ]
+            },
+            "value": {
+              "type": "number",
+              "minimum": -1000000,
+              "maximum": 1000000
+            },
+            "hold_for": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30,
+              "default": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "metric"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "series"
+            },
+            "metric": {
+              "$ref": "#/$defs/query_metric"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "max_radius",
+            "min_separation"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "nbody_stability"
+            },
+            "max_radius": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000000
+            },
+            "min_separation": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1000000
+            }
+          }
+        }
+      ],
+      "description": "Query IDs must be unique; hold_for cannot exceed world.duration. N-body stability requires at least two nonfixed, mutually gravitating point masses, positive G and no targeted external fields. Runtime validates these cross-field constraints."
+    },
+    "collider": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "normal",
+            "offset"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "plane"
+            },
+            "normal": {
+              "$ref": "#/$defs/vec3"
+            },
+            "offset": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "friction": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "water_adhesion": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 250
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "center",
+            "radius"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "sphere"
+            },
+            "center": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "radius": {
+              "$ref": "#/$defs/positive_shape_extent"
+            },
+            "friction": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "center",
+            "size"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "box"
+            },
+            "center": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "size": {
+              "$ref": "#/$defs/positive_shape_extent_vec3"
+            },
+            "friction": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "appearance": {
+              "enum": [
+                "solid",
+                "glass"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "a",
+            "b",
+            "radius"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "capsule"
+            },
+            "a": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "b": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "radius": {
+              "$ref": "#/$defs/positive_shape_extent"
+            },
+            "friction": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5
+            }
+          }
+        }
+      ]
+    },
+    "force_field": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "targets",
+            "acceleration"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "uniform"
+            },
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            },
+            "acceleration": {
+              "$ref": "#/$defs/acceleration_vec3"
+            },
+            "start_time": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30
+            },
+            "end_time": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 30
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "targets",
+            "center",
+            "strength",
+            "radius"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "radial"
+            },
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            },
+            "center": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "strength": {
+              "type": "number",
+              "minimum": -250,
+              "maximum": 250
+            },
+            "radius": {
+              "$ref": "#/$defs/positive_shape_extent"
+            },
+            "start_time": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30
+            },
+            "end_time": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 30
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "targets",
+            "center",
+            "axis",
+            "strength",
+            "radius"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "vortex"
+            },
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/identifier"
+              }
+            },
+            "center": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "axis": {
+              "$ref": "#/$defs/vec3"
+            },
+            "strength": {
+              "type": "number",
+              "minimum": -250,
+              "maximum": 250
+            },
+            "inward_strength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 250
+            },
+            "radius": {
+              "$ref": "#/$defs/positive_shape_extent"
+            },
+            "start_time": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 30
+            },
+            "end_time": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 30
+            }
+          }
+        }
+      ]
+    },
+    "coupled_route": {
+      "anyOf": [
+        {
+          "required": [
+            "coupling"
+          ]
+        },
+        {
+          "properties": {
+            "entities": {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "rigid_body"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "coupling_settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "substeps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 0.2
+        }
+      }
+    },
+    "quaternion": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number",
+        "minimum": -1.0000005,
+        "maximum": 1.0000005
+      },
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "description": "Unit quaternion [w,x,y,z] mapping body coordinates to world coordinates. Runtime checks norm within 1e-6 and normalizes it."
+    },
+    "rotating_shape": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius"
+          ],
+          "properties": {
+            "type": {
+              "const": "sphere"
+            },
+            "radius": {
+              "type": "number",
+              "minimum": 0.0001,
+              "maximum": 100
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "size"
+          ],
+          "properties": {
+            "type": {
+              "const": "box"
+            },
+            "size": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number",
+                "minimum": 0.0001,
+                "maximum": 100
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius",
+            "height"
+          ],
+          "properties": {
+            "type": {
+              "const": "cylinder"
+            },
+            "radius": {
+              "type": "number",
+              "minimum": 0.0001,
+              "maximum": 100
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0.0001,
+              "maximum": 100
+            }
+          }
+        }
+      ],
+      "description": "Uniform solid geometry centered at the COM. Cylinder axis is local Y; principal inertia is derived from shape and mass."
+    },
+    "rigid_body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "shape"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "const": "rigid_body"
+        },
+        "shape": {
+          "$ref": "#/$defs/rotating_shape"
+        },
+        "position": {
+          "$ref": "#/$defs/coordinate_vec3"
+        },
+        "velocity": {
+          "$ref": "#/$defs/velocity_vec3"
+        },
+        "mass": {
+          "type": "number",
+          "minimum": 1e-06,
+          "maximum": 1000000.0
+        },
+        "orientation": {
+          "$ref": "#/$defs/quaternion"
+        },
+        "angular_velocity": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": -10000,
+            "maximum": 10000
+          }
+        },
+        "fixed": {
+          "type": "boolean",
+          "default": false
+        },
+        "friction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 0.2
+        },
+        "restitution": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "pivot": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "point",
+            "local_point"
+          ],
+          "properties": {
+            "point": {
+              "$ref": "#/$defs/coordinate_vec3"
+            },
+            "local_point": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "number",
+                "minimum": -100,
+                "maximum": 100
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "fixed"
+            ],
+            "properties": {
+              "fixed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "pivot"
+              ]
+            },
+            "properties": {
+              "velocity": {
+                "const": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "angular_velocity": {
+                "const": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "description": "World COM position, world linear/angular velocity, and body-to-world attitude. A fixed pivot uses COM-relative local_point on one principal axis. Runtime checks pivot consistency, COM velocity omega x (COM-pivot), positive inertia and initial geometry."
+    },
+    "coupled_attachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity"
+      ],
+      "properties": {
+        "entity": {
+          "$ref": "#/$defs/identifier"
+        },
+        "vertex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4095
+        },
+        "local_point": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          }
+        }
+      },
+      "not": {
+        "required": [
+          "vertex",
+          "local_point"
+        ]
+      },
+      "description": "point_mass: entity only; mesh: entity plus local vertex index; rigid_body: entity and optional COM-relative local_point. Runtime checks endpoint type and local distance <=100 m."
+    },
+    "coupled_connection": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "rest_length",
+            "stiffness"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "spring"
+            },
+            "entities": {
+              "$ref": "#/$defs/connection_endpoints"
+            },
+            "rest_length": {
+              "type": "number",
+              "minimum": 1e-06,
+              "maximum": 1000
+            },
+            "stiffness": {
+              "type": "number",
+              "minimum": 1e-09,
+              "maximum": 10000000
+            },
+            "damping": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            },
+            "endpoints": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/coupled_attachment"
+              },
+              "uniqueItems": true
+            },
+            "solid": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "radius"
+              ],
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "minimum": 0.0001,
+                  "maximum": 1
+                },
+                "mass": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000,
+                  "default": 0
+                }
+              }
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "entities"
+              ],
+              "not": {
+                "required": [
+                  "endpoints"
+                ]
+              }
+            },
+            {
+              "required": [
+                "endpoints"
+              ],
+              "not": {
+                "required": [
+                  "entities"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "rest_length"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "enum": [
+                "rod",
+                "rope"
+              ]
+            },
+            "entities": {
+              "$ref": "#/$defs/connection_endpoints"
+            },
+            "rest_length": {
+              "type": "number",
+              "minimum": 1e-06,
+              "maximum": 1000
+            },
+            "endpoints": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/coupled_attachment"
+              },
+              "uniqueItems": true
+            },
+            "solid": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "radius"
+              ],
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "minimum": 0.0001,
+                  "maximum": 1
+                },
+                "mass": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000,
+                  "default": 0
+                }
+              }
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "entities"
+              ],
+              "not": {
+                "required": [
+                  "endpoints"
+                ]
+              }
+            },
+            {
+              "required": [
+                "endpoints"
+              ],
+              "not": {
+                "required": [
+                  "entities"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Mixed-route spring/rod/rope attachment. Optional solid is a straight collision capsule; it is not resolved helical wire. Positive mass is allowed only between point masses and is split half to each endpoint. Runtime checks geometry, attachment types and stiffness planning."
+    },
+    "coupled_point_mass": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/point_mass"
+        },
+        {
+          "properties": {
+            "mass": {
+              "minimum": 1e-09,
+              "maximum": 1000000000000.0
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "fixed"
+            ],
+            "properties": {
+              "fixed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "velocity": {
+                "const": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

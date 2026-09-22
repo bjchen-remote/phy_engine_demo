@@ -1,0 +1,331 @@
+[
+  {
+    "name": "physics_capabilities",
+    "description": "Call once at the start of a task. It reports supported physics, hard limits, fidelity claims, canonical examples, and the recommended state-machine workflow. Follow status and next_action on every response; do not retry an unsupported feature.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_liquid",
+    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for 水, honey for 蜂蜜, glue for 胶水/黏胶/白胶, and molten_lead for 铅水/熔融铅. The coefficients are model controls rather than calibrated SI properties.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "preset": {
+          "type": "string",
+          "enum": [
+            "water",
+            "honey",
+            "glue",
+            "molten_lead"
+          ]
+        },
+        "entity_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "\\S",
+          "description": "The exact target fluid entity id, without the @ selector prefix. Unicode and JSON-Pointer characters are accepted."
+        }
+      },
+      "required": [
+        "preset",
+        "entity_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_system",
+    "description": "Build a pendulum or double_pendulum from a small physical parameter object, without editing examples. spec_json fields: type; lengths, masses, angles, angular_velocities arrays (one or two links; SI units, radians from downward vertical, absolute angular velocities); gravity, duration, dt, output_fps, quality, wall_time_s. Omitted parameters use declared system defaults. Returns scene_json for physics_prepare; does not simulate.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "spec_json": {
+          "type": "string",
+          "description": "Strict JSON system parameter object, e.g. {\"type\":\"double_pendulum\",\"lengths\":[1,1],\"masses\":[1,1],\"angles\":[2,2.4],\"duration\":8,\"dt\":0.002}.",
+          "maxLength": 1000000
+        }
+      },
+      "required": [
+        "spec_json"
+      ],
+      "additionalProperties": false
+    },
+    "strict": true
+  },
+  {
+    "name": "physics_mesh",
+    "description": "Build and audit a triangle mesh from a bounded recipe or explicit vertices/triangles. Pass spec_json with type ellipsoid/box/torus/lathe/extrusion/cloth/raw; returns mesh_json and audit. A vision agent must interpret images first and include provenance.source=image with notes stating assumed depth/unseen geometry. Use source=imagined for invented hidden surfaces. Parse mesh_json into entity.mesh, select motion soft/static/kinematic, then prepare the complete scene. Use coupling:{} for supported mixed water/rigid/attachment reactions; standalone meshes keep their existing route. This tool does not read images or execute modeling code.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "spec_json": {
+          "type": "string",
+          "maxLength": 1000000,
+          "description": "A finite recipe JSON object; image/imagined provenance requires notes. Coordinates and lengths use metres."
+        }
+      },
+      "required": [
+        "spec_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_example",
+    "description": "Load one canonical scene, its fidelity limitation, inherited-assumption rule, stable patch paths, and customer metadata when available. Prefer this when it is close to the request, then patch every explicit difference. Track important unpatched preset choices even when validator assumptions is empty. The response includes both a scene object and serialized scene_json.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "three_body",
+            "droplet_ground",
+            "liquid_preset_showcase",
+            "droplet_pool",
+            "droplet_sphere",
+            "water_blob",
+            "sandcastle_wash",
+            "high_detail_droplet_sphere",
+            "geyser",
+            "sand_blast",
+            "whirlpool",
+            "water_obstacle_course",
+            "zero_g_droplet_collision",
+            "product_pour_tumbler",
+            "fountain_hoop",
+            "flood_bridge_piers",
+            "sand_sculpture_wave",
+            "microgravity_three_drops",
+            "cosmetic_hero_splash",
+            "vehicle_wading_splash",
+            "three_body_queries",
+            "droplet_radius_query",
+            "sliders_separate",
+            "mesh_soft_drop",
+            "mesh_soft_collision",
+            "mesh_ring_insertion",
+            "mesh_cloth_drape",
+            "mesh_image_extrusion",
+            "mesh_imagined_shape",
+            "spring_oscillator",
+            "damped_spring",
+            "coupled_springs",
+            "rod_pendulum",
+            "rope_catch",
+            "spring_chain",
+            "spring_pendulum",
+            "gyroscope_precession",
+            "torque_free_tumble",
+            "spring_rigid_pendulum",
+            "water_spring_reaction",
+            "solid_spring_water",
+            "ghost_spring_water",
+            "water_soft_sheet",
+            "water_sheet_spring_rigid"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_validate",
+    "description": "Normalize and semantically validate a complete scene before estimating or simulating it. Pass the scene as a JSON string so the service can report all unit, range, geometry, and capability errors together. Use returned assumptions and warnings in the final answer; correct structured errors and retry no more than twice.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "scene_json": {
+          "type": "string",
+          "description": "A complete scene-v1 JSON object serialized as a string."
+        }
+      },
+      "required": [
+        "scene_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_estimate",
+    "description": "Low-level planning call for clients that separate validation and estimation. It reports effective spacing, caps, adjustments, and calibrated p50/p90 time. For normal agent use, physics_prepare is simpler. Never simulate while plan.timing_estimate.fits_budget is false.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "scene_json": {
+          "type": "string"
+        },
+        "budget_seconds": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 300
+        }
+      },
+      "required": [
+        "scene_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_prepare",
+    "description": "Preferred preflight call. Declare numerical questions in scene.queries before this call. It validates, normalizes, estimates simulation and measurement costs, checks the hard budget, and returns the exact scene_json to simulate. Continue only when ok and ready_to_simulate are both true; report plan.timing_estimate, measurement_plan when present, and every adjustment before simulation.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "scene_json": {
+          "type": "string",
+          "description": "A complete scene-v1 JSON object serialized as a string."
+        },
+        "budget_seconds": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 300
+        }
+      },
+      "required": [
+        "scene_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_simulate",
+    "description": "Run the exact scene_json returned by a successful physics_prepare call and produce result.json, summary.json, simulation.mp4 and measurements.json when queries were declared. budget_seconds overrides budget.wall_time_s for this call. Use a new dedicated output directory. Return the video only when status is completed and quality_gate.passed is true; retrieve requested declared answers with physics_query.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "scene_json": {
+          "type": "string"
+        },
+        "output_dir": {
+          "type": "string",
+          "description": "A writable directory dedicated to this run."
+        },
+        "budget_seconds": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 300
+        }
+      },
+      "required": [
+        "scene_json",
+        "output_dir"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_inspect",
+    "description": "Recover or re-check the compact outcome of an existing run. Normal successful physics_simulate responses are already compact and need no second inspection call. This returns runtime, diagnostics, fidelity limits, retry history, quality gate, and MP4 path without loading the full trajectory.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "result_path": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "Path to result.json or its containing run directory."
+        }
+      },
+      "required": [
+        "result_path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_query",
+    "description": "Retrieve verified quantitative answers declared in scene.queries before the run. Pass a run directory or result.json and optionally a declared query ID; null or omission selects all. This checks saved run quality and measurement integrity. Report status, units, observation window, model scope and event-time bracket. not_observed does not mean never; finite-horizon N-body criteria are not a proof of long-term stability. New questions require a newly prepared run.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "result_path": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "Path to result.json or its containing run directory."
+        },
+        "query_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "One predeclared query ID, or null for all declared queries."
+        }
+      },
+      "required": [
+        "result_path"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "physics_patch",
+    "description": "Atomically modify a prior scene with JSON Patch operations, for example changing a drop height or obstacle radius. Use stable entity selectors such as /entities/@drop/shape/center/1 rather than an array index. Validate and estimate the returned scene before running it; if one operation fails, none are applied.",
+    "strict": true,
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "scene_json": {
+          "type": "string"
+        },
+        "operations": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "add",
+                  "replace",
+                  "remove"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "value_json": {
+                "type": "string",
+                "maxLength": 1000000,
+                "description": "The replacement value serialized as JSON; use null for remove."
+              }
+            },
+            "required": [
+              "op",
+              "path",
+              "value_json"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "scene_json",
+        "operations"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

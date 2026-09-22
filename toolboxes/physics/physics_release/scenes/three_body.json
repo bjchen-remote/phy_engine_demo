@@ -1,0 +1,84 @@
+{
+  "budget": {
+    "backend": "native",
+    "quality": "preview",
+    "wall_time_s": 30
+  },
+  "colliders": [],
+  "entities": [
+    {
+      "id": "body-a",
+      "mass": 1,
+      "position": [
+        -0.97000436,
+        0.24308753,
+        0
+      ],
+      "type": "point_mass",
+      "velocity": [
+        0.466203685,
+        0.43236573,
+        0
+      ]
+    },
+    {
+      "id": "body-b",
+      "mass": 1,
+      "position": [
+        0.97000436,
+        -0.24308753,
+        0
+      ],
+      "type": "point_mass",
+      "velocity": [
+        0.466203685,
+        0.43236573,
+        0
+      ]
+    },
+    {
+      "id": "body-c",
+      "mass": 1,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "type": "point_mass",
+      "velocity": [
+        -0.93240737,
+        -0.86473146,
+        0
+      ]
+    }
+  ],
+  "interactions": {
+    "gravity_G": 1,
+    "mutual_gravity": true,
+    "softening": 0.0001
+  },
+  "name": "three-body-figure-eight",
+  "version": 1,
+  "world": {
+    "bounds": {
+      "max": [
+        2,
+        2,
+        1
+      ],
+      "min": [
+        -2,
+        -2,
+        -1
+      ]
+    },
+    "dt": 0.005,
+    "duration": 6.3259,
+    "gravity": [
+      0,
+      0,
+      0
+    ],
+    "output_fps": 30
+  }
+}

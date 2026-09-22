@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "name": "droplet-on-sphere",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 1.45,
+    "dt": 0.0111111111,
+    "output_fps": 24,
+    "bounds": {"min": [-1.6, 0, -1.6], "max": [1.6, 2.8, 1.6]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "drop",
+      "type": "fluid",
+      "shape": {"type": "sphere", "center": [0, 2.1, 0], "radius": 0.3},
+      "spacing": 0.04,
+      "velocity": [0, 0, 0]
+    },
+    {
+      "id": "ball",
+      "type": "rigid",
+      "shape": {"type": "sphere", "radius": 0.55},
+      "position": [0, 0.62, 0],
+      "mass": 0,
+      "velocity": [0, 0, 0]
+    }
+  ],
+  "colliders": [
+    {"id": "ground", "type": "plane", "normal": [0, 1, 0], "offset": 0}
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "name": "high-detail-droplet-on-sphere",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 1.35,
+    "dt": 0.0111111111,
+    "output_fps": 24,
+    "bounds": {"min": [-1.6, 0, -1.6], "max": [1.6, 2.9, 1.6]}
+  },
+  "budget": {"wall_time_s": 60, "quality": "high", "backend": "auto"},
+  "entities": [
+    {
+      "id": "drop",
+      "type": "fluid",
+      "shape": {"type": "sphere", "center": [0, 2.15, 0], "radius": 0.4},
+      "spacing": 0.025,
+      "velocity": [0, 0, 0],
+      "properties": {"viscosity": 0.05}
+    },
+    {
+      "id": "ball",
+      "type": "rigid",
+      "shape": {"type": "sphere", "radius": 0.56},
+      "position": [0, 0.64, 0],
+      "mass": 0,
+      "velocity": [0, 0, 0]
+    }
+  ],
+  "colliders": [
+    {"id": "ground", "type": "plane", "normal": [0, 1, 0], "offset": 0}
+  ]
+}

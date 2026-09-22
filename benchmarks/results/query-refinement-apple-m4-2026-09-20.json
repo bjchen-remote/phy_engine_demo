@@ -1,0 +1,678 @@
+{
+  "host": "macOS-26.5.1-arm64-arm-64bit",
+  "video_included": true,
+  "records": [
+    {
+      "scene": "three_body_queries",
+      "runs": [
+        {
+          "variant": "baseline",
+          "dt_s": 0.005,
+          "ok": true,
+          "wall_time_s": 0.8453960420000001,
+          "errors": [],
+          "answers": [
+            {
+              "id": "orbit-bounds",
+              "type": "nbody_stability",
+              "definition": {
+                "id": "orbit-bounds",
+                "type": "nbody_stability",
+                "max_radius": 1.5,
+                "min_separation": 0.2
+              },
+              "window_s": [
+                0.0,
+                6.3259
+              ],
+              "sampling_interval_s": 0.005,
+              "status": "criteria_satisfied",
+              "max_observed_com_radius_m": 1.0810391788790232,
+              "min_observed_pair_distance_m": 0.6904490772720833,
+              "max_relative_energy_drift": 1.4737314466552332e-05,
+              "max_momentum_drift": 6.732200546275782e-15,
+              "momentum_tolerance": 0.05086679076244616,
+              "numerical_integrity_passed": true,
+              "first_violation_observed_s": null,
+              "long_term_stability_proven": false,
+              "interpretation": "Only the declared radius/separation criteria at sampled times in this finite window are tested; conservation is a numerical check, not a stability proof."
+            },
+            {
+              "id": "pair-distance",
+              "type": "series",
+              "definition": {
+                "id": "pair-distance",
+                "type": "series",
+                "metric": {
+                  "type": "center_distance",
+                  "entities": [
+                    "body-a",
+                    "body-b"
+                  ]
+                }
+              },
+              "window_s": [
+                0.0,
+                6.3259
+              ],
+              "sampling_interval_s": 0.005,
+              "unit": "m",
+              "initial": 2.0000000056605103,
+              "final": 2.000040641746224,
+              "minimum": {
+                "value": 0.6904490772720833,
+                "time_s": 4.744999999999921
+              },
+              "maximum": {
+                "value": 2.0000449185455635,
+                "time_s": 3.1649999999999547
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "measured",
+              "sample_count": 1267
+            }
+          ]
+        },
+        {
+          "variant": "half_dt",
+          "dt_s": 0.0025,
+          "ok": true,
+          "wall_time_s": 0.8868287079999999,
+          "errors": [],
+          "answers": [
+            {
+              "id": "orbit-bounds",
+              "type": "nbody_stability",
+              "definition": {
+                "id": "orbit-bounds",
+                "type": "nbody_stability",
+                "max_radius": 1.5,
+                "min_separation": 0.2
+              },
+              "window_s": [
+                0.0,
+                6.3259
+              ],
+              "sampling_interval_s": 0.0025,
+              "status": "criteria_satisfied",
+              "max_observed_com_radius_m": 1.081022515194485,
+              "min_observed_pair_distance_m": 0.690507496849673,
+              "max_relative_energy_drift": 3.6827936527349124e-06,
+              "max_momentum_drift": 6.7678088263037544e-15,
+              "momentum_tolerance": 0.05086679076244616,
+              "numerical_integrity_passed": true,
+              "first_violation_observed_s": null,
+              "long_term_stability_proven": false,
+              "interpretation": "Only the declared radius/separation criteria at sampled times in this finite window are tested; conservation is a numerical check, not a stability proof."
+            },
+            {
+              "id": "pair-distance",
+              "type": "series",
+              "definition": {
+                "id": "pair-distance",
+                "type": "series",
+                "metric": {
+                  "type": "center_distance",
+                  "entities": [
+                    "body-a",
+                    "body-b"
+                  ]
+                }
+              },
+              "window_s": [
+                0.0,
+                6.3259
+              ],
+              "sampling_interval_s": 0.0025,
+              "unit": "m",
+              "initial": 2.0000000056605103,
+              "final": 2.0000102041866192,
+              "minimum": {
+                "value": 0.690507496849673,
+                "time_s": 4.745000000000042
+              },
+              "maximum": {
+                "value": 2.000012252908245,
+                "time_s": 3.1624999999999437
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "measured",
+              "sample_count": 2532
+            }
+          ]
+        }
+      ],
+      "refinement": [
+        {
+          "id": "orbit-bounds",
+          "status_unchanged": true,
+          "energy_drift_reduction_factor": 4.001667173399228,
+          "minimum_pair_distance_change_m": 5.8419577589785554e-05
+        },
+        {
+          "id": "pair-distance",
+          "status_unchanged": true
+        }
+      ]
+    },
+    {
+      "scene": "droplet_radius_query",
+      "runs": [
+        {
+          "variant": "baseline",
+          "dt_s": 0.00555555555,
+          "ok": true,
+          "wall_time_s": 2.7091695830000004,
+          "errors": [],
+          "answers": [
+            {
+              "id": "radius-1m",
+              "type": "threshold",
+              "definition": {
+                "id": "radius-1m",
+                "type": "threshold",
+                "metric": {
+                  "type": "spread_radius",
+                  "entity": "drop",
+                  "plane": "xz",
+                  "origin": [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                },
+                "operator": "gte",
+                "value": 1.0,
+                "hold_for": 0.0
+              },
+              "window_s": [
+                0.0,
+                1.3499999986499962
+              ],
+              "sampling_interval_s": 0.00555555555,
+              "unit": "m",
+              "initial": 0.311126983722081,
+              "final": 2.095298814011978,
+              "minimum": {
+                "value": 0.30084668241588447,
+                "time_s": 0.11111111099999994
+              },
+              "maximum": {
+                "value": 2.095298814011978,
+                "time_s": 0.7611111103499982
+              },
+              "model_scope": "visual_particle_model",
+              "status": "reached",
+              "time_s": 0.5964328116022836,
+              "time_bracket_s": [
+                0.5944444438499988,
+                0.5999999993999988
+              ],
+              "first_observed_at_s": 0.5999999993999988,
+              "confirmed_at_s": 0.5999999993999988,
+              "hold_for_s": 0.0,
+              "interpretation": "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            },
+            {
+              "id": "radius-history",
+              "type": "series",
+              "definition": {
+                "id": "radius-history",
+                "type": "series",
+                "metric": {
+                  "type": "spread_radius",
+                  "entity": "drop",
+                  "plane": "xz",
+                  "origin": [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              "window_s": [
+                0.0,
+                1.3499999986499962
+              ],
+              "sampling_interval_s": 0.00555555555,
+              "unit": "m",
+              "initial": 0.311126983722081,
+              "final": 2.095298814011978,
+              "minimum": {
+                "value": 0.30084668241588447,
+                "time_s": 0.11111111099999994
+              },
+              "maximum": {
+                "value": 2.095298814011978,
+                "time_s": 0.7611111103499982
+              },
+              "model_scope": "visual_particle_model",
+              "status": "measured",
+              "sample_count": 244
+            }
+          ]
+        },
+        {
+          "variant": "half_dt",
+          "dt_s": 0.002777777775,
+          "ok": true,
+          "wall_time_s": 2.8944523330000003,
+          "errors": [],
+          "answers": [
+            {
+              "id": "radius-1m",
+              "type": "threshold",
+              "definition": {
+                "id": "radius-1m",
+                "type": "threshold",
+                "metric": {
+                  "type": "spread_radius",
+                  "entity": "drop",
+                  "plane": "xz",
+                  "origin": [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                },
+                "operator": "gte",
+                "value": 1.0,
+                "hold_for": 0.0
+              },
+              "window_s": [
+                0.0,
+                1.3499999986499958
+              ],
+              "sampling_interval_s": 0.002777777775,
+              "unit": "m",
+              "initial": 0.311126983722081,
+              "final": 2.095298814011978,
+              "minimum": {
+                "value": 0.30087129742268415,
+                "time_s": 0.11111111100000003
+              },
+              "maximum": {
+                "value": 2.095298814011978,
+                "time_s": 0.7388888881499979
+              },
+              "model_scope": "visual_particle_model",
+              "status": "reached",
+              "time_s": 0.597704141161676,
+              "time_bracket_s": [
+                0.5972222216249984,
+                0.5999999993999984
+              ],
+              "first_observed_at_s": 0.5999999993999984,
+              "confirmed_at_s": 0.5999999993999984,
+              "hold_for_s": 0.0,
+              "interpretation": "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            },
+            {
+              "id": "radius-history",
+              "type": "series",
+              "definition": {
+                "id": "radius-history",
+                "type": "series",
+                "metric": {
+                  "type": "spread_radius",
+                  "entity": "drop",
+                  "plane": "xz",
+                  "origin": [
+                    0.0,
+                    0.0,
+                    0.0
+                  ]
+                }
+              },
+              "window_s": [
+                0.0,
+                1.3499999986499958
+              ],
+              "sampling_interval_s": 0.002777777775,
+              "unit": "m",
+              "initial": 0.311126983722081,
+              "final": 2.095298814011978,
+              "minimum": {
+                "value": 0.30087129742268415,
+                "time_s": 0.11111111100000003
+              },
+              "maximum": {
+                "value": 2.095298814011978,
+                "time_s": 0.7388888881499979
+              },
+              "model_scope": "visual_particle_model",
+              "status": "measured",
+              "sample_count": 487
+            }
+          ]
+        }
+      ],
+      "refinement": [
+        {
+          "id": "radius-1m",
+          "status_unchanged": true,
+          "time_difference_s": 0.0012713295593924645,
+          "baseline_bracket_s": [
+            0.5944444438499988,
+            0.5999999993999988
+          ],
+          "refined_bracket_s": [
+            0.5972222216249984,
+            0.5999999993999984
+          ],
+          "exact_time_error_s": null
+        },
+        {
+          "id": "radius-history",
+          "status_unchanged": true
+        }
+      ]
+    },
+    {
+      "scene": "sliders_separate",
+      "runs": [
+        {
+          "variant": "baseline",
+          "dt_s": 0.01,
+          "ok": true,
+          "wall_time_s": 0.6514487500000001,
+          "errors": [],
+          "answers": [
+            {
+              "id": "first-visible-separation",
+              "type": "threshold",
+              "definition": {
+                "id": "first-visible-separation",
+                "type": "threshold",
+                "metric": {
+                  "type": "surface_gap",
+                  "entities": [
+                    "left",
+                    "right"
+                  ]
+                },
+                "operator": "gte",
+                "value": 0.001,
+                "hold_for": 0.0
+              },
+              "window_s": [
+                0.0,
+                3.0
+              ],
+              "sampling_interval_s": 0.01,
+              "unit": "m",
+              "initial": 0.0,
+              "final": 1.5000000000000036,
+              "minimum": {
+                "value": 0.0,
+                "time_s": 0.0
+              },
+              "maximum": {
+                "value": 1.5000000000000036,
+                "time_s": 3.0
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "reached",
+              "time_s": 0.0020000000000000425,
+              "time_bracket_s": [
+                0.0,
+                0.01
+              ],
+              "first_observed_at_s": 0.01,
+              "confirmed_at_s": 0.01,
+              "hold_for_s": 0.0,
+              "interpretation": "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            },
+            {
+              "id": "separate-1m",
+              "type": "threshold",
+              "definition": {
+                "id": "separate-1m",
+                "type": "threshold",
+                "metric": {
+                  "type": "surface_gap",
+                  "entities": [
+                    "left",
+                    "right"
+                  ]
+                },
+                "operator": "gte",
+                "value": 1.0,
+                "hold_for": 0.0
+              },
+              "window_s": [
+                0.0,
+                3.0
+              ],
+              "sampling_interval_s": 0.01,
+              "unit": "m",
+              "initial": 0.0,
+              "final": 1.5000000000000036,
+              "minimum": {
+                "value": 0.0,
+                "time_s": 0.0
+              },
+              "maximum": {
+                "value": 1.5000000000000036,
+                "time_s": 3.0
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "reached",
+              "time_s": 1.999999999999993,
+              "time_bracket_s": [
+                1.99,
+                2.0
+              ],
+              "first_observed_at_s": 2.0,
+              "confirmed_at_s": 2.0,
+              "hold_for_s": 0.0,
+              "interpretation": "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            },
+            {
+              "id": "gap-history",
+              "type": "series",
+              "definition": {
+                "id": "gap-history",
+                "type": "series",
+                "metric": {
+                  "type": "surface_gap",
+                  "entities": [
+                    "left",
+                    "right"
+                  ]
+                }
+              },
+              "window_s": [
+                0.0,
+                3.0
+              ],
+              "sampling_interval_s": 0.01,
+              "unit": "m",
+              "initial": 0.0,
+              "final": 1.5000000000000036,
+              "minimum": {
+                "value": 0.0,
+                "time_s": 0.0
+              },
+              "maximum": {
+                "value": 1.5000000000000036,
+                "time_s": 3.0
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "measured",
+              "sample_count": 301
+            }
+          ]
+        },
+        {
+          "variant": "half_dt",
+          "dt_s": 0.005,
+          "ok": true,
+          "wall_time_s": 0.655942542,
+          "errors": [],
+          "answers": [
+            {
+              "id": "first-visible-separation",
+              "type": "threshold",
+              "definition": {
+                "id": "first-visible-separation",
+                "type": "threshold",
+                "metric": {
+                  "type": "surface_gap",
+                  "entities": [
+                    "left",
+                    "right"
+                  ]
+                },
+                "operator": "gte",
+                "value": 0.001,
+                "hold_for": 0.0
+              },
+              "window_s": [
+                0.0,
+                3.0
+              ],
+              "sampling_interval_s": 0.005,
+              "unit": "m",
+              "initial": 0.0,
+              "final": 1.500000000000019,
+              "minimum": {
+                "value": 0.0,
+                "time_s": 0.0
+              },
+              "maximum": {
+                "value": 1.500000000000019,
+                "time_s": 3.0
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "reached",
+              "time_s": 0.0020000000000000425,
+              "time_bracket_s": [
+                0.0,
+                0.005
+              ],
+              "first_observed_at_s": 0.005,
+              "confirmed_at_s": 0.005,
+              "hold_for_s": 0.0,
+              "interpretation": "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            },
+            {
+              "id": "separate-1m",
+              "type": "threshold",
+              "definition": {
+                "id": "separate-1m",
+                "type": "threshold",
+                "metric": {
+                  "type": "surface_gap",
+                  "entities": [
+                    "left",
+                    "right"
+                  ]
+                },
+                "operator": "gte",
+                "value": 1.0,
+                "hold_for": 0.0
+              },
+              "window_s": [
+                0.0,
+                3.0
+              ],
+              "sampling_interval_s": 0.005,
+              "unit": "m",
+              "initial": 0.0,
+              "final": 1.500000000000019,
+              "minimum": {
+                "value": 0.0,
+                "time_s": 0.0
+              },
+              "maximum": {
+                "value": 1.500000000000019,
+                "time_s": 3.0
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "reached",
+              "time_s": 1.9999999999999787,
+              "time_bracket_s": [
+                1.995,
+                2.0
+              ],
+              "first_observed_at_s": 2.0,
+              "confirmed_at_s": 2.0,
+              "hold_for_s": 0.0,
+              "interpretation": "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            },
+            {
+              "id": "gap-history",
+              "type": "series",
+              "definition": {
+                "id": "gap-history",
+                "type": "series",
+                "metric": {
+                  "type": "surface_gap",
+                  "entities": [
+                    "left",
+                    "right"
+                  ]
+                }
+              },
+              "window_s": [
+                0.0,
+                3.0
+              ],
+              "sampling_interval_s": 0.005,
+              "unit": "m",
+              "initial": 0.0,
+              "final": 1.500000000000019,
+              "minimum": {
+                "value": 0.0,
+                "time_s": 0.0
+              },
+              "maximum": {
+                "value": 1.500000000000019,
+                "time_s": 3.0
+              },
+              "model_scope": "configured_mechanical_model",
+              "status": "measured",
+              "sample_count": 601
+            }
+          ]
+        }
+      ],
+      "refinement": [
+        {
+          "id": "first-visible-separation",
+          "status_unchanged": true,
+          "time_difference_s": 0.0,
+          "baseline_bracket_s": [
+            0.0,
+            0.01
+          ],
+          "refined_bracket_s": [
+            0.0,
+            0.005
+          ],
+          "exact_time_error_s": 4.2500725161431774e-17
+        },
+        {
+          "id": "separate-1m",
+          "status_unchanged": true,
+          "time_difference_s": 1.4210854715202004e-14,
+          "baseline_bracket_s": [
+            1.99,
+            2.0
+          ],
+          "refined_bracket_s": [
+            1.995,
+            2.0
+          ],
+          "exact_time_error_s": 2.1316282072803006e-14
+        },
+        {
+          "id": "gap-history",
+          "status_unchanged": true
+        }
+      ]
+    }
+  ],
+  "interpretation": "Differences measure sensitivity to dt on this model. They are not a certified temporal/spatial error bound or a physical calibration. Threshold brackets describe sampling only."
+}

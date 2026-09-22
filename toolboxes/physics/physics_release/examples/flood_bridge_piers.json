@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "name": "flood-release-around-bridge-piers",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 2.2,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-2.1, 0, -1.3], "max": [2.1, 2.2, 1.3]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "flood-water",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [-1.35, 0.64, 0], "size": [0.84, 0.96, 1.2]},
+      "spacing": 0.06,
+      "velocity": [2.4, 0, 0],
+      "properties": {"viscosity": 0.026, "surface_tension": 0.035}
+    }
+  ],
+  "colliders": [
+    {"id": "channel-floor", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.22},
+    {"id": "north-bank", "type": "box", "center": [0, 0.55, 0.94], "size": [4.0, 1.1, 0.12], "friction": 0.22},
+    {"id": "south-bank", "type": "box", "center": [0, 0.55, -0.94], "size": [4.0, 1.1, 0.12], "friction": 0.22},
+    {"id": "pier-north", "type": "capsule", "a": [-0.05, 0.12, 0.42], "b": [-0.05, 1.25, 0.42], "radius": 0.14, "friction": 0.18},
+    {"id": "pier-center", "type": "capsule", "a": [0.05, 0.12, 0], "b": [0.05, 1.25, 0], "radius": 0.16, "friction": 0.18},
+    {"id": "pier-south", "type": "capsule", "a": [-0.05, 0.12, -0.42], "b": [-0.05, 1.25, -0.42], "radius": 0.14, "friction": 0.18}
+  ],
+  "force_fields": [
+    {
+      "id": "release-push",
+      "type": "uniform",
+      "targets": ["flood-water"],
+      "start_time": 0,
+      "end_time": 0.5,
+      "acceleration": [3.0, 0, 0]
+    }
+  ],
+  "interactions": {}
+}

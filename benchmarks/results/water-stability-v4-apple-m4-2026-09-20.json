@@ -1,0 +1,41 @@
+{
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "cpu_count": 10,
+  "measurement": "same droplet_ground scene at balanced quality, native production route, warm compiler cache, no video",
+  "metric_definitions": {
+    "water_separation_p01_ratio": "1st percentile of nearest same-phase water-particle distance divided by effective spacing",
+    "close_water_particle_fraction": "fraction of water particles whose nearest water neighbour is closer than 0.75 times effective spacing",
+    "water_density_p99_ratio": "99th percentile of final SPH density divided by rest density",
+    "height_p90_minus_p10_m": "descriptive final particle-height spread; closed world bounds and splash particles affect it"
+  },
+  "before_v4_stability_work": {
+    "particles": 2008,
+    "solver_s": 2.028563,
+    "substeps": 485,
+    "water_separation_min_ratio": 0.0,
+    "water_separation_p01_ratio": 0.00025,
+    "close_water_particle_fraction": 0.898406,
+    "water_density_peak_mean_excess_ratio": 0.00112024,
+    "water_density_peak_max_excess_ratio": 0.220988,
+    "height_p90_minus_p10_m": 0.0
+  },
+  "after_v4_stability_work": {
+    "particles": 2008,
+    "solver_s": 1.583956,
+    "substeps": 479,
+    "water_separation_min_ratio": 0.81075,
+    "water_separation_p01_ratio": 0.81425,
+    "close_water_particle_fraction": 0.0,
+    "water_density_p99_ratio": 1.005,
+    "density_iteration_limit_fraction": 0.0188,
+    "maximum_particle_contact_correction_m": 0.0072,
+    "height_p90_minus_p10_m": 0.07542,
+    "quality_gate_passed": true
+  },
+  "interpretation": [
+    "The v4 short-range contact projection removes the measured near-coincident water pairs in this regression scene.",
+    "The density quantile and iteration-limit rate check pressure convergence separately from particle separation.",
+    "The height spread is descriptive, not a volume-conservation metric; a small splash population and invisible world-bound projection can change it.",
+    "Nominal represented volume is particle count times spacing cubed and is inventory only, not reconstructed occupied volume."
+  ]
+}

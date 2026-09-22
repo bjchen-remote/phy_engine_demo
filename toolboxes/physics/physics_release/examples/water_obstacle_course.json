@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "water-capsule-obstacle-course",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 1.8,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-2.0, 0, -1.2], "max": [2.0, 2.2, 1.2]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "water-charge",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [-1.45, 0.8, 0], "size": [0.65, 0.75, 1.05]},
+      "spacing": 0.05,
+      "velocity": [2.2, 0, 0],
+      "properties": {"viscosity": 0.03, "surface_tension": 0.05}
+    }
+  ],
+  "colliders": [
+    {"id": "floor", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.2},
+    {
+      "id": "post-left",
+      "type": "capsule",
+      "a": [-0.6, 0.15, -0.28],
+      "b": [-0.6, 1.15, -0.28],
+      "radius": 0.15,
+      "friction": 0.16
+    },
+    {
+      "id": "post-middle",
+      "type": "capsule",
+      "a": [0.05, 0.17, 0.3],
+      "b": [0.05, 1.05, 0.3],
+      "radius": 0.17,
+      "friction": 0.16
+    },
+    {
+      "id": "post-right",
+      "type": "capsule",
+      "a": [0.7, 0.14, -0.18],
+      "b": [0.7, 0.85, -0.18],
+      "radius": 0.14,
+      "friction": 0.16
+    }
+  ],
+  "force_fields": [],
+  "interactions": {}
+}

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "name": "fountain-through-octagonal-hoop",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 2.2,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-1.2, 0, -1.2], "max": [1.2, 3.2, 1.2]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "fountain-water",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [0, 0.32, 0], "size": [0.46, 0.44, 0.46]},
+      "spacing": 0.04,
+      "velocity": [0, 0, 0],
+      "properties": {"viscosity": 0.024, "surface_tension": 0.065}
+    }
+  ],
+  "colliders": [
+    {"id": "plaza", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.16},
+    {"id": "hoop-1", "type": "capsule", "a": [0.46, 1.28, 0], "b": [0.33, 1.28, 0.33], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-2", "type": "capsule", "a": [0.33, 1.28, 0.33], "b": [0, 1.28, 0.46], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-3", "type": "capsule", "a": [0, 1.28, 0.46], "b": [-0.33, 1.28, 0.33], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-4", "type": "capsule", "a": [-0.33, 1.28, 0.33], "b": [-0.46, 1.28, 0], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-5", "type": "capsule", "a": [-0.46, 1.28, 0], "b": [-0.33, 1.28, -0.33], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-6", "type": "capsule", "a": [-0.33, 1.28, -0.33], "b": [0, 1.28, -0.46], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-7", "type": "capsule", "a": [0, 1.28, -0.46], "b": [0.33, 1.28, -0.33], "radius": 0.05, "friction": 0.1},
+    {"id": "hoop-8", "type": "capsule", "a": [0.33, 1.28, -0.33], "b": [0.46, 1.28, 0], "radius": 0.05, "friction": 0.1}
+  ],
+  "force_fields": [
+    {
+      "id": "fountain-pulse",
+      "type": "uniform",
+      "targets": ["fountain-water"],
+      "start_time": 0.05,
+      "end_time": 0.72,
+      "acceleration": [0, 18.0, 0]
+    }
+  ],
+  "interactions": {}
+}

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "name": "whirlpool-in-visible-tank",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 2.0,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-1.4, 0, -1.4], "max": [1.4, 2.1, 1.4]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "high", "backend": "auto"},
+  "entities": [
+    {
+      "id": "water",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [0, 0.3, 0], "size": [1.68, 0.48, 1.68]},
+      "spacing": 0.06,
+      "velocity": [0, 0, 0],
+      "properties": {"viscosity": 0.025, "surface_tension": 0.05}
+    }
+  ],
+  "colliders": [
+    {"id": "floor", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.2},
+    {"id": "tank-left", "type": "box", "center": [-1.06, 0.45, 0], "size": [0.2, 0.9, 2.2], "friction": 0.14, "appearance": "glass"},
+    {"id": "tank-right", "type": "box", "center": [1.06, 0.45, 0], "size": [0.2, 0.9, 2.2], "friction": 0.14, "appearance": "glass"},
+    {"id": "tank-front", "type": "box", "center": [0, 0.45, -1.06], "size": [2.12, 0.9, 0.2], "friction": 0.14, "appearance": "glass"},
+    {"id": "tank-back", "type": "box", "center": [0, 0.45, 1.06], "size": [2.12, 0.9, 0.2], "friction": 0.14, "appearance": "glass"}
+  ],
+  "force_fields": [
+    {
+      "id": "tank-vortex",
+      "type": "vortex",
+      "targets": ["water"],
+      "start_time": 0,
+      "end_time": 1.1,
+      "center": [0, 0.42, 0],
+      "axis": [0, 1, 0],
+      "strength": 4.0,
+      "radius": 0.96,
+      "inward_strength": 1.5
+    }
+  ],
+  "interactions": {}
+}

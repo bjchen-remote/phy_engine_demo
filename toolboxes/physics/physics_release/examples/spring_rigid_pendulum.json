@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "name": "Spring suspended rotating body",
+  "world": {
+    "duration": 3,
+    "dt": 0.005,
+    "output_fps": 30,
+    "gravity": [
+      0,
+      -9.81,
+      0
+    ],
+    "bounds": {
+      "min": [
+        -2.5,
+        -0.3,
+        -2
+      ],
+      "max": [
+        2.5,
+        3,
+        2
+      ]
+    }
+  },
+  "budget": {
+    "wall_time_s": 60,
+    "quality": "balanced",
+    "backend": "native"
+  },
+  "coupling": {
+    "substeps": 8,
+    "iterations": 5,
+    "friction": 0.1
+  },
+  "entities": [
+    {
+      "id": "anchor",
+      "type": "point_mass",
+      "position": [
+        0,
+        2.5,
+        0
+      ],
+      "mass": 1,
+      "fixed": true
+    },
+    {
+      "id": "body",
+      "type": "rigid_body",
+      "shape": {
+        "type": "box",
+        "size": [
+          0.5,
+          0.8,
+          0.3
+        ]
+      },
+      "position": [
+        0.65,
+        1.35,
+        0
+      ],
+      "mass": 1
+    }
+  ],
+  "connections": [
+    {
+      "id": "spring",
+      "type": "spring",
+      "endpoints": [
+        {
+          "entity": "anchor"
+        },
+        {
+          "entity": "body",
+          "local_point": [
+            0,
+            0.4,
+            0
+          ]
+        }
+      ],
+      "rest_length": 0.95,
+      "stiffness": 70,
+      "damping": 0.15
+    }
+  ],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": false
+  },
+  "queries": [
+    {
+      "id": "force",
+      "type": "series",
+      "metric": {
+        "type": "spring_force",
+        "connection": "spring"
+      }
+    },
+    {
+      "id": "rotation-speed",
+      "type": "series",
+      "metric": {
+        "type": "angular_speed",
+        "entity": "body"
+      }
+    },
+    {
+      "id": "height",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "body",
+        "axis": "y"
+      }
+    }
+  ]
+}

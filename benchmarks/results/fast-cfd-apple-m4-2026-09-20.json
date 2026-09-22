@@ -1,0 +1,115 @@
+{
+  "benchmark": "bounded native DFSPH water-drop profiles",
+  "repeats": 2,
+  "profiles": [
+    {
+      "profile": "balanced",
+      "eligible": true,
+      "settings": {
+        "quality": "balanced",
+        "spacing": 0.0004,
+        "duration": 0.2,
+        "output_fps": 60
+      },
+      "particles": 1647,
+      "solver_s_median": 7.518157500075176,
+      "end_to_end_s_median": 7.664287250000001,
+      "samples": [
+        {
+          "solver_s": 7.5707580000162125,
+          "end_to_end_s": 7.716894167
+        },
+        {
+          "solver_s": 7.46555700013414,
+          "end_to_end_s": 7.611680333000001
+        }
+      ],
+      "stability": {
+        "finite": true,
+        "completed": true,
+        "density_iteration_limit_fraction": 0.023125,
+        "divergence_iteration_limit_fraction": 0.005625,
+        "water_density_p99_ratio": 1.0006558940691472,
+        "water_separation_p01_ratio": 0.82,
+        "close_water_particle_fraction": 0.0,
+        "minimum_substep_s": 0.00012499999999995848,
+        "max_substeps_used": 8
+      },
+      "solver_speedup_vs_balanced": 1.0,
+      "end_to_end_speedup_vs_balanced": 1.0
+    },
+    {
+      "profile": "fast",
+      "eligible": true,
+      "settings": {
+        "quality": "balanced",
+        "spacing": 0.0005,
+        "duration": 0.2,
+        "output_fps": 60
+      },
+      "particles": 840,
+      "solver_s_median": 4.227271999930963,
+      "end_to_end_s_median": 4.3114445414999985,
+      "samples": [
+        {
+          "solver_s": 4.082977999933064,
+          "end_to_end_s": 4.169371374999997
+        },
+        {
+          "solver_s": 4.371565999928862,
+          "end_to_end_s": 4.453517708
+        }
+      ],
+      "stability": {
+        "finite": true,
+        "completed": true,
+        "density_iteration_limit_fraction": 0.0,
+        "divergence_iteration_limit_fraction": 0.0,
+        "water_density_p99_ratio": 1.0006125440348195,
+        "water_separation_p01_ratio": 0.8202471133090327,
+        "close_water_particle_fraction": 0.0,
+        "minimum_substep_s": 0.00012499999999995848,
+        "max_substeps_used": 8
+      },
+      "solver_speedup_vs_balanced": 1.7784891769912032,
+      "end_to_end_speedup_vs_balanced": 1.7776611008739804
+    },
+    {
+      "profile": "rapid",
+      "eligible": true,
+      "settings": {
+        "quality": "balanced",
+        "spacing": 0.0006,
+        "duration": 0.15,
+        "output_fps": 60
+      },
+      "particles": 480,
+      "solver_s_median": 1.9200745000271127,
+      "end_to_end_s_median": 1.9830490414999993,
+      "samples": [
+        {
+          "solver_s": 1.9951740000396967,
+          "end_to_end_s": 2.071966416000002
+        },
+        {
+          "solver_s": 1.8449750000145286,
+          "end_to_end_s": 1.8941316669999964
+        }
+      ],
+      "stability": {
+        "finite": true,
+        "completed": true,
+        "density_iteration_limit_fraction": 0.0,
+        "divergence_iteration_limit_fraction": 0.0,
+        "water_density_p99_ratio": 1.000516218687393,
+        "water_separation_p01_ratio": 0.8199795630828899,
+        "close_water_particle_fraction": 0.0,
+        "minimum_substep_s": 0.00014285714285711126,
+        "max_substeps_used": 7
+      },
+      "solver_speedup_vs_balanced": 3.9155550995385937,
+      "end_to_end_speedup_vs_balanced": 3.8649005090679216
+    }
+  ],
+  "claim_boundary": "Timing plus existing delivery stability gates; this does not establish particle convergence or calibrated engineering CFD accuracy."
+}

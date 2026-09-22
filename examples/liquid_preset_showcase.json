@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "liquid-preset-showcase",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 1.25,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-2.0, 0, -0.9], "max": [2.0, 2.3, 0.9]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "native"},
+  "entities": [
+    {
+      "id": "water-drop",
+      "type": "fluid",
+      "preset": "water",
+      "shape": {"type": "sphere", "center": [-1.25, 1.35, 0], "radius": 0.25},
+      "spacing": 0.05,
+      "velocity": [0, 0, 0]
+    },
+    {
+      "id": "honey-drop",
+      "type": "fluid",
+      "preset": "honey",
+      "shape": {"type": "sphere", "center": [-0.42, 1.55, 0], "radius": 0.25},
+      "spacing": 0.05,
+      "velocity": [0, 0, 0]
+    },
+    {
+      "id": "glue-drop",
+      "type": "fluid",
+      "preset": "glue",
+      "shape": {"type": "sphere", "center": [0.42, 1.75, 0], "radius": 0.25},
+      "spacing": 0.05,
+      "velocity": [0, 0, 0]
+    },
+    {
+      "id": "lead-drop",
+      "type": "fluid",
+      "preset": "molten_lead",
+      "shape": {"type": "sphere", "center": [1.25, 1.95, 0], "radius": 0.25},
+      "spacing": 0.05,
+      "velocity": [0, 0, 0]
+    }
+  ],
+  "colliders": [
+    {"id": "ground", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.15}
+  ],
+  "interactions": {}
+}

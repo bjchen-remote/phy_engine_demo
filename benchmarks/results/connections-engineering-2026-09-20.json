@@ -1,0 +1,181 @@
+{
+  "version": "0.7.0",
+  "host": "macOS-26.5.1-arm64-arm-64bit",
+  "tests_passed": 251,
+  "test_skips": 0,
+  "stress_cases_passed": 30,
+  "verified_new_videos": 15,
+  "legacy_runs_verified": 20,
+  "independent_trial_passed": true,
+  "maximum_analytic_position_error_m": 0.0008067817869739091,
+  "peak_pendulum_relative_energy_error": 7.854692983019817e-07,
+  "cases": [
+    {
+      "id": "spring_oscillator",
+      "title": "无阻尼弹簧振子",
+      "directory": "spring_oscillator-baseline",
+      "physical_s": 6.0,
+      "playback_s": 6.03333333,
+      "wall_s": 0.965333125,
+      "nodes": 2,
+      "links": 1,
+      "sha256": "d90b3cce4a2fa62474afce19c268d329d39257bd369e56cb67106462142ff1e4"
+    },
+    {
+      "id": "damped_spring",
+      "title": "阻尼衰减",
+      "directory": "damped_spring-baseline",
+      "physical_s": 6.0,
+      "playback_s": 6.03333333,
+      "wall_s": 0.9531105409999996,
+      "nodes": 2,
+      "links": 1,
+      "sha256": "e74754c7bc882618bd4d071497ba2ccf0cab35a46790324c2580ebeae70e84e0"
+    },
+    {
+      "id": "coupled_springs",
+      "title": "耦合振子",
+      "directory": "coupled_springs-baseline",
+      "physical_s": 8.0,
+      "playback_s": 8.03333333,
+      "wall_s": 1.330428542,
+      "nodes": 4,
+      "links": 3,
+      "sha256": "29d43cf8c7af6719eb5d3c44c4f7745e4919036e5e342985160d24f0d45f6269"
+    },
+    {
+      "id": "rod_pendulum",
+      "title": "定长杆摆",
+      "directory": "rod_pendulum-baseline",
+      "physical_s": 6.0,
+      "playback_s": 6.03333333,
+      "wall_s": 0.9296090829999999,
+      "nodes": 2,
+      "links": 1,
+      "sha256": "cf97cdf0e36e4b121bebbb194bc8df96438efa2becdc72e9fce202574781cb23"
+    },
+    {
+      "id": "rope_catch",
+      "title": "松绳收紧",
+      "directory": "rope_catch-baseline",
+      "physical_s": 6.0,
+      "playback_s": 6.03333333,
+      "wall_s": 0.9377242500000005,
+      "nodes": 2,
+      "links": 1,
+      "sha256": "7830bbf0edcbdd1613ad88e05f28f51827c53b515bc483f7de315d110220611c"
+    },
+    {
+      "id": "spring_chain",
+      "title": "弹簧链与波动",
+      "directory": "spring_chain-baseline",
+      "physical_s": 6.0,
+      "playback_s": 6.03333333,
+      "wall_s": 1.261303625,
+      "nodes": 11,
+      "links": 10,
+      "sha256": "367d1dec12a3381dd8083e54861d3701f3117578663f941d800e3150054ffecc"
+    },
+    {
+      "id": "spring_pendulum",
+      "title": "三维弹簧摆",
+      "directory": "spring_pendulum-baseline",
+      "physical_s": 8.0,
+      "playback_s": 8.03333333,
+      "wall_s": 1.2412697920000006,
+      "nodes": 2,
+      "links": 1,
+      "sha256": "97dc1bc779ff91db61e0a722eb8ab6e2307516799299321df329a66701ce61b0"
+    },
+    {
+      "id": "independent-agent-trial",
+      "title": "独立 agent：三质点弹簧链",
+      "directory": "independent-agent-trial",
+      "physical_s": 6.0,
+      "playback_s": 6.03333333,
+      "wall_s": 1.1860059580000002,
+      "nodes": 5,
+      "links": 4,
+      "sha256": "6e9af489f1caaf88cd83df392715df84a66d4e9487ecd570d6b49f5d1b461e95"
+    }
+  ],
+  "refinement": [
+    {
+      "name": "spring_oscillator",
+      "maximum_display_position_difference_m": 1.507737741290871e-05,
+      "maximum_query_difference_at_common_samples": {
+        "length": 7.369681512603421e-06,
+        "x": 7.369681512603421e-06,
+        "first-rest-length": 7.369681512603421e-06,
+        "force": 0.00011791490420165474,
+        "energy": 2.277953060292326e-05
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    },
+    {
+      "name": "damped_spring",
+      "maximum_display_position_difference_m": 1.2768479268787658e-05,
+      "maximum_query_difference_at_common_samples": {
+        "length": 1.0240264980421188e-06,
+        "x": 1.0240264980421188e-06,
+        "first-rest-length": 1.0240264980421188e-06,
+        "force": 1.4132791368304254e-05,
+        "energy": 2.0029454633752053e-06
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    },
+    {
+      "name": "coupled_springs",
+      "maximum_display_position_difference_m": 1.8252412911534677e-05,
+      "maximum_query_difference_at_common_samples": {
+        "length": 1.1305035425124288e-05,
+        "x": 1.1305035425124288e-05,
+        "right-x": 6.280371076972102e-06,
+        "coupling-force": 6.410377357379815e-05
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    },
+    {
+      "name": "rod_pendulum",
+      "maximum_display_position_difference_m": 1.0747023490881177e-05,
+      "maximum_query_difference_at_common_samples": {
+        "length": 4.440892098500626e-16,
+        "x": 1.3169302212068246e-06,
+        "speed": 3.1035154057779124e-06
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    },
+    {
+      "name": "rope_catch",
+      "maximum_display_position_difference_m": 0.004355361573297902,
+      "maximum_query_difference_at_common_samples": {
+        "length": 7.172040739078511e-14,
+        "x": 0.0035504586497256962,
+        "rope-taut": 7.172040739078511e-14
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    },
+    {
+      "name": "spring_chain",
+      "maximum_display_position_difference_m": 0.00012812217287028896,
+      "maximum_query_difference_at_common_samples": {
+        "middle-y": 4.9398496817731896e-05,
+        "middle-force": 0.00420401294820838
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    },
+    {
+      "name": "spring_pendulum",
+      "maximum_display_position_difference_m": 2.3223362878161335e-05,
+      "maximum_query_difference_at_common_samples": {
+        "length": 7.383279089889783e-06,
+        "x": 4.267899279986054e-06,
+        "force": 0.000176514519273141,
+        "height": 9.046002539925269e-06
+      },
+      "interpretation": "Timestep sensitivity, not a certified error bound; rope engagement is discontinuous."
+    }
+  ],
+  "runtime_scope": "Simulation, video, verification and persistence on this host; excludes external AI and scene-authoring latency. Native/render caches present.",
+  "model_scope": "Standalone ideal point-mass links; no fluid/mesh coupling, collision, bending or breakage. Timing estimates provisional."
+}

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reusable pendulum system configuration",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "enum": [
+        "pendulum",
+        "double_pendulum"
+      ]
+    },
+    "lengths": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": 1e-06,
+        "maximum": 1000
+      }
+    },
+    "masses": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": 1e-09,
+        "maximum": 1000000000000.0
+      }
+    },
+    "angles": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": -6.283185307179586,
+        "maximum": 6.283185307179586
+      }
+    },
+    "angular_velocities": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": -500,
+        "maximum": 500
+      }
+    },
+    "gravity": {
+      "type": "number",
+      "minimum": 1e-09,
+      "maximum": 250,
+      "default": 9.81
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0.0001,
+      "maximum": 30,
+      "default": 8
+    },
+    "dt": {
+      "type": "number",
+      "minimum": 0.0001,
+      "maximum": 0.05,
+      "default": 0.002
+    },
+    "output_fps": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 30
+    },
+    "quality": {
+      "enum": [
+        "preview",
+        "balanced",
+        "high"
+      ],
+      "default": "balanced"
+    },
+    "wall_time_s": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 60
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "pendulum"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "lengths": {
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "masses": {
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "angles": {
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "angular_velocities": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "double_pendulum"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "lengths": {
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "masses": {
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "angles": {
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "angular_velocities": {
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "Runtime also checks total length <=400m, derived bob speed <=500m/s, and prepare resource feasibility. Arrays are per link, angles/omega absolute world values."
+}

@@ -1,0 +1,95 @@
+[
+  {
+    "name": "boolean_used_as_numeric_duration",
+    "expected_code": "finite_number"
+  },
+  {
+    "name": "non_finite_scalar_nan_or_infinity",
+    "expected_code": "finite_number"
+  },
+  {
+    "name": "zero_particle_spacing_preflight",
+    "expected_code": "spacing"
+  },
+  {
+    "name": "scene_nesting_over_32_levels",
+    "expected_code": "scene_too_deep"
+  },
+  {
+    "name": "decoded_scene_over_20000_values",
+    "expected_code": "scene_too_large"
+  },
+  {
+    "name": "more_than_128_entities",
+    "expected_code": "entity_limit"
+  },
+  {
+    "name": "more_than_64_point_masses",
+    "expected_code": "body_limit"
+  },
+  {
+    "name": "more_than_64_colliders",
+    "expected_code": "collider_limit"
+  },
+  {
+    "name": "more_than_8_force_fields",
+    "expected_code": "force_field_limit"
+  },
+  {
+    "name": "coordinate_magnitude_over_10000_metres",
+    "expected_code": "coordinate_range"
+  },
+  {
+    "name": "world_axis_span_over_1000_metres",
+    "expected_code": "world_span"
+  },
+  {
+    "name": "shape_extent_over_1000_metres",
+    "expected_code": "shape_extent"
+  },
+  {
+    "name": "initial_speed_over_500_metres_per_second",
+    "expected_code": "velocity_range"
+  },
+  {
+    "name": "force_acceleration_over_250_metres_per_second_squared",
+    "expected_code": "force_acceleration"
+  },
+  {
+    "name": "force_field_references_unknown_entity",
+    "expected_code": "unknown_force_target"
+  },
+  {
+    "name": "duplicate_entity_identifier",
+    "expected_code": "duplicate_id"
+  },
+  {
+    "name": "zero_length_plane_normal",
+    "expected_code": "normal"
+  },
+  {
+    "name": "minimum_one_particle_emitters_exceed_quality_cap",
+    "expected_code": "entity_limit"
+  },
+  {
+    "name": "overlapping_emitters_exceed_neighbour_memory_budget",
+    "expected_code": "solver_rejected_scene"
+  },
+  {
+    "name": "frame_particle_samples_over_600000_after_allowed_downsampling",
+    "expected_code": null,
+    "expected_behavior": "render_particle_limit is reduced and the adjustment is reported"
+  },
+  {
+    "name": "forced_native_backend_with_dynamic_rigid_sphere",
+    "expected_code": "unsupported_native_dynamic_rigid"
+  },
+  {
+    "name": "output_directory_is_symlink_root_or_contains_unrelated_files",
+    "expected_code": "unsafe_output_directory"
+  },
+  {
+    "name": "p90_runtime_exceeds_hard_wall_budget",
+    "expected_code": "budget_infeasible"
+  }
+]

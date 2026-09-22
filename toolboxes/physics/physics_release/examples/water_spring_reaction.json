@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "name": "Water transfers momentum to a spring mounted ball",
+  "world": {
+    "duration": 1.7,
+    "dt": 0.005,
+    "output_fps": 30,
+    "gravity": [
+      0,
+      0,
+      0
+    ],
+    "bounds": {
+      "min": [
+        -2.5,
+        -0.3,
+        -2
+      ],
+      "max": [
+        2.5,
+        3,
+        2
+      ]
+    }
+  },
+  "budget": {
+    "wall_time_s": 60,
+    "quality": "balanced",
+    "backend": "native"
+  },
+  "coupling": {
+    "substeps": 8,
+    "iterations": 5,
+    "friction": 0.1
+  },
+  "entities": [
+    {
+      "id": "water",
+      "type": "fluid",
+      "shape": {
+        "type": "sphere",
+        "center": [
+          -0.8,
+          1.25,
+          0
+        ],
+        "radius": 0.22
+      },
+      "spacing": 0.06,
+      "velocity": [
+        1.8,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "bob",
+      "type": "point_mass",
+      "position": [
+        0.3,
+        1.25,
+        0
+      ],
+      "mass": 8,
+      "collision_radius": 0.3
+    },
+    {
+      "id": "anchor",
+      "type": "point_mass",
+      "position": [
+        1.5,
+        1.25,
+        0
+      ],
+      "mass": 1,
+      "fixed": true
+    }
+  ],
+  "connections": [
+    {
+      "id": "spring",
+      "type": "spring",
+      "entities": [
+        "bob",
+        "anchor"
+      ],
+      "rest_length": 1.2,
+      "stiffness": 35,
+      "damping": 0.2
+    }
+  ],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": false
+  },
+  "queries": [
+    {
+      "id": "ball-x",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "bob",
+        "axis": "x"
+      }
+    },
+    {
+      "id": "water-x",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "water",
+        "axis": "x"
+      }
+    },
+    {
+      "id": "force",
+      "type": "series",
+      "metric": {
+        "type": "spring_force",
+        "connection": "spring"
+      }
+    }
+  ]
+}

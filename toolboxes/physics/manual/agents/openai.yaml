@@ -1,0 +1,4 @@
+interface:
+  display_name: "Physics Simulation"
+  short_description: "Build and run bounded multiphysics demo scenes"
+  default_prompt: "Use $physics-simulation to turn my prompt into a validated scene, run it, and explain the result."

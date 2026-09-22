@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "name": "moving-water-blob",
+  "world": {
+    "gravity": [0, -4, 0],
+    "duration": 1.8,
+    "dt": 0.0111111111,
+    "output_fps": 24,
+    "bounds": {"min": [-2, 0, -1.3], "max": [2, 2.5, 1.3]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "water-blob",
+      "type": "fluid",
+      "shape": {"type": "sphere", "center": [-1.1, 1.35, 0], "radius": 0.38},
+      "spacing": 0.04,
+      "velocity": [1.5, 0.6, 0],
+      "properties": {"viscosity": 0.06}
+    }
+  ],
+  "colliders": [
+    {"id": "ground", "type": "plane", "normal": [0, 1, 0], "offset": 0}
+  ]
+}

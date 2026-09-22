@@ -1,0 +1,357 @@
+{
+  "version": 1,
+  "name": "Elastic chain with travelling disturbance",
+  "world": {
+    "gravity": [
+      0,
+      0,
+      0
+    ],
+    "duration": 6,
+    "dt": 0.005,
+    "output_fps": 30,
+    "bounds": {
+      "min": [
+        -2,
+        -2,
+        -1
+      ],
+      "max": [
+        5,
+        4,
+        1
+      ]
+    }
+  },
+  "budget": {
+    "wall_time_s": 55,
+    "quality": "balanced",
+    "backend": "auto"
+  },
+  "entities": [
+    {
+      "id": "anchor-left",
+      "type": "point_mass",
+      "mass": 1,
+      "position": [
+        0,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ],
+      "fixed": true
+    },
+    {
+      "id": "node-1",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        0.4,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-2",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        0.8,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-3",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        1.2000000000000002,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-4",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        1.6,
+        2.4,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0.3
+      ]
+    },
+    {
+      "id": "node-5",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        2,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-6",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        2.4000000000000004,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-7",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        2.8000000000000003,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-8",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        3.2,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "node-9",
+      "type": "point_mass",
+      "mass": 0.3,
+      "position": [
+        3.6,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "anchor-right",
+      "type": "point_mass",
+      "mass": 1,
+      "position": [
+        4,
+        2,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ],
+      "fixed": true
+    }
+  ],
+  "connections": [
+    {
+      "id": "spring-0",
+      "type": "spring",
+      "entities": [
+        "anchor-left",
+        "node-1"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-1",
+      "type": "spring",
+      "entities": [
+        "node-1",
+        "node-2"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-2",
+      "type": "spring",
+      "entities": [
+        "node-2",
+        "node-3"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-3",
+      "type": "spring",
+      "entities": [
+        "node-3",
+        "node-4"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-4",
+      "type": "spring",
+      "entities": [
+        "node-4",
+        "node-5"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-5",
+      "type": "spring",
+      "entities": [
+        "node-5",
+        "node-6"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-6",
+      "type": "spring",
+      "entities": [
+        "node-6",
+        "node-7"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-7",
+      "type": "spring",
+      "entities": [
+        "node-7",
+        "node-8"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-8",
+      "type": "spring",
+      "entities": [
+        "node-8",
+        "node-9"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    },
+    {
+      "id": "spring-9",
+      "type": "spring",
+      "entities": [
+        "node-9",
+        "anchor-right"
+      ],
+      "rest_length": 0.4,
+      "stiffness": 70,
+      "damping": 0.15
+    }
+  ],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": false
+  },
+  "force_fields": [
+    {
+      "id": "gravity",
+      "type": "uniform",
+      "targets": [
+        "node-1",
+        "node-2",
+        "node-3",
+        "node-4",
+        "node-5",
+        "node-6",
+        "node-7",
+        "node-8",
+        "node-9"
+      ],
+      "acceleration": [
+        0,
+        -9.81,
+        0
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "middle-y",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "node-5",
+        "axis": "y"
+      }
+    },
+    {
+      "id": "middle-force",
+      "type": "series",
+      "metric": {
+        "type": "spring_force",
+        "connection": "spring-4"
+      }
+    }
+  ]
+}

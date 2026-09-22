@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physics-agent-demo"
+version = "1.0.0"
+description = "C11-accelerated bounded multiphysics previews with an agent contract and MP4 output"
+requires-python = ">=3.9"
+readme = "README.md"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/bjchen-remote/phy_engine_demo"
+Issues = "https://github.com/bjchen-remote/phy_engine_demo/issues"
+
+[project.scripts]
+physics-demo = "physics_demo.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["physics_demo*"]
+
+[tool.setuptools.package-data]
+"physics_demo" = ["data/examples/*.json", "data/examples/*.png"]
+"physics_demo.core" = ["native/*.c", "native/*.h"]
+"physics_demo.io" = ["video_*.m", "video_*.h"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+runs/
+sample_output/
+work/
+
+# Local environments and build output
+.venv/
+*.egg-info/
+build/
+dist/
+.DS_Store
+
+# Messaging hosts and private runtime data are not part of this project
+qq-simulator*/
+runtime*/
+.env
+.env.*
+*.sqlite3
+*.sqlite3-*

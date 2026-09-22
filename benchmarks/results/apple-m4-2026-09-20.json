@@ -1,0 +1,23 @@
+{
+  "date": "2026-09-20",
+  "hardware": "Apple M4, 10 CPU cores, 16 GB memory",
+  "scene": "0.3 s drop, radius 0.3 m, spacing 0.04 m, high quality",
+  "measurement": "warm native build, no video",
+  "native": {
+    "algorithm": "C11 DFSPH",
+    "particles": 1647,
+    "solver_s": 0.198523,
+    "end_to_end_s": 0.279347042,
+    "substeps": 54
+  },
+  "python_reference": {
+    "algorithm": "Python PBF",
+    "particles": 1647,
+    "solver_s": 24.463675625,
+    "end_to_end_s": 24.528745292,
+    "steps": 28
+  },
+  "solver_speedup": 123.23,
+  "end_to_end_speedup": 87.81,
+  "caveat": "This compares the two supported routes on the same scene and particle count; DFSPH and PBF are different numerical methods, so it is a product-path benchmark rather than kernel parity."
+}

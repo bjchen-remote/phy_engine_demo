@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "name": "cosmetic-hero-orb-splash",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 1.8,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-1.25, 0, -1.1], "max": [1.25, 2.7, 1.1]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "hero-drop",
+      "type": "fluid",
+      "shape": {"type": "sphere", "center": [0, 2.05, 0], "radius": 0.34},
+      "spacing": 0.045,
+      "velocity": [0.35, -0.8, 0],
+      "properties": {"viscosity": 0.04, "surface_tension": 0.085}
+    },
+    {
+      "id": "reflecting-pool",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [0, 0.16, 0], "size": [1.6, 0.2, 1.45]},
+      "spacing": 0.055,
+      "velocity": [0, 0, 0],
+      "properties": {"viscosity": 0.045, "surface_tension": 0.07}
+    }
+  ],
+  "colliders": [
+    {"id": "studio-floor", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.14},
+    {"id": "hero-orb", "type": "sphere", "center": [0, 0.55, 0], "radius": 0.29, "friction": 0.08},
+    {"id": "tray-left", "type": "box", "center": [-0.91, 0.2, 0], "size": [0.12, 0.4, 1.75], "friction": 0.12, "appearance": "glass"},
+    {"id": "tray-right", "type": "box", "center": [0.91, 0.2, 0], "size": [0.12, 0.4, 1.75], "friction": 0.12, "appearance": "glass"},
+    {"id": "tray-front", "type": "box", "center": [0, 0.2, -0.84], "size": [1.7, 0.4, 0.12], "friction": 0.12, "appearance": "glass"},
+    {"id": "tray-back", "type": "box", "center": [0, 0.2, 0.84], "size": [1.7, 0.4, 0.12], "friction": 0.12, "appearance": "glass"}
+  ],
+  "force_fields": [],
+  "interactions": {}
+}

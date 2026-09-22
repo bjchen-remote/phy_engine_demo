@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "name": "Spring pendulum coupled swing and extension",
+  "world": {
+    "gravity": [
+      0,
+      0,
+      0
+    ],
+    "duration": 8,
+    "dt": 0.005,
+    "output_fps": 30,
+    "bounds": {
+      "min": [
+        -2,
+        -2,
+        -1
+      ],
+      "max": [
+        5,
+        4,
+        1
+      ]
+    }
+  },
+  "budget": {
+    "wall_time_s": 55,
+    "quality": "balanced",
+    "backend": "auto"
+  },
+  "entities": [
+    {
+      "id": "pivot",
+      "type": "point_mass",
+      "mass": 1,
+      "position": [
+        1,
+        2.5,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ],
+      "fixed": true
+    },
+    {
+      "id": "bob",
+      "type": "point_mass",
+      "mass": 0.8,
+      "position": [
+        1.85,
+        1.65,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0.45
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "spring",
+      "type": "spring",
+      "entities": [
+        "pivot",
+        "bob"
+      ],
+      "rest_length": 1,
+      "stiffness": 24,
+      "damping": 0.08
+    }
+  ],
+  "colliders": [],
+  "interactions": {
+    "mutual_gravity": false
+  },
+  "force_fields": [
+    {
+      "id": "gravity",
+      "type": "uniform",
+      "targets": [
+        "bob"
+      ],
+      "acceleration": [
+        0,
+        -9.81,
+        0
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "length",
+      "type": "series",
+      "metric": {
+        "type": "connection_length",
+        "connection": "spring"
+      }
+    },
+    {
+      "id": "x",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "bob",
+        "axis": "x"
+      }
+    },
+    {
+      "id": "force",
+      "type": "series",
+      "metric": {
+        "type": "spring_force",
+        "connection": "spring"
+      }
+    },
+    {
+      "id": "height",
+      "type": "series",
+      "metric": {
+        "type": "centroid",
+        "entity": "bob",
+        "axis": "y"
+      }
+    }
+  ]
+}

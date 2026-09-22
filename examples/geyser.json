@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "name": "timed-uniform-geyser",
+  "world": {
+    "gravity": [0, -9.81, 0],
+    "duration": 2.2,
+    "dt": 0.0083333333,
+    "output_fps": 24,
+    "bounds": {"min": [-1.2, 0, -1.2], "max": [1.2, 3.2, 1.2]}
+  },
+  "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
+  "entities": [
+    {
+      "id": "geyser-water",
+      "type": "fluid",
+      "shape": {"type": "box", "center": [0, 0.36, 0], "size": [0.62, 0.54, 0.62]},
+      "spacing": 0.045,
+      "velocity": [0, 0, 0],
+      "properties": {"viscosity": 0.025, "surface_tension": 0.06}
+    }
+  ],
+  "colliders": [
+    {"id": "floor", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.16}
+  ],
+  "force_fields": [
+    {
+      "id": "upward-burst",
+      "type": "uniform",
+      "targets": ["geyser-water"],
+      "start_time": 0.15,
+      "end_time": 0.75,
+      "acceleration": [0, 16.0, 0]
+    }
+  ],
+  "interactions": {}
+}
