@@ -14,7 +14,7 @@ from physics_demo.systems import SYSTEM_REGISTRY, SYSTEM_TYPES, build_system
 
 class SystemFactoryTests(unittest.TestCase):
     def test_registry_is_explicit_and_read_only(self):
-        self.assertEqual(SYSTEM_TYPES, ("pendulum", "double_pendulum"))
+        self.assertEqual(SYSTEM_TYPES, ("pendulum", "double_pendulum", "ballistic_burst"))
         with self.assertRaises(TypeError):
             SYSTEM_REGISTRY["other"] = lambda _: {}
 

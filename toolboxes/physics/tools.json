@@ -11,7 +11,7 @@
   },
   {
     "name": "physics_liquid",
-    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for 水, honey for 蜂蜜, glue for 胶水/黏胶/白胶, and molten_lead for 铅水/熔融铅. The coefficients are model controls rather than calibrated SI properties.",
+    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for \u6c34, honey for \u8702\u871c, glue for \u80f6\u6c34/\u9ecf\u80f6/\u767d\u80f6, lava for lava/magma, and molten_lead for \u94c5\u6c34/\u7194\u878d\u94c5. The coefficients are model controls rather than calibrated SI properties.",
     "strict": true,
     "input_schema": {
       "type": "object",
@@ -22,6 +22,7 @@
             "water",
             "honey",
             "glue",
+            "lava",
             "molten_lead"
           ]
         },
@@ -42,7 +43,7 @@
   },
   {
     "name": "physics_system",
-    "description": "Build a pendulum or double_pendulum from a small physical parameter object, without editing examples. spec_json fields: type; lengths, masses, angles, angular_velocities arrays (one or two links; SI units, radians from downward vertical, absolute angular velocities); gravity, duration, dt, output_fps, quality, wall_time_s. Omitted parameters use declared system defaults. Returns scene_json for physics_prepare; does not simulate.",
+    "description": "Build pendulum, double_pendulum or ballistic_burst from physical parameters without editing examples. For pendulums: lengths, masses, angles, angular_velocities. For ballistic_burst: source_height, source_radius, apex_height (rise above launch), spread_radius (additional horizontal travel to ground), volume (m3), parcel_count, spacing, preset. Common fields: gravity, duration, dt, output_fps, quality, wall_time_s; burst also accepts validation. Read the corresponding system reference for units, bounds and assumptions. Returns scene_json for physics_prepare; does not simulate.",
     "input_schema": {
       "type": "object",
       "properties": {

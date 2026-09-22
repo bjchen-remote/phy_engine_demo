@@ -1,148 +1,266 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Reusable pendulum system configuration",
-  "type": "object",
-  "required": [
-    "type"
+  "title": "Reusable physical system configuration",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/pendulum"
+    },
+    {
+      "$ref": "#/$defs/ballistic_burst"
+    }
   ],
-  "additionalProperties": false,
-  "properties": {
-    "type": {
-      "enum": [
-        "pendulum",
-        "double_pendulum"
-      ]
-    },
-    "lengths": {
-      "type": "array",
-      "items": {
-        "type": "number",
-        "minimum": 1e-06,
-        "maximum": 1000
-      }
-    },
-    "masses": {
-      "type": "array",
-      "items": {
-        "type": "number",
-        "minimum": 1e-09,
-        "maximum": 1000000000000.0
-      }
-    },
-    "angles": {
-      "type": "array",
-      "items": {
-        "type": "number",
-        "minimum": -6.283185307179586,
-        "maximum": 6.283185307179586
-      }
-    },
-    "angular_velocities": {
-      "type": "array",
-      "items": {
-        "type": "number",
-        "minimum": -500,
-        "maximum": 500
-      }
-    },
-    "gravity": {
-      "type": "number",
-      "minimum": 1e-09,
-      "maximum": 250,
-      "default": 9.81
-    },
-    "duration": {
-      "type": "number",
-      "minimum": 0.0001,
-      "maximum": 30,
-      "default": 8
-    },
-    "dt": {
-      "type": "number",
-      "minimum": 0.0001,
-      "maximum": 0.05,
-      "default": 0.002
-    },
-    "output_fps": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 60,
-      "default": 30
-    },
-    "quality": {
-      "enum": [
-        "preview",
-        "balanced",
-        "high"
+  "$defs": {
+    "pendulum": {
+      "type": "object",
+      "required": [
+        "type"
       ],
-      "default": "balanced"
-    },
-    "wall_time_s": {
-      "type": "number",
-      "minimum": 1,
-      "maximum": 60,
-      "default": 60
-    }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "type": {
-            "const": "pendulum"
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "pendulum",
+            "double_pendulum"
+          ]
+        },
+        "lengths": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 1e-06,
+            "maximum": 1000
           }
+        },
+        "masses": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 1e-09,
+            "maximum": 1000000000000.0
+          }
+        },
+        "angles": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": -6.283185307179586,
+            "maximum": 6.283185307179586
+          }
+        },
+        "angular_velocities": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": -500,
+            "maximum": 500
+          }
+        },
+        "gravity": {
+          "type": "number",
+          "minimum": 1e-09,
+          "maximum": 250,
+          "default": 9.81
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 30,
+          "default": 8
+        },
+        "dt": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 0.05,
+          "default": 0.002
+        },
+        "output_fps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 30
+        },
+        "quality": {
+          "enum": [
+            "preview",
+            "balanced",
+            "high"
+          ],
+          "default": "balanced"
+        },
+        "wall_time_s": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 300,
+          "default": 60
         }
       },
-      "then": {
-        "properties": {
-          "lengths": {
-            "minItems": 1,
-            "maxItems": 1
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "pendulum"
+              }
+            }
           },
-          "masses": {
-            "minItems": 1,
-            "maxItems": 1
+          "then": {
+            "properties": {
+              "lengths": {
+                "minItems": 1,
+                "maxItems": 1
+              },
+              "masses": {
+                "minItems": 1,
+                "maxItems": 1
+              },
+              "angles": {
+                "minItems": 1,
+                "maxItems": 1
+              },
+              "angular_velocities": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "double_pendulum"
+              }
+            }
           },
-          "angles": {
-            "minItems": 1,
-            "maxItems": 1
-          },
-          "angular_velocities": {
-            "minItems": 1,
-            "maxItems": 1
+          "then": {
+            "properties": {
+              "lengths": {
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "masses": {
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "angles": {
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "angular_velocities": {
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
           }
         }
-      }
+      ],
+      "$comment": "Runtime also checks total length <=400m, derived bob speed <=500m/s, and prepare resource feasibility. Arrays are per link, angles/omega absolute world values."
     },
-    {
-      "if": {
-        "properties": {
-          "type": {
-            "const": "double_pendulum"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "lengths": {
-            "minItems": 2,
-            "maxItems": 2
-          },
-          "masses": {
-            "minItems": 2,
-            "maxItems": 2
-          },
-          "angles": {
-            "minItems": 2,
-            "maxItems": 2
-          },
-          "angular_velocities": {
-            "minItems": 2,
-            "maxItems": 2
-          }
+    "ballistic_burst": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_height": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 100,
+          "default": 0.9
+        },
+        "source_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0.35
+        },
+        "apex_height": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 100,
+          "default": 0.9
+        },
+        "spread_radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 1.2
+        },
+        "volume": {
+          "type": "number",
+          "minimum": 1e-09,
+          "maximum": 100,
+          "default": 0.05
+        },
+        "spacing": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 0.5,
+          "default": 0.03
+        },
+        "gravity": {
+          "type": "number",
+          "minimum": 1e-09,
+          "maximum": 250,
+          "default": 9.81
+        },
+        "duration": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 30,
+          "default": 3.2
+        },
+        "dt": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 0.05,
+          "default": 0.002
+        },
+        "wall_time_s": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 300,
+          "default": 60
+        },
+        "type": {
+          "const": "ballistic_burst"
+        },
+        "parcel_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24,
+          "default": 8
+        },
+        "output_fps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 24
+        },
+        "quality": {
+          "enum": [
+            "preview",
+            "balanced",
+            "high"
+          ]
+        },
+        "validation": {
+          "enum": [
+            "visual",
+            "strict"
+          ]
+        },
+        "preset": {
+          "enum": [
+            "water",
+            "honey",
+            "glue",
+            "lava",
+            "molten_lead"
+          ]
         }
       }
     }
-  ],
-  "$comment": "Runtime also checks total length <=400m, derived bob speed <=500m/s, and prepare resource feasibility. Arrays are per link, angles/omega absolute world values."
+  }
 }

@@ -38,12 +38,13 @@ from physics_demo.io.coupled import CAPABILITIES as COUPLED_CAPABILITIES, RIGID_
 
 CAPABILITIES: dict[str, Any] = {
     "version": "1.0.0",
-    "systems": {"types": ["pendulum", "double_pendulum"],
+    "systems": {"types": ["pendulum", "double_pendulum", "ballistic_burst"],
                 "entry": "physics_system(spec_json), or build_system/run_system in Python",
+                "ballistic_burst": {"parameters": ["source_height", "source_radius", "apex_height", "spread_radius", "volume", "parcel_count", "spacing", "preset"], "reference": "ballistic-burst", "scope": "Finite initial liquid launch; no continued upward forces or continuous emitter. SI volumes, radii and gravity determine velocities and a conservative flight envelope."},
                 "parameters": ["type", "lengths", "masses", "angles", "angular_velocities", "gravity", "duration", "dt", "output_fps", "quality", "wall_time_s"],
                 "units": "SI; angles in radians from downward vertical; link angular velocities are absolute world values",
                 "observations": "Every bob records centroid x/y/z and speed at full solver macro steps; load_run exposes series and sampled states.",
-                "boundary": "Factories assemble generic point masses and rods; examples are optional callers. Numerical convergence and finite-window sensitivity do not prove chaos or permanent stability."},
+                "boundary": "Factories assemble generic scene primitives: pendulums use point masses/rods; ballistic bursts use finite initially launched liquid parcels. Examples are optional callers; passing checks is not calibrated material or long-term stability certification."},
     "quantitative_queries": QUERY_CAPABILITIES,
     "agent_interface": {
         "protocol_version": PROTOCOL_VERSION,
@@ -583,13 +584,13 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue(
             "unsupported_liquid_dynamic_rigid_combination",
             "entities",
-            "Honey, glue, and molten_lead require native liquid execution, while legacy dynamic rigid spheres require the Python reference backend.",
+            "Non-water liquid presets require native liquid execution, while legacy dynamic rigid spheres require the Python reference backend.",
             "Make the legacy rigid sphere a static obstacle with mass 0, or remodel it as rigid_body and enable coupling.",
         ))
     elif native_only_preset and budget.get("backend") == "python":
         errors.append(_issue(
             "unsupported_python_liquid_preset", "budget.backend",
-            "Honey, glue, and molten_lead presets require the native C11 liquid solver.",
+            "Non-water liquid presets require the native C11 liquid solver.",
             "Use backend 'auto' or 'native'; the Python reference has different viscosity behavior and no equivalent surface-tension model.",
         ))
 

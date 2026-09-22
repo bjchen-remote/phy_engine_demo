@@ -216,3 +216,17 @@ Tests compare the kernel to an independent direct sum, check convergence and deg
 positions, exercise actual attraction and centroid symmetry, and reject missing-native
 or unsupported mixed-domain execution. Particle/point-mass gravitational exchange is
 not implemented. This module does not change the messaging bridge.
+
+## Ballistic liquid assembly
+
+`systems/ballistic_burst.py` derives finite parcel geometry, initial velocity and
+flight bounds from volume, apex and range. It contains no integration or rendering
+loop. Numeric checks are shared with pendulum factories in `systems/validation.py`.
+The existing prepare/simulate/query pipeline owns budgets and all dynamics. The
+`lava` preset adds stable visual coefficients and an opaque warm palette; the shared
+renderer uses one material-count constant for palettes and spatial bins. No heat
+or continuous source is implied. Manual routing separates launch impulses from
+forces that incorrectly follow airborne material, and numerical walls from camera
+framing. Force and contact quality gates remain unchanged.
+Ground grid spacing follows camera scale in SI units; moving distant numerical walls
+does not stretch the visible grid. Viewport clipping bounds grid drawing work.

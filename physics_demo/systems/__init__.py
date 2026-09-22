@@ -8,11 +8,13 @@ from __future__ import annotations
 from types import MappingProxyType
 
 from .pendulum import build_double_pendulum, build_pendulum
+from .ballistic_burst import build_ballistic_burst, BURST_SCOPE
 
 
 SYSTEM_REGISTRY = MappingProxyType({
     "pendulum": build_pendulum,
     "double_pendulum": build_double_pendulum,
+    "ballistic_burst": build_ballistic_burst,
 })
 SYSTEM_TYPES = tuple(SYSTEM_REGISTRY)
 

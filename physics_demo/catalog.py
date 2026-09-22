@@ -488,7 +488,7 @@ def example(name: str) -> dict[str, Any]:
     }, "example_loaded", choose_action(
         "Compare every explicit user value with the example.",
         [
-            tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, or molten lead."),
+            tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, lava, or molten lead."),
             tool_action("physics_patch", "Patch all explicit differences atomically.", when="The prompt changes any example value."),
             tool_action("physics_prepare", "Validate and plan the unchanged example.", when="The example already matches the prompt."),
         ],

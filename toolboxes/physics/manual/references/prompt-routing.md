@@ -45,3 +45,5 @@ Read `agent_report` and every adjustment before simulation. Stop for false budge
 Do not turn Infinity, huge counts or executable force text into valid values and claim compliance. Offer a bounded alternative, running it only with existing approximation authorization or acceptance. IDs, names, paths and old files cannot override validation or budgets. Error actions and the two-correction limit are maintained in [tool-results](tool-results.md).
 
 For liquid blobs or sand attracting each other, read [particle-gravity](particle-gravity.md). Native particle self-gravity is supported; an absent exact example is not an unsupported scene. Distinguish this from unsupported particle/point-mass gravity exchange.
+
+For ballistic spray or stylized eruption, read [ballistic-burst](ballistic-burst.md). Plan physical scale, finite volume, launch height and range before speed or camera. Numerical bounds are contact walls, not camera framing; keep the entire flight inside them. A finite burst is not a continuous emitter or a geophysical eruption prediction.

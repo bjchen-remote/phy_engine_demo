@@ -45,6 +45,7 @@ Reference routing:
 | Choose or combine a catalog scene | [interesting-scenes](references/interesting-scenes.md) |
 | Water, honey, glue or molten-lead behavior/appearance | [liquid-presets](references/liquid-presets.md) |
 | Gyroscopes, rotating bodies, thick links or mixed reactions | [coupling](references/coupling.md) |
+| Finite jets, ejecta or a stylized lava burst | [ballistic-burst](references/ballistic-burst.md) |
 | Springs, rods, ropes, oscillators or pendulums | [connections](references/connections.md) |
 | Description/image geometry, soft bodies, cloth or insertion | [mesh-modeling](references/mesh-modeling.md) |
 | Exact scene fields and patch syntax | [scene-v1](references/scene-v1.md), [JSON Schema](../scene-v1.schema.json) |
@@ -53,3 +54,5 @@ Reference routing:
 | Algorithms and backend selection | [solver-routing](references/solver-routing.md) |
 | Result fields, quality gates and errors | [tool-results](references/tool-results.md) |
 | Declare/interpret numerical answers or sliders | [quantitative-queries](references/quantitative-queries.md) |
+
+For a finite launch, use initial velocities and constant downward gravity. Read [ballistic-burst](references/ballistic-burst.md): derive speed and bounds from height/range, declare total volume, and avoid a uniform upward field that follows airborne material. Use `lava` for lava appearance, never silver molten lead.

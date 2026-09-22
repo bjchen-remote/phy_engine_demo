@@ -1318,6 +1318,7 @@
             "water",
             "honey",
             "glue",
+            "lava",
             "molten_lead"
           ],
           "default": "water",

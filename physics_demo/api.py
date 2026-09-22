@@ -60,13 +60,14 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         elif name == "physics_example":
             result = load_example(arguments["name"])
         elif name == "physics_system":
-            from .systems import build_system
+            from .systems import build_system, BURST_SCOPE
             if not isinstance(arguments, dict) or set(arguments) != {"spec_json"}:
                 raise ValueError("physics_system accepts exactly one argument: spec_json")
-            scene = build_system(_scene(arguments, "spec_json"))
+            spec = _scene(arguments, "spec_json")
+            scene = build_system(spec)
             result = {"ok": True, "scene": scene,
                       "scene_json": json.dumps(scene, separators=(",", ":"), ensure_ascii=False),
-                      "model_scope": "Ideal planar point masses, massless rigid rods, fixed anchor and uniform gravity. No collision or long-term chaos/stability guarantee."}
+                      "model_scope": BURST_SCOPE if spec["type"] == "ballistic_burst" else "Ideal planar point masses, massless rigid rods, fixed anchor and uniform gravity. No collision or long-term chaos/stability guarantee."}
         elif name == "physics_mesh":
             from .meshes import build_mesh
             if not isinstance(arguments, dict) or set(arguments) != {"spec_json"}:

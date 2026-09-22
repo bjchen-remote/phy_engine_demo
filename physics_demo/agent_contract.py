@@ -102,7 +102,7 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
         return guided(payload, "capabilities_ready", choose_action(
             "Obtain or author a complete scene_json first. Resolve a named liquid only after the target fluid entity ID is known.",
             [
-                tool_action("physics_system", "Build a pendulum or double pendulum from physical parameters."),
+                tool_action("physics_system", "Build a pendulum, double pendulum or ballistic liquid burst from physical parameters."),
                 tool_action("physics_example", "Load the closest supported starting scene."),
                 tool_action(
                     "physics_liquid",
@@ -149,7 +149,7 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
         return guided(payload, "example_loaded", choose_action(
             "Compare every explicit user value with the example.",
             [
-                tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, or molten lead."),
+                tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, lava, or molten lead."),
                 tool_action("physics_patch", "Patch all explicit differences atomically.", when="The prompt changes any example value."),
                 tool_action("physics_prepare", "Validate and plan the unchanged example.", when="The example already matches the prompt."),
             ],

@@ -19,7 +19,7 @@ typedef struct {
 } CameraBounds;
 typedef struct {
   CGPoint point;
-  int material; /* 0 water, 1 sand, 2 honey, 3 glue, 4 molten lead */
+  int material; /* 0 water, 1 sand, 2 honey, 3 glue, 4 molten lead, 5 lava */
   int depthBand;
   BOOL surface;
 } RenderParticle;
@@ -339,6 +339,23 @@ static void DrawGround(CGContextRef context, NSArray *colliders,
   double floorY = PhyVideoHorizontalFloor(colliders, minimum);
   double minX = VectorValue(minimum, 0), maxX = VectorValue(maximum, 0),
          minZ = VectorValue(minimum, 2), maxZ = VectorValue(maximum, 2);
+  /* Numerical walls may be far outside the visible scene. Fit grid work to
+   * the viewport, and keep its SI spacing independent of those wall positions. */
+  if (fabs(camera.sinePitch)>1e-6 && camera.scale>0) {
+    CGRect clip=CGContextGetClipBoundingBox(context);
+    double loX=DBL_MAX,hiX=-DBL_MAX,loZ=DBL_MAX,hiZ=-DBL_MAX;
+    for (int i=0;i<4;i++) {
+      double u=((i&1?CGRectGetMaxX(clip):CGRectGetMinX(clip))-camera.originX)/camera.scale+camera.centerU;
+      double v=((i&2?CGRectGetMaxY(clip):CGRectGetMinY(clip))-camera.originY)/camera.scale+camera.centerV;
+      double depth=(camera.cosinePitch*floorY-v)/camera.sinePitch;
+      double x=camera.cosineYaw*u+camera.sineYaw*depth;
+      double z=-camera.sineYaw*u+camera.cosineYaw*depth;
+      loX=fmin(loX,x);hiX=fmax(hiX,x);loZ=fmin(loZ,z);hiZ=fmax(hiZ,z);
+    }
+    minX=fmax(minX,loX);maxX=fmin(maxX,hiX);
+    minZ=fmax(minZ,loZ);maxZ=fmin(maxZ,hiZ);
+  }
+  if (minX>=maxX || minZ>=maxZ) return;
   CameraPoint corners[4] = {
     Project(@[ @(minX), @(floorY), @(minZ) ], camera),
     Project(@[ @(maxX), @(floorY), @(minZ) ], camera),
@@ -353,21 +370,23 @@ static void DrawGround(CGContextRef context, NSArray *colliders,
   CGContextSetRGBFillColor(context, 0.09, 0.13, 0.18, 0.42);
   CGContextFillPath(context);
   CGContextSetLineWidth(context, 0.8);
-  for (int line = 0; line <= 12; line++) {
-    double amount = (double)line / 12.0, x = minX + amount * (maxX - minX),
-           z = minZ + amount * (maxZ - minZ);
-    CameraPoint xa = Project(@[ @(x), @(floorY), @(minZ) ], camera),
-                xb = Project(@[ @(x), @(floorY), @(maxZ) ], camera);
-    CameraPoint za = Project(@[ @(minX), @(floorY), @(z) ], camera),
-                zb = Project(@[ @(maxX), @(floorY), @(z) ], camera);
-    CGFloat alpha = (line == 0 || line == 6 || line == 12) ? 0.25 : 0.12;
-    CGContextSetRGBStrokeColor(context, 0.44, 0.58, 0.70, alpha);
-    CGContextMoveToPoint(context, xa.u, xa.v);
-    CGContextAddLineToPoint(context, xb.u, xb.v);
-    CGContextStrokePath(context);
-    CGContextMoveToPoint(context, za.u, za.v);
-    CGContextAddLineToPoint(context, zb.u, zb.v);
-    CGContextStrokePath(context);
+  double wanted=40.0/fmax(camera.scale,1e-9);
+  double step=pow(10.0,floor(log10(wanted)));
+  double ratio=wanted/step;
+  step*=ratio>=5?5:(ratio>=2?2:1);
+  for (int axis=0;axis<2;axis++) {
+    double low=axis?minZ:minX,high=axis?maxZ:maxX;
+    double spacing=fmax(step,(high-low)/512.0);
+    double start=ceil(low/spacing)*spacing;
+    for (int line=0;line<=512;line++) {
+      double value=start+line*spacing;
+      if(value>high) break;
+      CameraPoint a=Project(axis?@[@(minX),@(floorY),@(value)]:@[@(value),@(floorY),@(minZ)],camera);
+      CameraPoint b=Project(axis?@[@(maxX),@(floorY),@(value)]:@[@(value),@(floorY),@(maxZ)],camera);
+      CGContextSetRGBStrokeColor(context,0.44,0.58,0.70,fabs(value)<1e-10?.25:.12);
+      CGContextMoveToPoint(context,a.u,a.v);CGContextAddLineToPoint(context,b.u,b.v);
+      CGContextStrokePath(context);
+    }
   }
 }
 
@@ -562,21 +581,25 @@ static void DrawCollider(CGContextRef context, NSDictionary *collider,
   }
 }
 
+enum { kMaterialCount = 6 };
+
 static int RenderMaterial(id name) {
   if ([name isEqual:@"sand"]) return 1;
   if ([name isEqual:@"honey"]) return 2;
   if ([name isEqual:@"glue"]) return 3;
   if ([name isEqual:@"molten_lead"]) return 4;
+  if ([name isEqual:@"lava"]) return 5;
   return 0; /* Missing legacy metadata means water. */
 }
 
 static void LiquidPalette(int material, CGFloat colors[8]) {
-  static const CGFloat palettes[5][8] = {
+  static const CGFloat palettes[kMaterialCount][8] = {
     {0.015,0.18,0.30,0.88, 0.32,0.79,0.96,0.94},
     {0,0,0,1, 0,0,0,1},
     {0.37,0.14,0.025,0.94, 0.96,0.61,0.12,0.98},
     {0.58,0.64,0.62,0.98, 0.96,0.98,0.91,1.0},
-    {0.17,0.20,0.23,1.0, 0.82,0.88,0.92,1.0}
+    {0.17,0.20,0.23,1.0, 0.82,0.88,0.92,1.0},
+    {0.42,0.035,0.005,1.0, 1.0,0.35,0.015,1.0}
   };
   for (int i=0;i<8;i++) colors[i]=palettes[material][i];
 }
@@ -924,7 +947,7 @@ static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
   double cellSize=fmax(2.3,8*particleRadius*camera.scale);
   int columns=(int)ceil((double)width/cellSize)+2,
       rows=(int)ceil((double)height/cellSize)+2;
-  size_t binCount=(size_t)columns*(size_t)rows*5;
+  size_t binCount=(size_t)columns*(size_t)rows*kMaterialCount;
   int *heads=malloc(binCount*sizeof(int)),*counts=calloc(binCount,sizeof(int));
   LiquidSample *points=calloc(samples.count,sizeof(LiquidSample));
   CameraPoint *smoothed=calloc(samples.count,sizeof(CameraPoint));
@@ -1021,13 +1044,13 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
   NSArray *samples=frame[@"p"] ?: @[];
   if (![samples isKindOfClass:[NSArray class]]) return NO;
   if (!samples.count) return YES;
-  BOOL present[5]={NO,NO,NO,NO,NO};
+  BOOL present[kMaterialCount]={NO},hasLiquid=NO;
   for (NSUInteger i=0;i<samples.count;i++) {
     if (!MeshVector(samples[i])) return NO;
     int material=RenderMaterial(i<materials.count?materials[i]:@"water");
-    if (material!=1) present[material]=YES;
+    if (material!=1) {present[material]=YES;hasLiquid=YES;}
   }
-  if (!present[0] && !present[2] && !present[3] && !present[4]) return YES;
+  if (!hasLiquid) return YES;
   if (!isfinite(particleRadius) || particleRadius<=0 ||
       !isfinite(camera.scale) || camera.scale<=0) return NO;
   LiquidSample *points=BuildLiquidSamples(samples,materials,camera,particleRadius,width,height);
@@ -1044,7 +1067,7 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
   double contourResolution=Clamp((radius-3.0)/3.0,0,1);
   double coverageThreshold=.12+.08*contourResolution;
   double coverageFeather=.10+.04*contourResolution;
-  for (int material=0;material<5;material++) {
+  for (int material=0;material<kMaterialCount;material++) {
     if (!present[material]) continue;
     for (size_t i=0;i<count;i++) {field[i]=0;front[i]=-FLT_MAX;}
     int minimumX=(int)width,minimumY=(int)height,maximumX=-1,maximumY=-1;
@@ -1154,6 +1177,7 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
         double base=colors[4+channel]*(1-.36*thickness)+colors[channel]*.36*thickness;
         double value=base*(.40+.60*light)+gloss*(material==0?.46:(material==4?.52:.24));
         if (material==4) value=base*(.30+.58*Clamp(.5+.5*ny,0,1))+.46*gloss;
+        if (material==5) value=base*(.78+.22*light)+.08*gloss; /* Display glow, not heat. */
         pixels[4*pixel+(size_t)channel]=(uint8_t)(255*Clamp(
             Clamp(value,0,1)*alpha+(pixels[4*pixel+(size_t)channel]/255.0)*(1-alpha),0,1));
       }

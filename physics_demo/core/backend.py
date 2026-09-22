@@ -40,7 +40,7 @@ def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> d
         raise NativeBackendUnavailable("Particle self-gravity requires the native solver; no force-dropping fallback is permitted.")
     if selected == "python" and native_liquid_preset:
         raise NativeBackendUnavailable(
-            "Honey, glue, and molten_lead presets require the native C11 liquid solver; "
+            "Non-water liquid presets require the native C11 liquid solver; "
             "the Python reference has different viscosity behavior and no equivalent surface-tension model."
         )
     fallback_reason = None
