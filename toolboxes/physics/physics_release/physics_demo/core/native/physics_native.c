@@ -732,7 +732,7 @@ static int solver_initialize(Solver *solver, PhySimulation *input, PhyDiagnostic
     if (!grid_initialize(&solver->grid, input->particle_count)) return 0;
     size_t count = input->particle_count > 0 ? (size_t)input->particle_count : 1u;
     if (input->gravity_G > 0 && input->particle_count > 0) {
-        if (!pg_init(&solver->gravity_tree, input->particle_count) ||
+        if ((input->gravity_theta > 0 && !pg_init(&solver->gravity_tree, input->particle_count)) ||
             !allocate_double_array(&solver->gravity_ax, count) ||
             !allocate_double_array(&solver->gravity_ay, count) ||
             !allocate_double_array(&solver->gravity_az, count)) return 0;
@@ -829,7 +829,8 @@ static int prepare_particle_gravity(Solver *s) {
     if (!s->gravity_ax) return 1;
     PhySimulation *in = s->input;
     if (!finite3(in->x[0], in->y[0], in->z[0])) return 0;
-    pg_build(&s->gravity_tree, in->x, in->y, in->z);
+    if (in->gravity_theta > 0) pg_build(&s->gravity_tree, in->x, in->y, in->z);
+    else pg_bind_positions(&s->gravity_tree, in->particle_count, in->x, in->y, in->z);
     pool_run(&s->pool, in->particle_count, particle_gravity_job, s);
     if (solver_deadline_reached(s)) return 0;
     double mean[3] = {0};

@@ -1,5 +1,5 @@
 {
-  "engine_sha256": "185665df761ec0cb6789112b69dd94bbb19cffe19ebb5f232c4f88f080f458d2",
+  "engine_sha256": "228e4c8dfdb95c1a9255f001f8cd5555f3ed997775e6962963cfe384781bb9fb",
   "files": {
     "physics_demo/__init__.py": "1b901355dc34dacbda2e86b27eb4d2234791f2a8b377fe3263671463278707b8",
     "physics_demo/__main__.py": "4d26bf77a84fda30ff295ea19c2163dd45b82c2cdfa552e3d763163a7fe389c8",
@@ -32,8 +32,8 @@
     "physics_demo/core/native/coupled_native.h": "2fd52fcbf06e9209e1d09847dfde0a7f075ad2e75df867755d8f9a0a47a52c1f",
     "physics_demo/core/native/mesh_native.c": "cd7793c9c153945b1c08645decb72f550a10132d7f591ec311e61f2fd49a1517",
     "physics_demo/core/native/mesh_native.h": "b1c8e597d2283e5a3dc2297e482cb47be39f03f6c975f513a021acc67e6b136f",
-    "physics_demo/core/native/particle_gravity.h": "7791a812a69d1bf3d36e2cc16e84b88c9369a5e872abd0d4fdc99d1951b61ead",
-    "physics_demo/core/native/physics_native.c": "675b1dc29ace513447294c928553628d8c85ad7c8a90a0482a34e417fe0ba584",
+    "physics_demo/core/native/particle_gravity.h": "94d5c23076b822f5602ebea7753c10c45636e4407803f3407a2db760ca2febbc",
+    "physics_demo/core/native/physics_native.c": "9c7452ee0b1cc0ae02cb6fed69717ae502e5573348e9ff3a36ace0617f66245d",
     "physics_demo/core/native/physics_native.h": "75d01abe6914e5c1b188a9f5f5777da94615196a3ced27faa01bb72a39eef09f",
     "physics_demo/core/native/rigid_math.h": "b95e622250a98ea7a2587c04feb54fb5dddff46db099e05ebb2eb2c7c05ac480",
     "physics_demo/core/native_backend.py": "b67580a073287975bc7c0d0044eee4461aa89983a1773cacbd0801ca75d29e6d",
@@ -82,7 +82,7 @@
     "physics_demo/systems/validation.py": "1374a8faede52fa3927adfcc359110f236b10de70db17f7b74f0ad8faee7f4e8",
     "physics_demo/video.py": "1cbe536e8ab15886927c3a8c6ef855ce1f12bf790109bb1f34c06cc1e257452d",
     "prebuilt/decode-probe": "ac1075e903fd6acf05030791351054c01107e785e86ae44cf06ddaa08fe227a3",
-    "prebuilt/libphysics_native.dylib": "0507a54849c7d8891e495502f956e66de41b15ff06823dc1322f6b685bdee374",
+    "prebuilt/libphysics_native.dylib": "44e9d0f192afe682557d2f1ae2fd942cd0af57518fb26651e27a234d52e0c863",
     "prebuilt/renderer-h264": "ee12cab037be5ee0cc6549b59da6ad064063b909c3249a85cad2c841b0539a9a",
     "prebuilt/renderer-mjpeg": "2ab72ffbd2a8462103871ed7db503958fdf637f11e8c63acf7265453105c9cc5",
     "scenes/droplet_ground.json": "1354777449e050bf1d4f04774708513e0fc660f9af3b1cbdae931428646cc774",
