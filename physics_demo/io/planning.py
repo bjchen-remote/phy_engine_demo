@@ -348,9 +348,6 @@ def make_plan(
         )
     if spacing > requested_spacing * (1.0 + 1.0e-9):
         adjustments.append(f"Increased particle spacing from {requested_spacing:.6g} m to {spacing:.6g} m to respect the {particle_limit} particle cap.")
-    if sample_limited_render < config["render_particles"]:
-        adjustments.append(f"Reduced rendered particles to keep frame-particle samples below {MAX_FRAME_PARTICLE_SAMPLES}.")
-
     dynamic_rigid = any(entity["type"] == "rigid" and entity.get("mass", 0.0) > 0.0 for entity in scene["entities"])
     selected_backend = "python" if scene["budget"].get("backend") == "python" or dynamic_rigid else "native"
     if any(entity["type"] == "slider" for entity in scene["entities"]):
@@ -417,6 +414,10 @@ def make_plan(
     if budget_iterations:
         plan["adjustments"].append(
             f"Increased spacing to {spacing:.6g} m so the calibrated runtime approaches the {scene['budget']['wall_time_s']:.3g} s budget."
+        )
+    if render_limit < min(config["render_particles"], actual):
+        plan["adjustments"].append(
+            f"Reduced rendered particles to keep frame-particle samples below {MAX_FRAME_PARTICLE_SAMPLES}."
         )
     interactions = scene["interactions"]
     if actual and interactions["mutual_gravity"]:

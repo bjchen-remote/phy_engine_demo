@@ -564,6 +564,12 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
 
     if point_masses > 64:
         errors.append(_issue("body_limit", "entities", "At most 64 point masses are supported."))
+    if point_masses and not coupled_enabled(scene) and any(world["gravity"]):
+        warnings.append(_issue(
+            "point_mass_world_gravity_ignored", "world.gravity",
+            "world.gravity does not accelerate point_mass entities on non-coupled routes.",
+            "Use a targeted uniform force field to accelerate those point masses.",
+        ))
     native_only_preset = any(
         LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         if isinstance(entity, dict) and entity.get("type") == "fluid"

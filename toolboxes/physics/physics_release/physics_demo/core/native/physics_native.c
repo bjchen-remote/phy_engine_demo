@@ -54,10 +54,9 @@ typedef struct {
     int32_t *slot_count;
     int32_t *slot_start;
     int32_t *slot_cursor;
-    int64_t *particle_x;
-    int64_t *particle_y;
-    int64_t *particle_z;
+    int32_t *particle_slot;
     int32_t *ordered_particles;
+    int32_t *neighbor_slots;
     int32_t *neighbor_offsets;
     int32_t *neighbors;
     size_t neighbor_capacity;
@@ -368,6 +367,7 @@ static int grid_initialize(CompactGrid *grid, int particle_count) {
         if (capacity > SIZE_MAX / 2u) return 0;
         capacity *= 2u;
     }
+    if (capacity > INT32_MAX) return 0;
     grid->slot_capacity = capacity;
     grid->slot_used = (uint8_t *)calloc(capacity, sizeof(uint8_t));
     grid->slot_x = (int64_t *)calloc(capacity, sizeof(int64_t));
@@ -377,15 +377,15 @@ static int grid_initialize(CompactGrid *grid, int particle_count) {
     grid->slot_start = (int32_t *)calloc(capacity, sizeof(int32_t));
     grid->slot_cursor = (int32_t *)calloc(capacity, sizeof(int32_t));
     size_t particle_capacity = particle_count > 0 ? (size_t)particle_count : 1u;
-    grid->particle_x = (int64_t *)calloc(particle_capacity, sizeof(int64_t));
-    grid->particle_y = (int64_t *)calloc(particle_capacity, sizeof(int64_t));
-    grid->particle_z = (int64_t *)calloc(particle_capacity, sizeof(int64_t));
+    if (particle_capacity > SIZE_MAX / (27u * sizeof(int32_t))) return 0;
+    grid->particle_slot = (int32_t *)calloc(particle_capacity, sizeof(int32_t));
     grid->ordered_particles = (int32_t *)calloc(particle_capacity, sizeof(int32_t));
+    grid->neighbor_slots = (int32_t *)calloc(27u * particle_capacity, sizeof(int32_t));
     grid->neighbor_offsets = (int32_t *)calloc(particle_capacity + 1u, sizeof(int32_t));
     return grid->slot_used && grid->slot_x && grid->slot_y && grid->slot_z &&
            grid->slot_count && grid->slot_start && grid->slot_cursor &&
-           grid->particle_x && grid->particle_y && grid->particle_z &&
-           grid->ordered_particles && grid->neighbor_offsets;
+           grid->particle_slot && grid->ordered_particles &&
+           grid->neighbor_slots && grid->neighbor_offsets;
 }
 
 static void grid_destroy(CompactGrid *grid) {
@@ -396,10 +396,9 @@ static void grid_destroy(CompactGrid *grid) {
     free(grid->slot_count);
     free(grid->slot_start);
     free(grid->slot_cursor);
-    free(grid->particle_x);
-    free(grid->particle_y);
-    free(grid->particle_z);
+    free(grid->particle_slot);
     free(grid->ordered_particles);
+    free(grid->neighbor_slots);
     free(grid->neighbor_offsets);
     free(grid->neighbors);
     memset(grid, 0, sizeof(*grid));
@@ -553,27 +552,21 @@ static void neighbor_count_job(void *opaque, int begin, int end) {
         if (solver_deadline_reached(solver)) return;
         int count = 0;
         unsigned deadline_counter = 0u;
-        int64_t cell_x = grid->particle_x[index];
-        int64_t cell_y = grid->particle_y[index];
-        int64_t cell_z = grid->particle_z[index];
-        for (int dz = -1; dz <= 1; ++dz) {
-            for (int dy = -1; dy <= 1; ++dy) {
-                for (int dx = -1; dx <= 1; ++dx) {
-                    size_t slot = grid_slot(grid, cell_x + dx, cell_y + dy, cell_z + dz, 0);
-                    if (slot == SIZE_MAX) continue;
-                    int start = grid->slot_start[slot];
-                    int stop = start + grid->slot_count[slot];
-                    for (int cursor = start; cursor < stop; ++cursor) {
-                        deadline_counter += 1u;
-                        if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
-                        int other = grid->ordered_particles[cursor];
-                        if (other == index) continue;
-                        double rx = input->x[index] - input->x[other];
-                        double ry = input->y[index] - input->y[other];
-                        double rz = input->z[index] - input->z[other];
-                        if (rx * rx + ry * ry + rz * rz < solver->h2) count += 1;
-                    }
-                }
+        size_t base = 27u * (size_t)grid->slot_start[grid->particle_slot[index]];
+        for (int neighbor = 0; neighbor < 27; ++neighbor) {
+            int slot = grid->neighbor_slots[base + neighbor];
+            if (slot < 0) continue;
+            int start = grid->slot_start[slot];
+            int stop = start + grid->slot_count[slot];
+            for (int cursor = start; cursor < stop; ++cursor) {
+                deadline_counter += 1u;
+                if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
+                int other = grid->ordered_particles[cursor];
+                if (other == index) continue;
+                double rx = input->x[index] - input->x[other];
+                double ry = input->y[index] - input->y[other];
+                double rz = input->z[index] - input->z[other];
+                if (rx * rx + ry * ry + rz * rz < solver->h2) count += 1;
             }
         }
         grid->neighbor_offsets[index + 1] = count;
@@ -588,28 +581,22 @@ static void neighbor_fill_job(void *opaque, int begin, int end) {
         if (solver_deadline_reached(solver)) return;
         int write = grid->neighbor_offsets[index];
         unsigned deadline_counter = 0u;
-        int64_t cell_x = grid->particle_x[index];
-        int64_t cell_y = grid->particle_y[index];
-        int64_t cell_z = grid->particle_z[index];
-        for (int dz = -1; dz <= 1; ++dz) {
-            for (int dy = -1; dy <= 1; ++dy) {
-                for (int dx = -1; dx <= 1; ++dx) {
-                    size_t slot = grid_slot(grid, cell_x + dx, cell_y + dy, cell_z + dz, 0);
-                    if (slot == SIZE_MAX) continue;
-                    int start = grid->slot_start[slot];
-                    int stop = start + grid->slot_count[slot];
-                    for (int cursor = start; cursor < stop; ++cursor) {
-                        deadline_counter += 1u;
-                        if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
-                        int other = grid->ordered_particles[cursor];
-                        if (other == index) continue;
-                        double rx = input->x[index] - input->x[other];
-                        double ry = input->y[index] - input->y[other];
-                        double rz = input->z[index] - input->z[other];
-                        if (rx * rx + ry * ry + rz * rz < solver->h2) {
-                            grid->neighbors[write++] = other;
-                        }
-                    }
+        size_t base = 27u * (size_t)grid->slot_start[grid->particle_slot[index]];
+        for (int neighbor = 0; neighbor < 27; ++neighbor) {
+            int slot = grid->neighbor_slots[base + neighbor];
+            if (slot < 0) continue;
+            int start = grid->slot_start[slot];
+            int stop = start + grid->slot_count[slot];
+            for (int cursor = start; cursor < stop; ++cursor) {
+                deadline_counter += 1u;
+                if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
+                int other = grid->ordered_particles[cursor];
+                if (other == index) continue;
+                double rx = input->x[index] - input->x[other];
+                double ry = input->y[index] - input->y[other];
+                double rz = input->z[index] - input->z[other];
+                if (rx * rx + ry * ry + rz * rz < solver->h2) {
+                    grid->neighbors[write++] = other;
                 }
             }
         }
@@ -636,11 +623,9 @@ static int grid_rebuild(Solver *solver) {
         int64_t cx = (int64_t)floor(input->x[index] / solver->h);
         int64_t cy = (int64_t)floor(input->y[index] / solver->h);
         int64_t cz = (int64_t)floor(input->z[index] / solver->h);
-        grid->particle_x[index] = cx;
-        grid->particle_y[index] = cy;
-        grid->particle_z[index] = cz;
         size_t slot = grid_slot(grid, cx, cy, cz, 1);
         if (slot == SIZE_MAX || grid->slot_count[slot] >= 512) return 0;
+        grid->particle_slot[index] = (int32_t)slot;
         grid->slot_count[slot] += 1;
     }
     int offset = 0;
@@ -651,9 +636,29 @@ static int grid_rebuild(Solver *solver) {
         offset += grid->slot_count[slot];
     }
     for (int index = 0; index < count; ++index) {
-        size_t slot = grid_slot(grid, grid->particle_x[index], grid->particle_y[index], grid->particle_z[index], 0);
+        size_t slot = (size_t)grid->particle_slot[index];
         int target = grid->slot_start[slot] + grid->slot_cursor[slot]++;
         grid->ordered_particles[target] = index;
+    }
+    /* Every occupied slot has a unique slot_start. Cache its 27 adjacent slots
+     * in the original dz/dy/dx order so count and fill see identical candidates. */
+    for (size_t slot = 0; slot < grid->slot_capacity; ++slot) {
+        if (!grid->slot_used[slot]) continue;
+        if (solver_deadline_reached(solver)) return 0;
+        size_t base = 27u * (size_t)grid->slot_start[slot];
+        int neighbor = 0;
+        for (int dz = -1; dz <= 1; ++dz) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    size_t adjacent = grid_slot(
+                        grid, grid->slot_x[slot] + dx,
+                        grid->slot_y[slot] + dy, grid->slot_z[slot] + dz, 0
+                    );
+                    grid->neighbor_slots[base + neighbor++] =
+                        adjacent == SIZE_MAX ? -1 : (int32_t)adjacent;
+                }
+            }
+        }
     }
 
     grid->neighbor_offsets[0] = 0;
