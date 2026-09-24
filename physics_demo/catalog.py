@@ -115,8 +115,8 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     },
     "droplet_sphere": {
         "file": "droplet_sphere.json",
-        "use_for": ["drop onto a ball", "flow around a sphere"],
-        "limitations": "The sphere is a static analytic obstacle.",
+        "use_for": ["water drop onto a static ball", "liquid flowing around a spherical obstacle"],
+        "limitations": "A 0.09 m water body meets a static 0.28 m sphere in a 0.8 s window. This is a sphere obstacle, not a dry-floor splash example; wetting, air and breakup are not calibrated.",
         "common_patches": ["/entities/@drop/shape/center/1", "/entities/@ball/shape/radius", "/budget/quality"],
     },
     "water_blob": {
@@ -133,8 +133,8 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     },
     "high_detail_droplet_sphere": {
         "file": "high_detail_droplet_sphere.json",
-        "use_for": ["high-detail liquid impact", "quality benchmark"],
-        "limitations": "Designed for the high quality tier and a 50–60 second budget.",
+        "use_for": ["high-detail water drop onto a static sphere", "sphere obstacle resolution benchmark"],
+        "limitations": "A 0.12 m drop contacts a static 0.28 m sphere; use only for sphere requests. High quality uses a 120 second budget and is not calibrated for wetting or air-driven breakup.",
         "common_patches": ["/entities/@drop/shape/center/1", "/budget/wall_time_s"],
     },
     "geyser": {

@@ -3,7 +3,7 @@
 独立物理模块，接收文本任务、工作目录与资源限制；不读取 QQ、账号或聊天配置。
 `toolbox.json.agent_api` 向宿主 Agent 暴露现有物理建模 API。Agent 可按用户要求直接构造
 scene-v1、创建系统/网格、设置液体、组合约束、声明观测量，校验并修正后运行。
-样例只是可选起点，不能因没有相同样例就拒绝。能力边界以 capabilities 与 prepare 为准。
+通常样例是可选起点；已有地面、圆锥或球体水滴冲击样例时，先载入匹配几何再修改用户指定的参数。不能因没有相同样例就拒绝。能力边界以 capabilities 与 prepare 为准。
 
 `modeling.py` 管理结构化调用和当前任务的规范化模型；`toolbox_adapter.py` 实现 api/probe/run；
 `run_simulation.py` 管理验证与视频，并保留不使用 Agent 的水滴/双摆/三体快速示例入口。

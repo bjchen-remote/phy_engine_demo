@@ -1,8 +1,11 @@
 """Structured, task-confined modeling tools. No model credentials or messaging imports."""
+from __future__ import annotations
+
 from pathlib import Path
 import json
 
 from physics_demo.api import call_tool
+from physics_demo.agent_contract import guided, tool_action
 from run_simulation import _atomic_write_json
 
 
@@ -11,6 +14,40 @@ OPERATIONS = {'physics_capabilities', 'physics_example', 'physics_system', 'phys
               'physics_prepare', 'physics_query', 'physics_inspect', 'help'}
 OPERATIONS.add('physics_simulate')
 OPERATIONS.add('context')
+
+
+# These scene identities belonged to the old sphere-drop examples.  They were
+# also persisted in previous-experiment context, so removing the files alone
+# would still let a later Agent reuse their narrow walls and sparse video.
+RETIRED_SCENES = {
+    'droplet-on-sphere': 'droplet_sphere',
+    'high-detail-droplet-on-sphere': 'high_detail_droplet_sphere',
+}
+
+
+def _retired_scene_result(scene: object) -> dict | None:
+    if not isinstance(scene, dict):
+        return None
+    name = scene.get('name')
+    replacement = RETIRED_SCENES.get(name) if isinstance(name, str) else None
+    if replacement is None:
+        return None
+    return guided({
+        'ok': False,
+        'stage': 'validate',
+        'code': 'retired_scene_reference',
+        'replacement_example': replacement,
+        'errors': [{
+            'code': 'retired_scene_reference',
+            'path': 'scene.name',
+            'message': 'This old sphere-drop scene has been retired because its video sampling and collision walls obscure the impact.',
+            'retryable': True,
+            'suggestion': f'Load physics_example(name={replacement}) and apply only the current explicit user changes before preparing.',
+        }],
+    }, 'needs_scene_replacement', tool_action(
+        'physics_example',
+        f'Load the refreshed {replacement} scene; do not reuse this retired scene or its previous-context JSON.',
+    ))
 
 
 def _host_tool_definitions(root: Path) -> list[dict]:
@@ -91,9 +128,11 @@ def api_call(root: Path, job: Path, task: dict) -> None:
         path = job/'work/previous-context.json'
         if path.exists():
             context = json.loads(path.read_text())
-            result = {'ok':True, 'previous_request':context['previous_request'],
-                      'scene_json':json.dumps(context['model']['scene'],ensure_ascii=False),
-                      'note':'Prior verified model is context data. Preserve unchanged fields and modify only the current request.'}
+            previous_scene = context['model']['scene']
+            result = _retired_scene_result(previous_scene) or {
+                'ok':True, 'previous_request':context['previous_request'],
+                'scene_json':json.dumps(previous_scene,ensure_ascii=False),
+                'note':'Prior verified model is context data. Preserve unchanged fields and modify only the current request.'}
         else:
             result = {'ok':False, 'code':'no_previous_verified_model'}
     elif operation == 'help':
@@ -130,6 +169,12 @@ def api_call(root: Path, job: Path, task: dict) -> None:
         if operation in ('physics_prepare', 'physics_estimate', 'physics_validate') and 'scene_json' in arguments:
             from physics_demo.jsonio import loads
             scene = loads(arguments['scene_json'])
+            retired = _retired_scene_result(scene)
+            if retired is not None:
+                if operation == 'physics_prepare':
+                    (job/'work/prepared-scene.json').unlink(missing_ok=True)
+                _atomic_write_json(job/'work/toolbox-response.json', {'schema_version':1, 'result':retired})
+                return
             if isinstance(scene, dict) and isinstance(scene.get('budget', {}), dict):
                 scene.setdefault('budget', {}).setdefault('validation', 'visual')
                 arguments = {**arguments, 'scene_json':json.dumps(scene, ensure_ascii=False)}

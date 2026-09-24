@@ -168,6 +168,48 @@ class PhysicsProtocolTests(unittest.TestCase):
             for axis in range(3):
                 self.assertAlmostEqual(sum(b[field][axis] for b in first['entities']), 0)
 
+    def test_water_drop_quick_route_preserves_size_and_splash_intent(self):
+        sys.path.insert(0, str(ROOT/'physics'))
+        import run_simulation
+
+        for prompt in (
+            '一滴半径3毫米的水滴落到地面',
+            '一滴三毫米水滴落到地面',
+            '直径 6 mm 的水滴落在干地板并飞溅',
+            '3 mm water drop onto the floor',
+            '3-mm water droplet onto the floor',
+            '3mmwaterdrop onto the floor',
+            'a water droplet with radius 0.003 m hits the floor',
+            'water droplet diameter 6 onto the floor',
+            'water droplet diameter of about 6 onto the floor',
+            '半径为3的水滴落到地面',
+            '一滴水落到圆锥上，直径 6 mm',
+        ):
+            with self.subTest(prompt=prompt):
+                with self.assertRaises(run_simulation.UnsupportedRequest) as raised:
+                    run_simulation.route(prompt)
+                self.assertIn('author scene_json', str(raised.exception))
+                self.assertIn('radius/diameter', str(raised.exception))
+        self.assertFalse(run_simulation._has_explicit_size('3min'))
+
+        for prompt in (
+            '一滴水落到干燥地面，产生明显水花',
+            'water droplet splashes on dry floor',
+        ):
+            with self.subTest(prompt=prompt):
+                route_name, scene = run_simulation.route(prompt)
+                self.assertEqual(route_name, 'water_droplet_ground_splash')
+                self.assertEqual(scene['entities'][0]['shape']['radius'], 0.32)
+        for prompt in (
+            '细水珠落到干燥地面飞溅',
+            '毫米级水滴落到干燥地面产生水花',
+            'microdroplet splashes on dry floor',
+        ):
+            with self.subTest(prompt=prompt):
+                route_name, scene = run_simulation.route(prompt)
+                self.assertEqual(route_name, 'water_droplet_ground_dry')
+                self.assertEqual(scene['entities'][0]['shape']['radius'], 0.003)
+
     def test_prepared_short_water_impact_gets_watchable_video(self):
         sys.path.insert(0, str(ROOT/'physics'))
         import run_simulation
@@ -176,23 +218,28 @@ class PhysicsProtocolTests(unittest.TestCase):
         fast_name, fast_scene=run_simulation.route('快速预览一滴水落到地面')
         dry_name, dry_scene=run_simulation.route('一滴水落到干燥地面')
         micro_name, micro_scene=run_simulation.route('细水珠落到地面飞溅')
+        wet_name, wet_scene=run_simulation.route('细水珠落到有水膜的地面飞溅')
         cone_name, cone_scene=run_simulation.route('一滴水落到圆锥上')
-        self.assertEqual(default_name,'water_droplet_ground_balanced')
-        self.assertEqual(fast_name,'water_droplet_ground_fast')
+        self.assertEqual(default_name,'water_droplet_ground_splash')
+        self.assertEqual(fast_name,'water_droplet_ground_splash')
+        self.assertEqual(default_scene, fast_scene)
         self.assertEqual(dry_name,'water_droplet_ground_dry')
-        self.assertEqual(micro_name,'water_droplet_ground_micro_wet')
+        self.assertEqual(micro_name,'water_droplet_ground_dry')
+        self.assertEqual(wet_name,'water_droplet_ground_micro_wet')
         self.assertEqual(cone_name,'water_droplet_cone')
         self.assertEqual(default_scene['world']['duration'],.8)
         self.assertEqual(fast_scene['world']['duration'],.8)
         self.assertEqual(default_scene['world']['output_fps'],60)
         self.assertEqual(dry_scene['world']['output_fps'],120)
         self.assertEqual(micro_scene['world']['output_fps'],120)
+        self.assertEqual(wet_scene['world']['output_fps'],120)
         self.assertEqual(dry_scene['world']['duration'],.3)
         self.assertEqual(len(default_scene['entities']),1)
         self.assertEqual(len(dry_scene['entities']),1)
         self.assertEqual(default_scene['entities'][0]['shape']['radius'],.32)
         self.assertEqual(dry_scene['entities'][0]['shape']['radius'],.003)
-        self.assertEqual(len(micro_scene['entities']),2)
+        self.assertEqual(len(micro_scene['entities']),1)
+        self.assertEqual(len(wet_scene['entities']),2)
         self.assertEqual(cone_scene['entities'][1]['color'],[.79,.49,.24])
         with tempfile.TemporaryDirectory() as temporary:
             artifacts=Path(temporary)

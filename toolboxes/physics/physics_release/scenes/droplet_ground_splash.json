@@ -34,7 +34,7 @@
         "radius": 0.32,
         "type": "sphere"
       },
-      "spacing": 0.06,
+      "spacing": 0.04,
       "type": "fluid",
       "velocity": [
         0,
@@ -43,7 +43,7 @@
       ]
     }
   ],
-  "name": "qq-large-water-droplet-ground-rapid",
+  "name": "large-water-drop-ground-splash",
   "version": 1,
   "world": {
     "bounds": {
