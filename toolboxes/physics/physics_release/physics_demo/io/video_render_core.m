@@ -1141,7 +1141,8 @@ static int CompareLiquidSamples(const void *left,const void *right) {
  * original footprint. Dense bins need no expansion and skip the neighbor walk;
  * its result is independent of insertion order and avoids quadratic work. */
 static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
-    PhyVideoCamera camera,double particleRadius,size_t width,size_t height) {
+    PhyVideoCamera camera,double particleRadius,size_t width,size_t height,
+    int sparseNeighborThreshold) {
   if (samples.count>INT_MAX) return NULL;
   double cellSize=fmax(2.3,8*particleRadius*camera.scale);
   int columns=(int)ceil((double)width/cellSize)+2,
@@ -1215,7 +1216,7 @@ static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
     }
     if (nearest[2]<DBL_MAX)
       point->radius=fmax(baseRadius,fmin(5.5*particleRadius*camera.scale,1.35*sqrt(nearest[2])));
-    point->sparse=neighborCount<=7;
+    point->sparse=neighborCount<=sparseNeighborThreshold;
     if (neighborCount>=4 && weightTotal>1.0) {
       double du=.55*(meanU/weightTotal-point->center.u),
              dv=.55*(meanV/weightTotal-point->center.v),
@@ -1250,8 +1251,10 @@ static void BlendSparseWaterPixel(uint8_t *pixels,size_t pixel,
  * hide droplets behind it; no sample positions or velocities are changed. */
 static void DrawSparseWaterDroplets(uint8_t *pixels,float *sceneDepth,
     LiquidSample *points,NSUInteger count,NSArray *previousPositions,
-    PhyVideoCamera camera,size_t width,size_t height,double particleRadius) {
-  double radius=Clamp(1.08*particleRadius*camera.scale,1.65,8.5);
+    PhyVideoCamera camera,size_t width,size_t height,double particleRadius,
+    BOOL cohesiveWater) {
+  double radius=cohesiveWater ? Clamp(.72*particleRadius*camera.scale,1.5,5.0)
+                              : Clamp(1.08*particleRadius*camera.scale,1.65,8.5);
   if (![previousPositions isKindOfClass:[NSArray class]]) previousPositions=@[];
   for (NSUInteger i=0;i<count;i++) {
     LiquidSample point=points[i];
@@ -1283,7 +1286,7 @@ static void DrawSparseWaterDroplets(uint8_t *pixels,float *sceneDepth,
         BlendSparseWaterPixel(pixels,pixel,.18,.72,1,.23*coverage);
       }
     }
-    double bodyRadius=1.10*radius;
+    double bodyRadius=(cohesiveWater?1.0:1.10)*radius;
     int left=(int)Clamp(floor(center.u-bodyRadius-1),0,(double)width-1),
         right=(int)Clamp(ceil(center.u+bodyRadius+1),0,(double)width-1),
         bottom=(int)Clamp(floor(center.v-bodyRadius-1),0,(double)height-1),
@@ -1296,14 +1299,19 @@ static void DrawSparseWaterDroplets(uint8_t *pixels,float *sceneDepth,
       double z=center.depth+particleRadius*sqrt(fmax(0,1-(distance/bodyRadius)*(distance/bodyRadius)));
       size_t pixel=((height-1-(size_t)y)*width+(size_t)x);
       if (z<sceneDepth[pixel]) continue;
-      BlendSparseWaterPixel(pixels,pixel,.08,.52,.88,.72*coverage);
-      double rimWidth=fmax(.7,.16*radius),rim=Clamp(.5*rimWidth+.5-
+      BlendSparseWaterPixel(pixels,pixel,cohesiveWater?.10:.08,
+          cohesiveWater?.58:.52,cohesiveWater?.86:.88,
+          (cohesiveWater?.62:.72)*coverage);
+      double rimWidth=fmax(cohesiveWater?.5:.7,(cohesiveWater?.10:.16)*radius),
+          rim=Clamp(.5*rimWidth+.5-
           fabs(distance-1.08*radius),0,1);
-      if (rim>0) BlendSparseWaterPixel(pixels,pixel,.66,.94,1,.42*rim);
+      if (rim>0) BlendSparseWaterPixel(pixels,pixel,.66,.94,1,
+          (cohesiveWater?.20:.42)*rim);
       double highlight=hypot(ux+.30*radius,uy-.34*radius);
       double highlightRadius=fmax(.7,.23*radius);
       double glint=Clamp(highlightRadius+.5-highlight,0,1);
-      if (glint>0) BlendSparseWaterPixel(pixels,pixel,.90,.99,1,.76*glint);
+      if (glint>0) BlendSparseWaterPixel(pixels,pixel,.90,.99,1,
+          (cohesiveWater?.45:.76)*glint);
       sceneDepth[pixel]=(float)z;
     }
   }
@@ -1328,7 +1336,9 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
   if (!hasLiquid) return YES;
   if (!isfinite(particleRadius) || particleRadius<=0 ||
       !isfinite(camera.scale) || camera.scale<=0) return NO;
-  LiquidSample *points=BuildLiquidSamples(samples,materials,camera,particleRadius,width,height);
+  BOOL cohesiveWater=[frame[@"__cohesive_water"] boolValue];
+  LiquidSample *points=BuildLiquidSamples(samples,materials,camera,particleRadius,
+      width,height,cohesiveWater?3:7);
   if (!points) return NO;
   BOOL separateSparseWater=[frame[@"__separate_sparse_water"] boolValue];
   size_t count=width*height;
@@ -1425,6 +1435,10 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
       float *swap=source;source=target;target=swap;
     }
     CGFloat colors[8];LiquidPalette(material,colors);
+    if (cohesiveWater && material==0) {
+      colors[0]=.06;colors[1]=.32;colors[2]=.47;colors[3]=.98;
+      colors[4]=.32;colors[5]=.80;colors[6]=1.0;colors[7]=1.0;
+    }
     for (int y=minimumY;y<=maximumY;y++) for (int x=minimumX;x<=maximumX;x++) {
       size_t pixel=(height-1-(size_t)y)*width+(size_t)x;
       double coverage=Clamp((field[pixel]-coverageThreshold)/coverageFeather,0,1);
@@ -1448,7 +1462,9 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
        * This is a deterministic display cue, not a refraction solver: the
        * reconstructed depth and every trajectory sample remain unchanged. */
       double alpha=coverage*(material==0?
-          (.58+.24*(1-nz)+.08*thickness):(material==2?.97:1.0));
+          (cohesiveWater ? (.78+.14*(1-nz)+.04*thickness)
+                         : (.58+.24*(1-nz)+.08*thickness))
+          :(material==2?.97:1.0));
       double oldAlpha=pixels[4*pixel+3]/255.0;
       for (int channel=0;channel<3;channel++) {
         double base=colors[4+channel]*(1-.36*thickness)+colors[channel]*.36*thickness;
@@ -1464,7 +1480,7 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
   }
   if (separateSparseWater)
     DrawSparseWaterDroplets(pixels,sceneDepth,points,samples.count,
-        frame[@"__previous_p"],camera,width,height,particleRadius);
+        frame[@"__previous_p"],camera,width,height,particleRadius,cohesiveWater);
   free(field);free(front);free(smooth);free(points);
   return YES;
 }
@@ -1835,7 +1851,16 @@ BOOL PhyVideoDrawTrajectoryFrame(CGContextRef context,NSDictionary *frame,
         waterOnly=NO;
     BOOL legacyWater=noMesh && waterOnly &&
         [scene[@"__presentation_water_renderer"] isEqual:@"legacy_v2"];
-    BOOL rendered=DrawFrameWithWaterStyle(context,frame,previousFrame,materials,shapes,
+    NSDictionary *displayFrame=frame;
+    if (noMesh && waterOnly &&
+        [scene[@"__presentation_water_renderer"] isEqual:@"cohesive_spray"]) {
+      NSMutableDictionary *cohesiveFrame=[frame mutableCopy];
+      cohesiveFrame[@"__separate_sparse_water"]=@YES;
+      cohesiveFrame[@"__cohesive_water"]=@YES;
+      cohesiveFrame[@"__previous_p"]=previousFrame[@"p"] ?: @[];
+      displayFrame=cohesiveFrame;
+    }
+    BOOL rendered=DrawFrameWithWaterStyle(context,displayFrame,previousFrame,materials,shapes,
         colliders,meshObjects,minimum,maximum,camera,radius,width,height,legacyWater);
     return rendered && (!links || PhyVideoDrawConnections(context,frame,scene,
                         trajectory[@"gravity_body_ids"],camera));

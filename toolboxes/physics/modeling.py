@@ -63,9 +63,11 @@ def _host_tool_definitions(root: Path) -> list[dict]:
     )
     example = by_name['physics_example']
     example['description'] += (
-        ' For an unscaled visible ground splash choose droplet_ground_splash;'
+        ' For an unscaled dry ground splash choose droplet_ground_splash;'
+        ' for an unscaled visible splash without a dry constraint or a pre-wetted ground splash choose droplet_ground_macro_wet'
+        ' and disclose its 4 cm water film and uncalibrated material controls;'
         ' for a specified millimetre drop on dry ground choose droplet_ground;'
-        ' choose droplet_ground_micro_wet only when a pre-wetted film is allowed;'
+        ' for a millimetre drop over an accepted film choose droplet_ground_micro_wet;'
         ' for cone impact choose droplet_cone. Preserve explicit dimensions and wetness.'
     )
     for name in ('physics_prepare', 'physics_estimate'):

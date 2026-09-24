@@ -714,7 +714,7 @@ def encode_watchable_mp4(
         or not 0.9 <= camera_focus_quantile < 1.0
     ):
         raise VideoEncodingError("Presentation camera focus quantile must be in [0.9, 1).")
-    if water_renderer not in ("continuous", "legacy_v2", "mesh_hybrid"):
+    if water_renderer not in ("continuous", "cohesive_spray", "legacy_v2", "mesh_hybrid"):
         raise VideoEncodingError("Unknown presentation water renderer.")
     try:
         document = json.loads(result_path.read_text(encoding="utf-8"))
@@ -741,8 +741,8 @@ def encode_watchable_mp4(
                  or any(frame.get("q") is not None for frame in frames)
                  or any(link.get("endpoints") or link.get("solid")
                         for link in connections if isinstance(link, dict)))
-        if water_renderer == "legacy_v2" and (has_mesh or mixed):
-            raise VideoEncodingError("Legacy water presentation requires uncoupled water without meshes.")
+        if water_renderer in ("legacy_v2", "cohesive_spray") and (has_mesh or mixed):
+            raise VideoEncodingError("This water presentation requires uncoupled water without meshes.")
         if water_renderer == "mesh_hybrid" and not (has_mesh and mixed):
             raise VideoEncodingError("Hybrid water presentation requires a coupled water-mesh scene.")
     retimed, presentation = _retime_result_document(document, fps=fps, segments=segments)
@@ -782,6 +782,8 @@ def encode_watchable_mp4(
     metadata["presentation"] = presentation
     if water_renderer == "legacy_v2":
         metadata["renderer"]["name"] = "coregraphics-legacy-water-v2"
+    elif water_renderer == "cohesive_spray":
+        metadata["renderer"]["name"] = "coregraphics-cohesive-water-spray"
     elif water_renderer == "mesh_hybrid":
         metadata["renderer"]["name"] = "coregraphics-mesh-liquid-hybrid"
     metadata["renderer"]["temporal_interpolation"] = "piecewise-linear recorded-state interpolation"

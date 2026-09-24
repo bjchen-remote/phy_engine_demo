@@ -58,6 +58,7 @@ class WeakAgentToolboxContractTests(unittest.TestCase):
             routing = definitions["physics_example"]["description"]
             for name in (
                 "droplet_ground_splash",
+                "droplet_ground_macro_wet",
                 "droplet_ground",
                 "droplet_ground_micro_wet",
                 "droplet_cone",

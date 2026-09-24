@@ -63,6 +63,17 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         "limitations": "This 0.8 s macroscopic dry-floor scene shows early radial spray without recorded side-wall contact. It is a visual reference, not a millimetre-drop or experimentally calibrated prediction. Keep explicit user dimensions even if the result spreads less.",
         "common_patches": ["/entities/@drop/shape/center/1", "/entities/@drop/shape/radius", "/world/duration"],
     },
+    "droplet_ground_macro_wet": {
+        "file": "droplet_ground_macro_wet.json",
+        "use_for": ["visible large water-drop splash onto a prewetted ground", "0.32 m radius drop over a 4 cm water film"],
+        "inherited_assumptions": [
+            "A 0.32 m radius water body starts 1.55 m above the ground under Earth gravity.",
+            "A finite 1.0 m square, 4 cm deep water film already covers the impact area.",
+            "The drop and film use surface_tension=0.055, a 10% increase over the 0.05 trial baseline.",
+        ],
+        "limitations": "The upward spray depends on a pre-existing 4 cm water film. Surface tension is an uncalibrated model coefficient, not a direct measurement of molecular attraction. This visual single-phase SPH scene has no resolved air, calibrated wetting, or validated splash threshold; do not describe it as a dry-ground result.",
+        "common_patches": ["/entities/@drop/shape/center/1", "/entities/@drop/shape/radius", "/entities/@film/shape/size", "/entities/@drop/properties/surface_tension", "/entities/@film/properties/surface_tension", "/world/duration"],
+    },
     "droplet_ground_micro_wet": {
         "file": "droplet_ground_micro_wet.json",
         "use_for": ["visible 3 mm water drop splash onto a thin prewetted film", "millimetre-scale splash when a wet surface is acceptable"],

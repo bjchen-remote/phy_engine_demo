@@ -19,6 +19,7 @@ SOURCE_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PACKAGE = SOURCE_ROOT / "physics_demo"
 CANONICAL_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_splash.json"
 DRY_SCENE = SOURCE_ROOT / "examples" / "droplet_ground.json"
+MACRO_WET_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_macro_wet.json"
 MICRO_WET_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_micro_wet.json"
 CONE_SCENE = SOURCE_ROOT / "examples" / "droplet_cone.json"
 RELEASE_ROOT = Path(__file__).resolve().parent / "physics"
@@ -115,6 +116,9 @@ def _scene_documents() -> dict[str, dict[str, Any]]:
     dry = json.loads(DRY_SCENE.read_text(encoding="utf-8"))
     dry['budget'].update(backend='native', wall_time_s=30)
     scenes['droplet_ground_dry.json'] = dry
+    macro_wet = json.loads(MACRO_WET_SCENE.read_text(encoding='utf-8'))
+    macro_wet['budget'].update(backend='native', wall_time_s=90)
+    scenes['droplet_ground_macro_wet.json'] = macro_wet
     micro_wet = json.loads(MICRO_WET_SCENE.read_text(encoding="utf-8"))
     micro_wet['budget'].update(backend='native', wall_time_s=30)
     scenes['droplet_ground_micro_wet.json'] = micro_wet

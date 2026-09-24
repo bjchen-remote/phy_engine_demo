@@ -137,12 +137,24 @@ def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
             else:
                 scene_name = "droplet_ground_dry.json"
                 route_name = "water_droplet_ground_dry"
-        elif any(word in compact for word in ("预湿", "湿润", "水膜", "已有水", "prewet", "wetfilm", "waterfilm")):
-            scene_name = "droplet_ground_micro_wet.json"
-            route_name = "water_droplet_ground_micro_wet"
+        elif any(word in compact for word in (
+            "预湿", "湿润", "湿地面", "湿地板", "水膜", "已有水",
+            "prewet", "pre-wet", "wetfloor", "wetground", "wetfilm", "waterfilm",
+        )):
+            if small:
+                scene_name = "droplet_ground_micro_wet.json"
+                route_name = "water_droplet_ground_micro_wet"
+            else:
+                scene_name = "droplet_ground_macro_wet.json"
+                route_name = "water_droplet_ground_macro_wet"
         elif small:
             scene_name = "droplet_ground_dry.json"
             route_name = "water_droplet_ground_dry"
+        elif visible_splash:
+            # When wetness is unspecified, use the demonstrated airborne
+            # splash and disclose the pre-existing film to the caller.
+            scene_name = "droplet_ground_macro_wet.json"
+            route_name = "water_droplet_ground_macro_wet"
         else:
             scene_name = "droplet_ground_splash.json"
             route_name = "water_droplet_ground_splash"
@@ -294,6 +306,8 @@ def _water_impact_display(scene: dict) -> tuple[str, float, float | None, list[d
     if impact and water_only and uncoupled:
         if radius < 0.02:
             return "legacy_v2", 1.5 if film else 1.0, 0.99 if film else None, _watchable_segments(duration)
+        if film:
+            return "cohesive_spray", 1.7, None, _watchable_segments(duration)
         # The collision walls may be metres away to avoid false rebounds.
         # Frame the impact itself, while allowing distant late beads to leave
         # the camera just as they would in a fixed physical camera.

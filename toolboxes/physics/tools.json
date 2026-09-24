@@ -92,6 +92,7 @@
             "three_body",
             "droplet_ground",
             "droplet_ground_splash",
+            "droplet_ground_macro_wet",
             "droplet_ground_micro_wet",
             "droplet_cone",
             "liquid_preset_showcase",
