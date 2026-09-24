@@ -19,11 +19,8 @@ class SystemSchemaTests(unittest.TestCase):
         Draft202012Validator.check_schema(schema)
         validator=Draft202012Validator(schema)
         valid=[{'type':'pendulum'},{'type':'double_pendulum'},
-               {'type':'ballistic_burst'}, {'type':'ballistic_burst','preset':'lava','wall_time_s':180},
                {'type':'double_pendulum','lengths':[.5,2],'masses':[2,3],'angles':[.4,-.8],'angular_velocities':[1,-2],'output_fps':60}]
-        invalid=[{'type':'ballistic_burst','volume':0}, {'type':'ballistic_burst','parcel_count':True},
-                 {'type':'ballistic_burst','lengths':[1]}, {'type':'ballistic_burst','preset':'invented'},
-                 {'type':'triple_pendulum'}, {'type':'pendulum','masses':[1,2]},
+        invalid=[{'type':'triple_pendulum'}, {'type':'pendulum','masses':[1,2]},
                  {'type':'double_pendulum','lengths':[1,0]}, {'type':'pendulum','angles':[True]},
                  {'type':'pendulum','output_fps':2.5}, {'type':'pendulum','duration':31},
                  {'type':'pendulum','solver':'guess'}, {'type':'pendulum','gravity':0}]

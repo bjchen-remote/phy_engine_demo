@@ -196,37 +196,3 @@ Physics and canonical result files are never rerun or modified for this operatio
 The shared task deadline includes compression. Result verification.delivery records the bytes,
 resolution and whether presentation compression was needed. A compression failure returns
 stage=presentation, retryable=false; do not change a requested duration or label it unsupported physics.
-
-
-## Particle self-gravity
-
-`core/native/particle_gravity.h` is a small, independent equal-mass force kernel:
-bounded octree construction and traversal, with a direct-pair reference mode.
-`physics_native.c` owns its workspace, thread-pool dispatch, mean-force correction,
-substep clock and deadline. It applies the resulting acceleration before the existing
-DFSPH pressure/contact update. Native ABI 6 adds the density and opening-angle controls;
-all native compilation caches include the new header. Disabled self-gravity retains
-the previous particle solver path.
-
-`io/schema.py` owns capability discovery, finite controls and unsupported route checks;
-`io/planning.py` owns force cost and represented-mass disclosure. The native-only guard
-in `core/backend.py` prevents a fallback from silently dropping gravity. A separate
-reference manual and catalog example make the capability discoverable to agents.
-Tests compare the kernel to an independent direct sum, check convergence and degenerate
-positions, exercise actual attraction and centroid symmetry, and reject missing-native
-or unsupported mixed-domain execution. Particle/point-mass gravitational exchange is
-not implemented. This module does not change the messaging bridge.
-
-## Ballistic liquid assembly
-
-`systems/ballistic_burst.py` derives finite parcel geometry, initial velocity and
-flight bounds from volume, apex and range. It contains no integration or rendering
-loop. Numeric checks are shared with pendulum factories in `systems/validation.py`.
-The existing prepare/simulate/query pipeline owns budgets and all dynamics. The
-`lava` preset adds stable visual coefficients and an opaque warm palette; the shared
-renderer uses one material-count constant for palettes and spatial bins. No heat
-or continuous source is implied. Manual routing separates launch impulses from
-forces that incorrectly follow airborne material, and numerical walls from camera
-framing. Force and contact quality gates remain unchanged.
-Ground grid spacing follows camera scale in SI units; moving distant numerical walls
-does not stretch the visible grid. Viewport clipping bounds grid drawing work.

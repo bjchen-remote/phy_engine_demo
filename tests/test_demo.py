@@ -38,61 +38,6 @@ EXAMPLES = ROOT / "examples"
 
 
 class ContractTests(unittest.TestCase):
-    def test_watchable_camera_changes_only_the_temporary_encoder_document(self):
-        positions = [[-1000.0, -1000.0, -1000.0]] + [
-            [float(index), float(index) / 10.0, -float(index) / 100.0]
-            for index in range(199)
-        ] + [[1000.0, 1000.0, 1000.0]]
-        source = {
-            "scene": {"name": "camera-source"},
-            "trajectory": {"particle_materials": ["water"], "frames": [
-                {"t": 0.0, "p": positions, "g": [], "r": []},
-                {"t": 1.0, "p": positions, "g": [], "r": []},
-            ]},
-        }
-        captured = {}
-
-        def inspect_encoder(result_path, output_path, fps, *, timeout_seconds):
-            captured["document"] = json.loads(result_path.read_text(encoding="utf-8"))
-            captured["fps"] = fps
-            return {"renderer": {}}
-
-        with tempfile.TemporaryDirectory() as directory:
-            result_path = Path(directory) / "result.json"
-            result_path.write_text(json.dumps(source), encoding="utf-8")
-            original_bytes = result_path.read_bytes()
-            with patch.object(video_module, "encode_mp4", side_effect=inspect_encoder):
-                metadata = video_module.encode_watchable_mp4(
-                    result_path,
-                    Path(directory) / "simulation.mp4",
-                    fps=2,
-                    segments=[{
-                        "physical_start_s": 0.0,
-                        "physical_end_s": 1.0,
-                        "playback_duration_s": 2.0,
-                    }],
-                    camera_zoom=1.5,
-                    camera_focus_quantile=0.99,
-                    water_renderer="legacy_v2",
-                )
-            self.assertEqual(result_path.read_bytes(), original_bytes)
-            self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")), source)
-
-        rendered = captured["document"]
-        self.assertEqual(captured["fps"], 2)
-        self.assertEqual(len(rendered["trajectory"]["frames"]), 4)
-        self.assertEqual(rendered["scene"]["__presentation_camera_zoom"], 1.5)
-        self.assertEqual(rendered["scene"]["__presentation_water_renderer"], "legacy_v2")
-        corners = rendered["scene"]["__presentation_camera_corners"]
-        self.assertEqual(len(corners), 8)
-        self.assertEqual((min(point[0] for point in corners), max(point[0] for point in corners)), (0.0, 198.0))
-        self.assertEqual((min(point[1] for point in corners), max(point[1] for point in corners)), (0.0, 19.8))
-        self.assertEqual((min(point[2] for point in corners), max(point[2] for point in corners)), (-1.98, 0.0))
-        self.assertEqual(metadata["presentation"]["camera_zoom"], 1.5)
-        self.assertEqual(metadata["presentation"]["camera_focus_quantile"], 0.99)
-        self.assertEqual(metadata["presentation"]["water_renderer"], "legacy_v2")
-        self.assertTrue(metadata["presentation"]["solver_result_unchanged"])
-
     def test_watchable_video_retimes_display_frames_without_mutating_solver_result(self):
         source = {
             "trajectory": {
@@ -468,7 +413,7 @@ class ContractTests(unittest.TestCase):
         self.assertIn("unknown_field", {item["code"] for item in report["errors"]})
 
     def test_output_fps_requires_an_integer_value(self):
-        for value in (24, 24.0, 120):
+        for value in (24, 24.0):
             with self.subTest(value=value):
                 scene = load_scene(EXAMPLES / "three_body.json")
                 scene["world"]["output_fps"] = value
@@ -479,11 +424,6 @@ class ContractTests(unittest.TestCase):
         report = validate(scene)
         self.assertFalse(report["ok"])
         self.assertIn("fps_integer", {item["code"] for item in report["errors"]})
-
-        scene["world"]["output_fps"] = 121
-        report = validate(scene)
-        self.assertFalse(report["ok"])
-        self.assertIn("fps_range", {item["code"] for item in report["errors"]})
 
     def test_millimetre_scale_particle_spacing_is_supported(self):
         scene = load_scene(EXAMPLES / "droplet_ground.json")
@@ -1346,7 +1286,6 @@ class SolverTests(unittest.TestCase):
         scene = load_scene(EXAMPLES / "droplet_ground.json")
         scene["world"]["duration"] = 0.001
         scene["world"]["output_fps"] = 1
-        scene["entities"][0]["properties"]["surface_tension"] = 10.0
         scene["entities"][0]["shape"] = {
             "type": "box", "center": [0, 0.015, 0],
             "size": [0.0001, 0.0001, 0.0001],

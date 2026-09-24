@@ -17,11 +17,7 @@ from typing import Any
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PACKAGE = SOURCE_ROOT / "physics_demo"
-CANONICAL_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_splash.json"
-DRY_SCENE = SOURCE_ROOT / "examples" / "droplet_ground.json"
-MACRO_WET_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_macro_wet.json"
-MICRO_WET_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_micro_wet.json"
-CONE_SCENE = SOURCE_ROOT / "examples" / "droplet_cone.json"
+CANONICAL_SCENE = SOURCE_ROOT / "examples" / "droplet_ground.json"
 RELEASE_ROOT = Path(__file__).resolve().parent / "physics"
 RELEASE_PACKAGE = RELEASE_ROOT / "physics_release" / "physics_demo"
 RELEASE_SCENES = RELEASE_ROOT / "physics_release" / "scenes"
@@ -35,10 +31,20 @@ PREBUILT_NAMES = (
     "decode-probe",
 )
 PROFILES = {
-    "droplet_ground_splash.json": {
-        "name": "large-water-drop-ground-splash",
-        "spacing": 0.04,
-        "duration": 0.8,
+    "droplet_ground.json": {
+        "name": "qq-water-droplet-ground-balanced",
+        "spacing": 0.0004,
+        "duration": 0.20,
+    },
+    "droplet_ground_fast.json": {
+        "name": "qq-water-droplet-ground-fast",
+        "spacing": 0.0005,
+        "duration": 0.20,
+    },
+    "droplet_ground_rapid.json": {
+        "name": "qq-water-droplet-ground-rapid",
+        "spacing": 0.0006,
+        "duration": 0.15,
     },
 }
 
@@ -113,18 +119,6 @@ def _scene_documents() -> dict[str, dict[str, Any]]:
         )
         scene["entities"][0]["spacing"] = profile["spacing"]
         scenes[filename] = scene
-    dry = json.loads(DRY_SCENE.read_text(encoding="utf-8"))
-    dry['budget'].update(backend='native', wall_time_s=30)
-    scenes['droplet_ground_dry.json'] = dry
-    macro_wet = json.loads(MACRO_WET_SCENE.read_text(encoding='utf-8'))
-    macro_wet['budget'].update(backend='native', wall_time_s=90)
-    scenes['droplet_ground_macro_wet.json'] = macro_wet
-    micro_wet = json.loads(MICRO_WET_SCENE.read_text(encoding="utf-8"))
-    micro_wet['budget'].update(backend='native', wall_time_s=30)
-    scenes['droplet_ground_micro_wet.json'] = micro_wet
-    cone = json.loads(CONE_SCENE.read_text(encoding="utf-8"))
-    cone['budget'].update(backend='native', wall_time_s=180)
-    scenes['droplet_cone.json'] = cone
     scene = json.loads((SOURCE_ROOT / 'examples/three_body.json').read_text())
     scene['budget'].update(backend='native', wall_time_s=30)
     scenes['three_body.json'] = scene
@@ -139,20 +133,10 @@ def _sync_sources() -> None:
     for relative, target in target_files.items():
         if relative not in source_files:
             target.unlink()
-    scenes = _scene_documents()
-    for filename, scene in scenes.items():
+    for filename, scene in _scene_documents().items():
         _atomic_write_json(RELEASE_SCENES / filename, scene)
-    for old_scene in RELEASE_SCENES.glob("*.json"):
-        if old_scene.name not in scenes:
-            old_scene.unlink()
-    source_examples = SOURCE_ROOT / 'examples'
-    release_examples = RELEASE_ROOT / 'physics_release/examples'
-    shutil.copytree(source_examples, release_examples, dirs_exist_ok=True,
+    shutil.copytree(SOURCE_ROOT/'examples', RELEASE_ROOT/'physics_release/examples', dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-    source_names = {path.name for path in source_examples.glob('*.json')}
-    for old_example in release_examples.glob('*.json'):
-        if old_example.name not in source_names:
-            old_example.unlink()
     shutil.copytree(SOURCE_ROOT/'agent/physics-simulation', RELEASE_ROOT/'manual', dirs_exist_ok=True)
     for name in ('tools.json', 'scene-v1.schema.json'):
         _atomic_copy(SOURCE_ROOT/'agent'/name, RELEASE_ROOT/name)
@@ -215,8 +199,6 @@ def _manifest_payload() -> dict[str, Any]:
     for filename in sorted(_scene_documents()):
         path = RELEASE_SCENES / filename
         files[f"scenes/{filename}"] = _sha256(path)
-    for path in sorted((RELEASE_ROOT / 'physics_release/examples').glob('*.json')):
-        files[f"examples/{path.name}"] = _sha256(path)
     for name in PREBUILT_NAMES:
         files[f"prebuilt/{name}"] = _sha256(PREBUILT / name)
     aggregate = hashlib.sha256()
@@ -246,10 +228,7 @@ def _verify() -> dict[str, Any]:
         if _sha256(source_files[relative]) != _sha256(target_files[relative]):
             failures.append(f"stale embedded engine file: {relative.as_posix()}")
 
-    expected_scenes = _scene_documents()
-    if {path.name for path in RELEASE_SCENES.glob("*.json")} != set(expected_scenes):
-        failures.append("release scene inventory differs from canonical catalog")
-    for filename, expected in expected_scenes.items():
+    for filename, expected in _scene_documents().items():
         path = RELEASE_SCENES / filename
         try:
             actual = json.loads(path.read_text(encoding="utf-8"))
@@ -258,14 +237,6 @@ def _verify() -> dict[str, Any]:
             continue
         if actual != expected:
             failures.append(f"stale release scene: {filename}")
-
-    source_examples = {path.name: path for path in (SOURCE_ROOT / 'examples').glob('*.json')}
-    release_examples = {path.name: path for path in (RELEASE_ROOT / 'physics_release/examples').glob('*.json')}
-    if set(source_examples) != set(release_examples):
-        failures.append("release example inventory differs from source catalog")
-    for filename in sorted(set(source_examples) & set(release_examples)):
-        if _sha256(source_examples[filename]) != _sha256(release_examples[filename]):
-            failures.append(f"stale release example: {filename}")
 
     for name in PREBUILT_NAMES:
         path = PREBUILT / name

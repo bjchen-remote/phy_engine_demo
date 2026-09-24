@@ -7,7 +7,7 @@ This reference owns algorithm distinctions. Scene syntax is in [scene-v1](scene-
 | Scene / request | Actual route |
 |---|---|
 | Supported particle/static geometry, `auto` or `native` | Native C11 DFSPH/PBD/Verlet |
-| Honey/glue/lava/molten-lead preset | Native C11 only; explicit Python is rejected and auto never falls back |
+| Honey/glue/molten-lead preset | Native C11 only; explicit Python is rejected and auto never falls back |
 | `python` or a supported dynamic sphere under `auto` | Python PBF/PBD/Verlet reference |
 | All-slider common-X-rail scene, `auto`/`python` | `analytic-1d-slider` |
 | `coupling:{}` or any `rigid_body`, `auto`/`native` | `native-c11-coupled`: shared-clock DFSPH/XPBD, finite-mass contact and quaternion rotation; [coupling](coupling.md); no Python fallback |
@@ -55,6 +55,6 @@ Standalone connections use a separate solver and ABI. Spring integration, dampin
 
 Queries reduce complete float64 state at t=0 and every finished macro step; native does so in C without per-step Python callbacks. Only scalar histories are saved. Video particle frames are float32 display subsets, point-mass frames float64. Particle/N-body presentation frames interpolate macro states; slider frames evaluate analytic motion segments. FPS changes presentation cost, never dynamics or query sampling.
 
-Rendering reads trajectory without modifying it: one elevated auto-fit fixed camera, a screen-space continuous surface reconstructed separately for each liquid preset, isolated drops, and depth-ordered surface/obstacle details. Water, honey, glue, lava and molten lead have distinct palettes; appearance never changes trajectory or query values. Box glass appearance is renderer-only. Encoding prefers H.264; unavailable encoding or sandboxed pixel decoding falls back to ImageIO Motion JPEG in MP4. Every accepted frame is verified as described in [tool-results](tool-results.md).
+Rendering reads trajectory without modifying it: one elevated auto-fit fixed camera, a screen-space continuous surface reconstructed separately for each liquid preset, isolated drops, and depth-ordered surface/obstacle details. Water, honey, glue and molten lead have distinct palettes; appearance never changes trajectory or query values. Box glass appearance is renderer-only. Encoding prefers H.264; unavailable encoding or sandboxed pixel decoding falls back to ImageIO Motion JPEG in MP4. Every accepted frame is verified as described in [tool-results](tool-results.md).
 
 Mesh trajectories retain every vertex and stable local triangle indices. Their camera fits the complete trajectory; surfaces share a per-pixel depth buffer across objects, preserving holes and crossing-face occlusion. Lighting and edge accents use recorded geometry without modifying deformation. Quaternion frames add rotated rigid shape triangles, physical solid capsules and depth-tested particle/point spheres to the shared buffer. Non-solid spring helices remain annotations. Frames without q retain the existing rendering path.

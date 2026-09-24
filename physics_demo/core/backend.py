@@ -18,7 +18,6 @@ class FallbackBudgetExceeded(NativeSimulationError):
 def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> dict[str, Any]:
     requested = plan.get("requested_backend", scene.get("budget", {}).get("backend", "auto"))
     selected = plan.get("backend", "native")
-    particle_gravity = bool(scene["interactions"]["mutual_gravity"] and plan.get("planned_particles"))
     native_liquid_preset = any(
         entity.get("type") == "fluid"
         and LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
@@ -36,11 +35,9 @@ def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> d
     if selected == "slider":
         from physics_demo.core.sliders import run_scene as run_sliders
         return run_sliders(scene, plan, deadline)
-    if selected == "python" and particle_gravity:
-        raise NativeBackendUnavailable("Particle self-gravity requires the native solver; no force-dropping fallback is permitted.")
     if selected == "python" and native_liquid_preset:
         raise NativeBackendUnavailable(
-            "Non-water liquid presets require the native C11 liquid solver; "
+            "Honey, glue, and molten_lead presets require the native C11 liquid solver; "
             "the Python reference has different viscosity behavior and no equivalent surface-tension model."
         )
     fallback_reason = None
@@ -48,7 +45,7 @@ def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> d
         try:
             return run_scene_native(scene, plan, deadline)
         except (NativeBackendUnavailable, NativeSimulationError) as error:
-            if requested == "native" or native_liquid_preset or particle_gravity:
+            if requested == "native" or native_liquid_preset:
                 raise
             fallback_timing = timing_estimate(scene, {**plan, "backend": "python"}, include_video=False)
             remaining = max(0.0, deadline - time.monotonic())

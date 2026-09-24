@@ -226,10 +226,9 @@ same event or series. Changing FPS is not a convergence check. For liquids,
 also study spacing separately; numerical convergence of this model still
 does not establish experimental accuracy or calibrated wetting physics.
 
-The supplied `droplet_radius_query` follows the current open-boundary 0.8 s
-drop example at a `1/90 s` macro step. Run a fresh temporal sensitivity check
-before claiming a precision bound; do not treat that preset as a general
-error guarantee for a changed drop, force, spacing or material.
+The supplied `droplet_radius_query` uses an approximately `1/180 s` macro
+step after a temporal sensitivity check. Do not turn that preset into a
+general error guarantee for a changed drop, force, spacing or material.
 Reproduce the baseline and `dt/2` comparisons with:
 
 ```sh

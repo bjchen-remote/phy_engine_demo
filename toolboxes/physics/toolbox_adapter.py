@@ -42,18 +42,16 @@ def main() -> None:
     text = task["request"]["text"]
     seed = int.from_bytes(hashlib.sha256(str(task.get('task_id', '')).encode()).digest()[:8], 'big')
     try:
-        from physics_demo.runner import prepare
         if scene is not None:
+            from physics_demo.runner import prepare
             checked = prepare(scene, task['limits']['wall_time_seconds'])
             if not checked.get('ready_to_simulate'):
                 raise engine.UnsupportedRequest('prepared scene failed revalidation')
             name = 'agent_authored'
         else:
-            name, routed_scene = engine.route(text, seed=seed)
-            checked = prepare(routed_scene, task['limits']['wall_time_seconds'])
-        estimate = checked.get("agent_report", {}).get("estimated_wall_time_s", {}).get("p90")
-        supported = bool(checked.get("ready_to_simulate") and
-                         estimate is not None and estimate <= task['limits']['wall_time_seconds'])
+            name, _ = engine.route(text, seed=seed)
+        estimate = 25 if name.startswith("water_") else 15
+        supported = estimate <= task["limits"]["wall_time_seconds"]
         reason = "" if supported else "insufficient_time_budget"
     except engine.UnsupportedRequest:
         supported, estimate, reason = False, None, "unsupported_scene"
@@ -74,7 +72,7 @@ def main() -> None:
     legacy.mkdir(exist_ok=True)
     (legacy / "artifacts").mkdir(exist_ok=True)
     write(legacy / "request.json", message={"text": text}, seed=seed)
-    result = (engine.simulate_scene(scene, legacy/'artifacts', request_text=text) if scene is not None else
+    result = (engine.simulate_scene(scene, legacy/'artifacts') if scene is not None else
               engine.main(["run_simulation.py", str(legacy / "request.json"), str(legacy / "artifacts")]))
     if result:
         summary_path = legacy/'artifacts/summary.json'

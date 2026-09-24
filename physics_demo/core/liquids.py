@@ -6,7 +6,7 @@ import copy
 from typing import Any, Iterable
 
 
-LIQUID_PRESET_VERSION = 2
+LIQUID_PRESET_VERSION = 1
 LIQUID_PRESETS: dict[str, dict[str, Any]] = {
     "water": {
         "aliases": ["water", "水"],
@@ -27,13 +27,6 @@ LIQUID_PRESETS: dict[str, dict[str, Any]] = {
         "properties": {"viscosity": 0.70, "surface_tension": 0.12},
         "appearance": "milky white, mostly opaque",
         "scope": "A viscous Newtonian-like approximation; no curing, strings, adhesion, or viscoelasticity.",
-        "native_required": True,
-    },
-    "lava": {
-        "aliases": ["lava", "magma", "熔岩", "岩浆"],
-        "properties": {"viscosity": 0.50, "surface_tension": 0.08},
-        "appearance": "opaque orange-red with a warm luminous tint",
-        "scope": "Stylized viscous lava-like liquid; no temperature, cooling, crust, gas, eruption pressure or calibrated volcanology.",
         "native_required": True,
     },
     "molten_lead": {

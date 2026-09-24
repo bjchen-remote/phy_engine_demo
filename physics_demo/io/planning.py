@@ -189,19 +189,9 @@ def timing_estimate(
     )
     acceleration = _vector_magnitude(scene["world"]["gravity"]) + maximum_acceleration(scene.get("force_fields", []))
     representative_speed = maximum_initial_speed + 0.45 * acceleration * duration
-    interactions = scene["interactions"]
-    self_gravity = particles > 0 and interactions["mutual_gravity"] and interactions["gravity_G"] > 0
-    if self_gravity:
-        # Collective collapse creates internal speeds even when world gravity
-        # and all initial velocities are zero. Account for the binding scale,
-        # not just the cheap initial, well-separated force evaluation.
-        volume = particles * spacing**3
-        radius = max(spacing, (3 * volume / (4 * math.pi))**(1/3))
-        representative_speed += math.sqrt(interactions["gravity_G"] *
-            interactions["particle_gravity_density"] * volume / radius)
     transport_speed = representative_speed + math.sqrt(max(acceleration * spacing, 0.0))
     expected_substeps = max(1, min(
-        128 if self_gravity else int(plan["max_substeps"]),
+        int(plan["max_substeps"]),
         math.ceil(dt * transport_speed / max(0.4 * spacing, 1.0e-9)),
     ))
     baseline_substeps = {"preview": 2.5, "balanced": 3.5, "high": 6.5}[plan["quality"]]
@@ -218,14 +208,6 @@ def timing_estimate(
         solver_p50 = 0.001 + 2.5e-8 * pair_work * fields_factor
     if plan["backend"] == "slider":
         solver_p50 = 0.01 + steps * max(rigid_count, 1) ** 2 * 2.5e-6
-    gravity_cost = 0.0
-    if self_gravity:
-        gravity_steps = max(expected_substeps, math.ceil(dt * math.sqrt(
-            interactions["gravity_G"] * interactions["particle_gravity_density"]) / 0.2))
-        work = (particles * particles if interactions["gravity_theta"] == 0 else
-                particles * max(1.0, math.log2(max(particles, 2))) * 30 * (0.5 / max(interactions["gravity_theta"], 0.05))**2)
-        gravity_cost = 8e-9 * steps * gravity_steps * work
-        solver_p50 += gravity_cost
     measurement_p50 = 0.0
     if scene.get("queries"):
         measurements = observation_plan(scene, plan)
@@ -261,7 +243,6 @@ def timing_estimate(
         "physical_duration_s": duration,
         "expected_cfl_substeps_per_step": expected_substeps,
         "solver_p50_s": round(solver_p50, 3),
-        "particle_gravity_p50_s": round(gravity_cost, 3),
         "solver_p90_s": round(solver_p90, 3),
         "video_p50_s": round(video_p50, 3),
         "video_p90_s": round(video_p90, 3),
@@ -348,6 +329,9 @@ def make_plan(
         )
     if spacing > requested_spacing * (1.0 + 1.0e-9):
         adjustments.append(f"Increased particle spacing from {requested_spacing:.6g} m to {spacing:.6g} m to respect the {particle_limit} particle cap.")
+    if sample_limited_render < config["render_particles"]:
+        adjustments.append(f"Reduced rendered particles to keep frame-particle samples below {MAX_FRAME_PARTICLE_SAMPLES}.")
+
     dynamic_rigid = any(entity["type"] == "rigid" and entity.get("mass", 0.0) > 0.0 for entity in scene["entities"])
     selected_backend = "python" if scene["budget"].get("backend") == "python" or dynamic_rigid else "native"
     if any(entity["type"] == "slider" for entity in scene["entities"]):
@@ -415,21 +399,6 @@ def make_plan(
         plan["adjustments"].append(
             f"Increased spacing to {spacing:.6g} m so the calibrated runtime approaches the {scene['budget']['wall_time_s']:.3g} s budget."
         )
-    if render_limit < min(config["render_particles"], actual):
-        plan["adjustments"].append(
-            f"Reduced rendered particles to keep frame-particle samples below {MAX_FRAME_PARTICLE_SAMPLES}."
-        )
-    interactions = scene["interactions"]
-    if actual and interactions["mutual_gravity"]:
-        plan["particle_gravity"] = {
-            "algorithm": "direct" if interactions["gravity_theta"] == 0 else "Barnes-Hut",
-            "opening_angle": interactions["gravity_theta"],
-            "softening_m": interactions["softening"],
-            "reference_density_kg_m3": interactions["particle_gravity_density"],
-            "particle_mass_kg": interactions["particle_gravity_density"] * spacing**3,
-            "represented_mass_kg": actual * interactions["particle_gravity_density"] * spacing**3,
-            "scope": "fluid/granular particles; shared reference density; no point-mass exchange",
-        }
     bounds = scene["world"]["bounds"]
     bounds_spans = [float(bounds["max"][axis]) - float(bounds["min"][axis]) for axis in range(3)]
     particle_diameter = 0.92 * spacing if actual > 0 else 0.0
@@ -501,8 +470,6 @@ def make_plan(
     plan["initial_bounds_violations"] = initial_bounds_violations
     sample_bytes = plan["frame_particle_samples"] * 3 * 4
     state_bytes = max(actual, 1) * 720
-    if scene["interactions"]["mutual_gravity"] and scene["interactions"]["gravity_G"] > 0:
-        state_bytes += actual * 180  # Octree nodes, index arrays and accelerations.
     json_bytes = plan["frame_particle_samples"] * 72
     plan["estimated_peak_memory_mb"] = round((16_000_000 + sample_bytes + state_bytes + json_bytes) / 1_000_000, 1)
     if scene.get("queries"):
@@ -543,8 +510,6 @@ def plan_report(plan: dict[str, Any]) -> dict[str, Any]:
         "adjustments": list(plan["adjustments"]),
         "required_disclosure": "Report this object before simulation; adjustments change discretization or display sampling.",
     }
-    if "particle_gravity" in plan:
-        report["particle_gravity"] = plan["particle_gravity"]
     if "measurement_plan" in plan:
         report["measurement_plan"] = plan["measurement_plan"]
     if plan["backend"] == "mesh":

@@ -41,8 +41,6 @@ _LEGACY_FLUID_CLAIM = (
 
 def physics_claims(scene: dict[str, Any] | None = None) -> dict[str, str]:
     claims = dict(PHYSICS_CLAIMS)
-    if scene is None or (scene.get("interactions", {}).get("mutual_gravity", False) and any(e["type"] in {"fluid", "granular"} for e in scene["entities"])):
-        claims["particle_gravity"] = "Plummer-softened gravity on equal-volume, equal-reference-density particles; Barnes-Hut far fields or direct pairs. Coupled to incompressible DFSPH, not compressible stellar hydrodynamics. Spatial resolution, softening and timestep convergence are required for quantitative conclusions."
     if scene is not None and coupled_enabled(scene):
         claims.update(
             point_mass="Finite masses accelerated by explicit fields, attachments and contact impulses; no mutual gravity in the coupled route.",

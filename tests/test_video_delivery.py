@@ -2,23 +2,16 @@
 import hashlib
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'toolboxes/physics'))
 from delivery import publish_video
 from physics_demo.runner import load_scene,simulate
-from physics_demo.io.video import encode_bounded_mp4,encode_watchable_mp4,VideoEncodingError
-
-
-def video_stream(path):
-    result=subprocess.run(['ffprobe','-v','error','-count_frames','-select_streams','v:0',
-        '-show_entries','stream=codec_name,codec_tag_string,pix_fmt,nb_read_frames,duration',
-        '-of','json',str(path)],capture_output=True,text=True,check=True)
-    return json.loads(result.stdout)['streams'][0]
+from physics_demo.io.video import encode_bounded_mp4,encode_watchable_mp4,VideoEncodingError,probe_mp4
 
 
 class VideoDeliveryTests(unittest.TestCase):
@@ -43,35 +36,17 @@ class VideoDeliveryTests(unittest.TestCase):
             path=Path(folder)/'simulation.mp4';result=publish_video(self.source,path,self.summary,cap,30)
             self.assertTrue(result['compressed']);self.assertFalse(result['solver_rerun'])
             self.assertLessEqual(path.stat().st_size,cap)
-            probe=video_stream(path)
-            self.assertEqual(probe['codec_name'],'h264')
-            self.assertEqual(probe['codec_tag_string'],'avc1')
-            self.assertEqual(probe['pix_fmt'],'yuv420p')
-            self.assertEqual(int(probe['nb_read_frames']),self.metadata['sample_count'])
-            self.assertAlmostEqual(float(probe['duration']),self.metadata['duration_s'],delta=.002)
+            probe=probe_mp4(path)
+            self.assertEqual(probe['sample_count'],self.metadata['sample_count'])
+            self.assertEqual(probe['track_duration_s'],self.metadata['duration_s'])
         self.assertEqual(before,{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in self.source.iterdir() if p.is_file()})
 
-    def test_small_mjpeg_video_is_transcoded_for_qq(self):
-        with tempfile.TemporaryDirectory() as folder:
+    def test_small_video_is_copied_without_rendering_or_quality_loss(self):
+        with tempfile.TemporaryDirectory() as folder,patch('delivery.encode_bounded_mp4',side_effect=AssertionError('unnecessary encoding')):
             path=Path(folder)/'simulation.mp4'
             result=publish_video(self.source,path,self.summary,2_000_000,30)
-            self.assertTrue(result['compressed'])
-            self.assertNotEqual(path.read_bytes(),(self.source/'simulation.mp4').read_bytes())
-            self.assertEqual(video_stream(path)['codec_name'],'h264')
-            self.assertAlmostEqual(result['duration_s'],self.metadata['duration_s'],delta=.002)
-            self.assertEqual(result['physical_duration_s'],self.metadata['duration_s'])
-
-    def test_valid_h264_source_is_copied(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder)
-            first=root/'first.mp4'
-            publish_video(self.source,first,self.summary,2_000_000,30)
-            second_source=root/'h264';second_source.mkdir()
-            (second_source/'simulation.mp4').write_bytes(first.read_bytes())
-            second=root/'second.mp4'
-            result=publish_video(second_source,second,self.summary,2_000_000,30)
             self.assertFalse(result['compressed'])
-            self.assertEqual(second.read_bytes(),first.read_bytes())
+            self.assertEqual(path.read_bytes(),(self.source/'simulation.mp4').read_bytes())
 
     def test_impossible_budget_never_publishes_partial_video(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -95,4 +70,3 @@ class VideoDeliveryTests(unittest.TestCase):
             result=publish_video(source,root/'simulation.mp4',{'artifacts':{'video':metadata}},cap,30)
             self.assertTrue(result['compressed']);self.assertEqual(result['sample_count'],45)
             self.assertEqual(result['duration_s'],1.5)
-            self.assertEqual(video_stream(root/'simulation.mp4')['codec_name'],'h264')

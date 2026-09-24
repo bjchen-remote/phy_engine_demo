@@ -1,15 +1,14 @@
 {
   "version": 1,
-  "name": "water-drop-spread-radius-query-v2",
+  "name": "droplet-spread-radius-query",
   "world": {
-    "gravity": [0, -9.81, 0], "duration": 0.8, "dt": 0.0111111111, "output_fps": 60,
-    "bounds": {"min": [-4, 0, -4], "max": [4, 2.5, 4]}
+    "gravity": [0, -9.81, 0], "duration": 1.35, "dt": 0.00555555555, "output_fps": 24,
+    "bounds": {"min": [-1.5, 0, -1.5], "max": [1.5, 2.5, 1.5]}
   },
   "budget": {"wall_time_s": 55, "quality": "balanced", "backend": "auto"},
   "entities": [
     {"id": "drop", "type": "fluid", "shape": {"type": "sphere", "center": [0, 1.55, 0], "radius": 0.32},
-     "spacing": 0.04, "velocity": [0, 0, 0], "preset": "water",
-     "properties": {"viscosity": 0.035, "surface_tension": 0.05}}
+     "spacing": 0.04, "velocity": [0, 0, 0], "properties": {"viscosity": 0.035}}
   ],
   "colliders": [{"id": "ground", "type": "plane", "normal": [0, 1, 0], "offset": 0, "friction": 0.15}],
   "queries": [

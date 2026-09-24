@@ -55,11 +55,10 @@ python3 -m physics_demo simulate examples/three_body.json --out runs/three-body
 python3 -m physics_demo inspect runs/three-body
 ```
 
-The video is saved to `runs/three-body/simulation.mp4`. For a visible dry-floor splash, use the illustrative 0.32 m radius drop; for a 3 mm drop on dry ground, use the millimetre example, which may spread without airborne spray:
+The video is saved to `runs/three-body/simulation.mp4`. Try a water drop or a double pendulum:
 
 ```sh
-python3 -m physics_demo simulate examples/droplet_ground_splash.json --out runs/water-splash
-python3 -m physics_demo simulate examples/droplet_ground.json --out runs/millimetre-water-drop
+python3 -m physics_demo simulate examples/droplet_ground.json --out runs/water-drop
 PYTHONPATH=. python3 examples/chaotic_double_pendulum.py --out runs/double-pendulum
 ```
 

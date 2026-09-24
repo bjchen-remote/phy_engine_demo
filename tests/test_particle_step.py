@@ -21,7 +21,7 @@ def fixture(*, count=8, sand=False, threads=1, duration=.02, dt=.001):
     """Small native fixture; no scene validator/packer can hide ABI errors."""
     coordinates = [[.12 * (i % 2), .12 * ((i // 2) % 2), .12 * (i // 4)] for i in range(count)]
     materials = [int(sand and i == count - 1) for i in range(count)]
-    s = CSimulation(abi_version=6, particle_count=count, body_count=1,
+    s = CSimulation(abi_version=5, particle_count=count, body_count=1,
                     render_count=count, frame_capacity=2, density_iterations=5,
                     divergence_iterations=2, thread_count=threads, max_substeps=1,
                     spacing=.12, dt=dt, duration=duration, output_fps=10,
@@ -201,7 +201,7 @@ class ParticleStepTests(unittest.TestCase):
     def test_create_validates_before_array_access(self):
         for name, bad in (("particle_count", 24001), ("body_count", 65), ("collider_count", 65),
                           ("field_count", 33), ("frame_capacity", 1), ("max_substeps", 0),
-                          ("abi_version", 5), ("duration", math.inf), ("thread_count", 33)):
+                          ("abi_version", 6), ("duration", math.inf), ("thread_count", 33)):
             with self.subTest(name=name):
                 value = fixture(count=1)
                 setattr(value, name, bad)

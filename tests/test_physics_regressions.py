@@ -12,7 +12,7 @@ from unittest.mock import patch
 from physics_demo.colliders import project_colliders
 from physics_demo.engine import run_scene
 from physics_demo.native_backend import NativeBackendUnavailable, _compile_library
-from physics_demo.runner import estimate, load_scene, prepare, simulate, validate
+from physics_demo.runner import estimate, simulate, validate
 
 
 def _timed_force_scene(entity_type: str, backend: str) -> dict:
@@ -60,55 +60,6 @@ def _timed_force_scene(entity_type: str, backend: str) -> dict:
 
 
 class PhysicsRegressionTests(unittest.TestCase):
-    def test_non_coupled_point_masses_disclose_ignored_world_gravity(self):
-        examples = Path(__file__).resolve().parents[1] / "examples"
-        for name in ("three_body", "rod_pendulum"):
-            with self.subTest(example=name):
-                scene = load_scene(examples / f"{name}.json")
-                scene["world"]["gravity"] = [0, -9.81, 0]
-                validated = validate(scene)
-                prepared = prepare(scene)
-                self.assertTrue(validated["ok"], validated)
-                self.assertTrue(prepared["ready_to_simulate"], prepared)
-                for result in (validated, prepared):
-                    matching = [warning for warning in result["warnings"]
-                                if warning["code"] == "point_mass_world_gravity_ignored"]
-                    self.assertEqual(len(matching), 1)
-                    self.assertEqual(matching[0]["path"], "world.gravity")
-                    self.assertIn("does not accelerate", matching[0]["message"])
-                self.assertEqual(prepared["scene"]["world"]["gravity"], [0, -9.81, 0])
-
-        zero_gravity = load_scene(examples / "three_body.json")
-        self.assertNotIn("point_mass_world_gravity_ignored",
-                         {warning["code"] for warning in prepare(zero_gravity)["warnings"]})
-
-    def test_render_reduction_disclosure_uses_final_particle_count(self):
-        examples = Path(__file__).resolve().parents[1] / "examples"
-        gyro = prepare(load_scene(examples / "gyroscope_precession.json"))
-        self.assertTrue(gyro["ready_to_simulate"], gyro)
-        self.assertEqual(gyro["plan"]["planned_particles"], 0)
-        self.assertEqual(gyro["plan"]["frame_particle_samples"], 0)
-        self.assertFalse(any("Reduced rendered particles" in note
-                             for note in gyro["plan"]["adjustments"]))
-
-        water = load_scene(examples / "droplet_ground.json")
-        water["world"].update(duration=10, output_fps=60)
-        water["budget"]["wall_time_s"] = 300
-        coarsened = prepare(water)
-        self.assertTrue(coarsened["ready_to_simulate"], coarsened)
-        self.assertEqual(coarsened["plan"]["render_particle_limit"],
-                         coarsened["plan"]["planned_particles"])
-        self.assertFalse(any("Reduced rendered particles" in note
-                             for note in coarsened["plan"]["adjustments"]))
-
-        water["world"]["dt"] = 0.05
-        render_limited = prepare(water)
-        self.assertTrue(render_limited["ready_to_simulate"], render_limited)
-        self.assertLess(render_limited["plan"]["render_particle_limit"],
-                        render_limited["plan"]["planned_particles"])
-        self.assertTrue(any("Reduced rendered particles" in note
-                            for note in render_limited["plan"]["adjustments"]))
-
     def test_native_compiler_probe_failures_are_structured(self):
         with patch(
             "physics_demo.native_backend.subprocess.run",

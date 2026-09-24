@@ -15,7 +15,7 @@ Use SI units, a right-handed Y-up coordinate system, and [scene-v1.schema.json](
 }
 ```
 
-`output_fps` accepts integer-valued numbers 1–120 (`24.0` is accepted; `24.5` is not). It controls presentation timestamps, always including initial and terminal states. It never changes `world.dt` or observation sampling. Camera and lighting are currently renderer defaults, not scene parameters.
+`output_fps` accepts integer-valued numbers 1–60 (`24.0` is accepted; `24.5` is not). It controls presentation timestamps, always including initial and terminal states. It never changes `world.dt` or observation sampling. Camera and lighting are currently renderer defaults, not scene parameters.
 
 ## Entities and defaults
 
@@ -29,9 +29,9 @@ Use SI units, a right-handed Y-up coordinate system, and [scene-v1.schema.json](
 | `mesh` | `id`, audited `mesh`, `motion`, position/velocity, compliance, pins, color | Native triangle surface; standalone or explicitly mixed; [mesh-modeling](mesh-modeling.md) |
 | `rigid_body` | `id`, sphere/box/cylinder `shape`, COM position/velocity, mass, wxyz orientation, world angular_velocity, fixed/pivot | Native rotating uniform body; selects [coupling](coupling.md); cylinder axis local Y |
 
-Particle shapes are `{"type":"sphere","center":[x,y,z],"radius":r}` or `{"type":"box","center":[x,y,z],"size":[sx,sy,sz]}`. Fluid `preset` is `water`, `honey`, `glue`, `lava`, or `molten_lead`; call `physics_liquid` for newly authored or changed liquid material and read [liquid-presets](liquid-presets.md) instead of guessing coefficients. Preserve explicit properties already present in a matching example. Omitted properties come from the preset; explicit properties override them and must be disclosed. Multiple fluid regions share one phase. A water ball has no membrane. Material controls are visual parameters, not measured soil or liquid constants.
+Particle shapes are `{"type":"sphere","center":[x,y,z],"radius":r}` or `{"type":"box","center":[x,y,z],"size":[sx,sy,sz]}`. Fluid `preset` is `water`, `honey`, `glue`, or `molten_lead`; call `physics_liquid` and read [liquid-presets](liquid-presets.md) instead of guessing coefficients. Omitted properties come from the preset; explicit properties override them and must be disclosed. Multiple fluid regions share one phase. A water ball has no membrane. Material controls are visual parameters, not measured soil or liquid constants.
 
-Normalized scene exposes all effective defaults; its assumptions are deterministically derived from the full normalized values, so prepare→simulate does not lose assumptions. Interactions are `mutual_gravity`, `gravity_G`, `softening`, `water_sand_drag` (default 0.16), and `wetting_rate` (default 1.8). Particle self-gravity also accepts `particle_gravity_density` and `gravity_theta`; see [particle-gravity](particle-gravity.md) for mass, accuracy and route constraints.
+Normalized scene exposes all effective defaults; its assumptions are deterministically derived from the full normalized values, so prepare→simulate does not lose assumptions. Interactions are `mutual_gravity`, `gravity_G`, `softening`, `water_sand_drag` (default 0.16), and `wetting_rate` (default 1.8).
 
 Particle spacing is 0.0001–0.5 m. Sub-millimetre spacing is intended for physically small scenes such as the canonical 6 mm drop, not for refining metre-scale volumes: halving spacing in 3D produces about eight times the particles and usually at least sixteen times the work after transport/capillary refinement. Native fluid/granular volumes use one spacing, initially the finest requested and then commonly coarsened if needed. Check `effective_spacing`, `requested_particles` and `uniform_spacing_particles_before_cap`; input entity spacings do not remain separate resolutions.
 

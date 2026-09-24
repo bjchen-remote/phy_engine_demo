@@ -38,13 +38,12 @@ from physics_demo.io.coupled import CAPABILITIES as COUPLED_CAPABILITIES, RIGID_
 
 CAPABILITIES: dict[str, Any] = {
     "version": "1.0.0",
-    "systems": {"types": ["pendulum", "double_pendulum", "ballistic_burst"],
+    "systems": {"types": ["pendulum", "double_pendulum"],
                 "entry": "physics_system(spec_json), or build_system/run_system in Python",
-                "ballistic_burst": {"parameters": ["source_height", "source_radius", "apex_height", "spread_radius", "volume", "parcel_count", "spacing", "preset"], "reference": "ballistic-burst", "scope": "Finite initial liquid launch; no continued upward forces or continuous emitter. SI volumes, radii and gravity determine velocities and a conservative flight envelope."},
                 "parameters": ["type", "lengths", "masses", "angles", "angular_velocities", "gravity", "duration", "dt", "output_fps", "quality", "wall_time_s"],
                 "units": "SI; angles in radians from downward vertical; link angular velocities are absolute world values",
                 "observations": "Every bob records centroid x/y/z and speed at full solver macro steps; load_run exposes series and sampled states.",
-                "boundary": "Factories assemble generic scene primitives: pendulums use point masses/rods; ballistic bursts use finite initially launched liquid parcels. Examples are optional callers; passing checks is not calibrated material or long-term stability certification."},
+                "boundary": "Factories assemble generic point masses and rods; examples are optional callers. Numerical convergence and finite-window sensitivity do not prove chaos or permanent stability."},
     "quantitative_queries": QUERY_CAPABILITIES,
     "agent_interface": {
         "protocol_version": PROTOCOL_VERSION,
@@ -79,15 +78,6 @@ CAPABILITIES: dict[str, Any] = {
             "use_for": ["three-body motion", "small N-body gravity"],
             "accuracy": "quantitative for the configured softened point-mass model",
             "limits": {"max_bodies": 64},
-        },
-        "particle_gravity": {
-            "algorithm": "C11 Barnes-Hut octree with Plummer softening; theta=0 direct reference",
-            "enable": "interactions.mutual_gravity=true on native fluid/granular scenes",
-            "controls": {"gravity_G": "explicit G", "softening": "metres, >=1e-6",
-                         "particle_gravity_density": "shared reference kg/m3, default 1000",
-                         "gravity_theta": "0 direct; visual default 0.5; strict default 0"},
-            "mass": "each particle has density * effective_spacing^3; disclose represented mass after planning",
-            "limits": "no particle/point-mass exchange, mesh/rigid coupling or Python fallback; incompressible visual matter, not stellar gas or calibrated astrophysical hydro",
         },
         "fluid": {
             "algorithm": "native C11 DFSPH density/divergence projection, consistent cubic kernel, and Akinci surface tension",
@@ -417,10 +407,10 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("duration_range", "world.duration", "duration must be in (0, 30] seconds.", "Use 2.0 for a short demo."))
     if not (1e-4 <= world["dt"] <= 0.05):
         errors.append(_issue("dt_range", "world.dt", "dt must be between 0.0001 and 0.05 seconds.", "Use 0.011111 for particle scenes."))
-    if not (1.0 <= world["output_fps"] <= 120.0):
-        errors.append(_issue("fps_range", "world.output_fps", "output_fps must be in [1, 120]."))
+    if not (1.0 <= world["output_fps"] <= 60.0):
+        errors.append(_issue("fps_range", "world.output_fps", "output_fps must be in [1, 60]."))
     elif not world["output_fps"].is_integer():
-        errors.append(_issue("fps_integer", "world.output_fps", "output_fps must be an integer value from 1 to 120."))
+        errors.append(_issue("fps_integer", "world.output_fps", "output_fps must be an integer value from 1 to 60."))
     if any(bounds["min"][axis] >= bounds["max"][axis] for axis in range(3)):
         errors.append(_issue("bounds_order", "world.bounds", "Every bounds.min component must be below bounds.max."))
     if any(abs(value) > MAX_ABS_COORDINATE for value in bounds["min"] + bounds["max"]):
@@ -564,12 +554,6 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
 
     if point_masses > 64:
         errors.append(_issue("body_limit", "entities", "At most 64 point masses are supported."))
-    if point_masses and not coupled_enabled(scene) and any(world["gravity"]):
-        warnings.append(_issue(
-            "point_mass_world_gravity_ignored", "world.gravity",
-            "world.gravity does not accelerate point_mass entities on non-coupled routes.",
-            "Use a targeted uniform force field to accelerate those point masses.",
-        ))
     native_only_preset = any(
         LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         if isinstance(entity, dict) and entity.get("type") == "fluid"
@@ -590,13 +574,13 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue(
             "unsupported_liquid_dynamic_rigid_combination",
             "entities",
-            "Non-water liquid presets require native liquid execution, while legacy dynamic rigid spheres require the Python reference backend.",
+            "Honey, glue, and molten_lead require native liquid execution, while legacy dynamic rigid spheres require the Python reference backend.",
             "Make the legacy rigid sphere a static obstacle with mass 0, or remodel it as rigid_body and enable coupling.",
         ))
     elif native_only_preset and budget.get("backend") == "python":
         errors.append(_issue(
             "unsupported_python_liquid_preset", "budget.backend",
-            "Non-water liquid presets require the native C11 liquid solver.",
+            "Honey, glue, and molten_lead presets require the native C11 liquid solver.",
             "Use backend 'auto' or 'native'; the Python reference has different viscosity behavior and no equivalent surface-tension model.",
         ))
 
@@ -801,12 +785,10 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
     if not isinstance(interactions, dict):
         errors.append(_issue("interactions_type", "interactions", "interactions must be an object."))
         interactions = scene["interactions"] = {}
-    _unknown_fields(interactions, {"mutual_gravity", "gravity_G", "softening", "water_sand_drag", "wetting_rate", "particle_gravity_density", "gravity_theta"}, "interactions", errors)
+    _unknown_fields(interactions, {"mutual_gravity", "gravity_G", "softening", "water_sand_drag", "wetting_rate"}, "interactions", errors)
     defaults = {
         "mutual_gravity": point_masses >= 2,
         "gravity_G": 1.0,
-        "particle_gravity_density": 1000.0,
-        "gravity_theta": 0.0 if budget.get("validation", "strict") == "strict" else 0.5,
         "softening": 0.02,
         "water_sand_drag": 0.16,
         "wetting_rate": 1.8,
@@ -832,16 +814,6 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("gravity_singularity", "interactions.softening", "Mutual gravity with multiple bodies requires softening of at least 1e-6 m."))
 
     requested = estimate_particle_count(scene)
-    if not 0 < interactions["particle_gravity_density"] <= 30000:
-        errors.append(_issue("gravity_density", "interactions.particle_gravity_density", "Use a finite reference density in (0, 30000] kg/m3."))
-    if not 0 <= interactions["gravity_theta"] <= 0.7:
-        errors.append(_issue("gravity_theta", "interactions.gravity_theta", "Use 0 for direct gravity, or a tree opening angle in (0, 0.7]."))
-    if interactions["mutual_gravity"] and requested:
-        if interactions["softening"] < 1e-6:
-            errors.append(_issue("gravity_singularity", "interactions.softening", "Particle self-gravity requires explicit Plummer softening of at least 1e-6 m."))
-        if point_masses or dynamic_spheres or budget["backend"] == "python":
-            errors.append(_issue("particle_gravity_route", "interactions.mutual_gravity", "Particle self-gravity requires native/auto, fluid/granular matter and static colliders. Point-mass/particle gravitational exchange and dynamic rigid spheres are not implemented."))
-        warnings.append(_issue("particle_gravity_model", "interactions", "Self-gravity acts on every particle with mass density*effective_spacing^3. One reference density is shared by all materials; liquid presets do not change it. Tree forces are approximate; theta=0 evaluates direct pairs."))
     quality = budget["quality"] if isinstance(budget["quality"], str) and budget["quality"] in QUALITY_LIMITS else "preview"
     limit = QUALITY_LIMITS[quality]["particles"]
     if requested > limit:
@@ -850,7 +822,7 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
             "entities",
             f"Requested approximately {requested} particles; the {quality} budget caps this at {limit} by increasing spacing.",
         ))
-    if point_masses and requested and not interactions["mutual_gravity"] and not coupled_enabled(scene):
+    if point_masses and requested and not coupled_enabled(scene):
         warnings.append(_issue("decoupled_gravity", "entities", "Point-mass gravity and particle matter share the scene but are not mutually coupled in this demo."))
     if dynamic_spheres and not native_only_preset:
         if budget["backend"] == "native":

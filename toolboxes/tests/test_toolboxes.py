@@ -6,9 +6,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
-from io import StringIO
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -93,49 +90,6 @@ class RegistryTests(unittest.TestCase):
 
 
 class PhysicsProtocolTests(unittest.TestCase):
-    @staticmethod
-    def api(job, operation, arguments):
-        registry.write_json(job/'work/toolbox-call.json',{'schema_version':1,
-            'operation':operation,'arguments':arguments})
-        subprocess.run([sys.executable,str(ROOT/'physics/toolbox_adapter.py'),
-            '--phase','api','--task',str(job/'task.json')],check=True,
-            capture_output=True,timeout=10)
-        return registry.read_json(job/'work/toolbox-response.json')['result']
-
-    def test_self_gravity_prepare_probe_and_help_are_discoverable(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            job=Path(temporary);(job/'work').mkdir()
-            registry.write_json(job/'task.json',{'schema_version':1,
-                'request':{'text':'Liquid volumes with mutual attraction','plan_required':True},
-                'limits':{'wall_time_seconds':180}})
-            model=json.loads((ROOT.parent/'examples/self_gravitating_liquid.json').read_text())
-            help_result=self.api(job, 'help',{'topic':'particle-gravity'})
-            self.assertTrue(help_result['ok'])
-            ready=self.api(job, 'physics_prepare',{'scene_json':json.dumps(model)})
-            self.assertTrue(ready['ok'] and ready['ready_to_simulate'],ready)
-            self.assertIn('particle_gravity',ready['agent_report'])
-            subprocess.run([sys.executable,str(ROOT/'physics/toolbox_adapter.py'),
-                '--phase','probe','--task',str(job/'task.json')],check=True,
-                capture_output=True,timeout=10)
-            probe=registry.read_json(job/'capability.json')
-            self.assertTrue(probe['supported'])
-            self.assertEqual(probe['estimated_seconds'],ready['agent_report']['estimated_wall_time_s']['p90'])
-
-    def test_ballistic_lava_model_builds_and_prepares_through_module_api(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            job=Path(temporary);(job/'work').mkdir()
-            registry.write_json(job/'task.json',{'schema_version':1,
-                'request':{'text':'Finite liquid launch','plan_required':True},
-                'limits':{'wall_time_seconds':180}})
-            self.assertTrue(self.api(job,'help',{'topic':'ballistic-burst'})['ok'])
-            built=self.api(job,'physics_system',{'spec_json':json.dumps(
-                {'type':'ballistic_burst','preset':'lava','wall_time_s':180})})
-            self.assertTrue(built['ok'],built)
-            prepared=self.api(job,'physics_prepare',{'scene_json':built['scene_json']})
-            self.assertTrue(prepared['ok'] and prepared['ready_to_simulate'],prepared)
-            self.assertFalse(prepared['scene']['force_fields'])
-            self.assertTrue(all(e['preset']=='lava' for e in prepared['scene']['entities']))
-
     def probe(self, text, budget=30):
         with tempfile.TemporaryDirectory() as temporary:
             job = Path(temporary)
@@ -150,14 +104,6 @@ class PhysicsProtocolTests(unittest.TestCase):
         for text in ("快速模拟一滴水落到地面", "高清模拟水滴落到地板", "双摆运动", "展示三体轨道视频", "生成三体相互引力视频，使用随机初值"):
             self.assertTrue(self.probe(text)["supported"])
 
-    def test_cone_probe_uses_scene_runtime_estimate(self):
-        short = self.probe("一滴水落到圆锥上", 30)
-        sufficient = self.probe("一滴水落到圆锥上", 180)
-        self.assertFalse(short["supported"])
-        self.assertEqual(short["reason"], "insufficient_time_budget")
-        self.assertTrue(sufficient["supported"])
-        self.assertGreater(sufficient["estimated_seconds"], 30)
-
     def test_random_three_body_is_reproducible_and_preserves_zero_bulk_motion(self):
         sys.path.insert(0, str(ROOT/'physics'))
         import run_simulation
@@ -167,100 +113,6 @@ class PhysicsProtocolTests(unittest.TestCase):
         for field in ('position', 'velocity'):
             for axis in range(3):
                 self.assertAlmostEqual(sum(b[field][axis] for b in first['entities']), 0)
-
-    def test_water_drop_quick_route_preserves_size_and_splash_intent(self):
-        sys.path.insert(0, str(ROOT/'physics'))
-        import run_simulation
-
-        for prompt in (
-            '一滴半径3毫米的水滴落到地面',
-            '一滴三毫米水滴落到地面',
-            '直径 6 mm 的水滴落在干地板并飞溅',
-            '3 mm water drop onto the floor',
-            '3-mm water droplet onto the floor',
-            '3mmwaterdrop onto the floor',
-            'a water droplet with radius 0.003 m hits the floor',
-            'water droplet diameter 6 onto the floor',
-            'water droplet diameter of about 6 onto the floor',
-            '半径为3的水滴落到地面',
-            '一滴水落到圆锥上，直径 6 mm',
-        ):
-            with self.subTest(prompt=prompt):
-                with self.assertRaises(run_simulation.UnsupportedRequest) as raised:
-                    run_simulation.route(prompt)
-                self.assertIn('author scene_json', str(raised.exception))
-                self.assertIn('radius/diameter', str(raised.exception))
-        self.assertFalse(run_simulation._has_explicit_size('3min'))
-
-        for prompt in (
-            '一滴水落到干燥地面，产生明显水花',
-            'water droplet splashes on dry floor',
-        ):
-            with self.subTest(prompt=prompt):
-                route_name, scene = run_simulation.route(prompt)
-                self.assertEqual(route_name, 'water_droplet_ground_splash')
-                self.assertEqual(scene['entities'][0]['shape']['radius'], 0.32)
-        for prompt in (
-            '细水珠落到干燥地面飞溅',
-            '毫米级水滴落到干燥地面产生水花',
-            'microdroplet splashes on dry floor',
-        ):
-            with self.subTest(prompt=prompt):
-                route_name, scene = run_simulation.route(prompt)
-                self.assertEqual(route_name, 'water_droplet_ground_dry')
-                self.assertEqual(scene['entities'][0]['shape']['radius'], 0.003)
-
-    def test_prepared_short_water_impact_gets_watchable_video(self):
-        sys.path.insert(0, str(ROOT/'physics'))
-        import run_simulation
-        scene=json.loads((ROOT.parent/'examples/droplet_ground.json').read_text())
-        default_name, default_scene=run_simulation.route('一滴水落到地面并飞溅')
-        fast_name, fast_scene=run_simulation.route('快速预览一滴水落到地面')
-        dry_name, dry_scene=run_simulation.route('一滴水落到干燥地面')
-        micro_name, micro_scene=run_simulation.route('细水珠落到地面飞溅')
-        wet_name, wet_scene=run_simulation.route('细水珠落到有水膜的地面飞溅')
-        cone_name, cone_scene=run_simulation.route('一滴水落到圆锥上')
-        self.assertEqual(default_name,'water_droplet_ground_macro_wet')
-        self.assertEqual(fast_name,'water_droplet_ground_splash')
-        self.assertEqual(default_scene['entities'][1]['shape']['size'][1],.04)
-        self.assertEqual(dry_name,'water_droplet_ground_dry')
-        self.assertEqual(micro_name,'water_droplet_ground_dry')
-        self.assertEqual(wet_name,'water_droplet_ground_micro_wet')
-        self.assertEqual(cone_name,'water_droplet_cone')
-        self.assertEqual(default_scene['world']['duration'],.8)
-        self.assertEqual(fast_scene['world']['duration'],.8)
-        self.assertEqual(default_scene['world']['output_fps'],60)
-        self.assertEqual(dry_scene['world']['output_fps'],120)
-        self.assertEqual(micro_scene['world']['output_fps'],120)
-        self.assertEqual(wet_scene['world']['output_fps'],120)
-        self.assertEqual(dry_scene['world']['duration'],.3)
-        self.assertEqual(len(default_scene['entities']),2)
-        self.assertEqual(len(fast_scene['entities']),1)
-        self.assertEqual(len(dry_scene['entities']),1)
-        self.assertEqual(default_scene['entities'][0]['shape']['radius'],.32)
-        self.assertEqual(dry_scene['entities'][0]['shape']['radius'],.003)
-        self.assertEqual(len(micro_scene['entities']),1)
-        self.assertEqual(len(wet_scene['entities']),2)
-        self.assertEqual(cone_scene['entities'][1]['color'],[.79,.49,.24])
-        with tempfile.TemporaryDirectory() as temporary:
-            artifacts=Path(temporary)
-            def simulated(_scene, path, *, make_video):
-                self.assertTrue(make_video)
-                (path/'simulation.mp4').write_bytes(b'video')
-                return {'ok':True,'quality_gate':{'passed':True}}
-            with patch('physics_demo.runner.simulate',side_effect=simulated), \
-                 patch.object(run_simulation,'_publish_watchable_video',
-                              return_value={'presentation':{'playback_duration_s':6.8}}) as publish, \
-                 redirect_stdout(StringIO()):
-                self.assertEqual(run_simulation.simulate_scene(scene,artifacts,
-                    request_text='一滴水落到地面'),0)
-                publish.assert_called_once()
-                publish.reset_mock()
-                self.assertEqual(run_simulation.simulate_scene(scene,artifacts,
-                    request_text='一滴水落到地面，原速播放'),0)
-                publish.assert_not_called()
-        self.assertFalse(run_simulation._short_water_impact(
-            json.loads((ROOT.parent/'examples/three_body.json').read_text())))
 
     def test_unsupported_commands_and_insufficient_budget(self):
         self.assertFalse(self.probe("执行任意外部程序")['supported'])

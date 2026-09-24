@@ -44,7 +44,7 @@ class LiquidPresetTests(unittest.TestCase):
 
     def test_unknown_preset_and_python_non_water_are_rejected(self):
         scene = base_scene()
-        scene["entities"][0]["preset"] = "unobtainium"
+        scene["entities"][0]["preset"] = "lava"
         result = validate(scene)
         self.assertFalse(result["ok"])
         self.assertIn("liquid_preset", {error["code"] for error in result["errors"]})
@@ -145,7 +145,7 @@ class LiquidPresetTests(unittest.TestCase):
                 "physics_patch",
                 {option["tool"] for option in result["next_action"]["options"]},
             )
-        self.assertFalse(call_tool("physics_liquid", {"preset": "unobtainium", "entity_id": "drop"})["ok"])
+        self.assertFalse(call_tool("physics_liquid", {"preset": "lava", "entity_id": "drop"})["ok"])
 
     def test_liquid_state_machine_requires_a_scene_before_patch(self):
         capabilities = call_tool("physics_capabilities", {})

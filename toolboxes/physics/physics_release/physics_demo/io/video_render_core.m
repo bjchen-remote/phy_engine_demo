@@ -19,7 +19,7 @@ typedef struct {
 } CameraBounds;
 typedef struct {
   CGPoint point;
-  int material; /* 0 water, 1 sand, 2 honey, 3 glue, 4 molten lead, 5 lava */
+  int material; /* 0 water, 1 sand, 2 honey, 3 glue, 4 molten lead */
   int depthBand;
   BOOL surface;
 } RenderParticle;
@@ -339,23 +339,6 @@ static void DrawGround(CGContextRef context, NSArray *colliders,
   double floorY = PhyVideoHorizontalFloor(colliders, minimum);
   double minX = VectorValue(minimum, 0), maxX = VectorValue(maximum, 0),
          minZ = VectorValue(minimum, 2), maxZ = VectorValue(maximum, 2);
-  /* Numerical walls may be far outside the visible scene. Fit grid work to
-   * the viewport, and keep its SI spacing independent of those wall positions. */
-  if (fabs(camera.sinePitch)>1e-6 && camera.scale>0) {
-    CGRect clip=CGContextGetClipBoundingBox(context);
-    double loX=DBL_MAX,hiX=-DBL_MAX,loZ=DBL_MAX,hiZ=-DBL_MAX;
-    for (int i=0;i<4;i++) {
-      double u=((i&1?CGRectGetMaxX(clip):CGRectGetMinX(clip))-camera.originX)/camera.scale+camera.centerU;
-      double v=((i&2?CGRectGetMaxY(clip):CGRectGetMinY(clip))-camera.originY)/camera.scale+camera.centerV;
-      double depth=(camera.cosinePitch*floorY-v)/camera.sinePitch;
-      double x=camera.cosineYaw*u+camera.sineYaw*depth;
-      double z=-camera.sineYaw*u+camera.cosineYaw*depth;
-      loX=fmin(loX,x);hiX=fmax(hiX,x);loZ=fmin(loZ,z);hiZ=fmax(hiZ,z);
-    }
-    minX=fmax(minX,loX);maxX=fmin(maxX,hiX);
-    minZ=fmax(minZ,loZ);maxZ=fmin(maxZ,hiZ);
-  }
-  if (minX>=maxX || minZ>=maxZ) return;
   CameraPoint corners[4] = {
     Project(@[ @(minX), @(floorY), @(minZ) ], camera),
     Project(@[ @(maxX), @(floorY), @(minZ) ], camera),
@@ -370,23 +353,21 @@ static void DrawGround(CGContextRef context, NSArray *colliders,
   CGContextSetRGBFillColor(context, 0.09, 0.13, 0.18, 0.42);
   CGContextFillPath(context);
   CGContextSetLineWidth(context, 0.8);
-  double wanted=40.0/fmax(camera.scale,1e-9);
-  double step=pow(10.0,floor(log10(wanted)));
-  double ratio=wanted/step;
-  step*=ratio>=5?5:(ratio>=2?2:1);
-  for (int axis=0;axis<2;axis++) {
-    double low=axis?minZ:minX,high=axis?maxZ:maxX;
-    double spacing=fmax(step,(high-low)/512.0);
-    double start=ceil(low/spacing)*spacing;
-    for (int line=0;line<=512;line++) {
-      double value=start+line*spacing;
-      if(value>high) break;
-      CameraPoint a=Project(axis?@[@(minX),@(floorY),@(value)]:@[@(value),@(floorY),@(minZ)],camera);
-      CameraPoint b=Project(axis?@[@(maxX),@(floorY),@(value)]:@[@(value),@(floorY),@(maxZ)],camera);
-      CGContextSetRGBStrokeColor(context,0.44,0.58,0.70,fabs(value)<1e-10?.25:.12);
-      CGContextMoveToPoint(context,a.u,a.v);CGContextAddLineToPoint(context,b.u,b.v);
-      CGContextStrokePath(context);
-    }
+  for (int line = 0; line <= 12; line++) {
+    double amount = (double)line / 12.0, x = minX + amount * (maxX - minX),
+           z = minZ + amount * (maxZ - minZ);
+    CameraPoint xa = Project(@[ @(x), @(floorY), @(minZ) ], camera),
+                xb = Project(@[ @(x), @(floorY), @(maxZ) ], camera);
+    CameraPoint za = Project(@[ @(minX), @(floorY), @(z) ], camera),
+                zb = Project(@[ @(maxX), @(floorY), @(z) ], camera);
+    CGFloat alpha = (line == 0 || line == 6 || line == 12) ? 0.25 : 0.12;
+    CGContextSetRGBStrokeColor(context, 0.44, 0.58, 0.70, alpha);
+    CGContextMoveToPoint(context, xa.u, xa.v);
+    CGContextAddLineToPoint(context, xb.u, xb.v);
+    CGContextStrokePath(context);
+    CGContextMoveToPoint(context, za.u, za.v);
+    CGContextAddLineToPoint(context, zb.u, zb.v);
+    CGContextStrokePath(context);
   }
 }
 
@@ -581,225 +562,24 @@ static void DrawCollider(CGContextRef context, NSDictionary *collider,
   }
 }
 
-enum { kMaterialCount = 6 };
-
 static int RenderMaterial(id name) {
   if ([name isEqual:@"sand"]) return 1;
   if ([name isEqual:@"honey"]) return 2;
   if ([name isEqual:@"glue"]) return 3;
   if ([name isEqual:@"molten_lead"]) return 4;
-  if ([name isEqual:@"lava"]) return 5;
   return 0; /* Missing legacy metadata means water. */
 }
 
 static void LiquidPalette(int material, CGFloat colors[8]) {
-  static const CGFloat palettes[kMaterialCount][8] = {
+  static const CGFloat palettes[5][8] = {
     {0.015,0.18,0.30,0.88, 0.32,0.79,0.96,0.94},
     {0,0,0,1, 0,0,0,1},
     {0.37,0.14,0.025,0.94, 0.96,0.61,0.12,0.98},
     {0.58,0.64,0.62,0.98, 0.96,0.98,0.91,1.0},
-    {0.17,0.20,0.23,1.0, 0.82,0.88,0.92,1.0},
-    {0.42,0.035,0.005,1.0, 1.0,0.35,0.015,1.0}
+    {0.17,0.20,0.23,1.0, 0.82,0.88,0.92,1.0}
   };
   for (int i=0;i<8;i++) colors[i]=palettes[material][i];
 }
-
-/* Optional v2 display path. It uses the recorded water samples and their
- * previous positions; the simulation and saved trajectory are untouched. */
-typedef struct {
-  CGPoint point, previousPoint;
-  double depth;
-  int material, localDensity, depthBand;
-  BOOL surface;
-} LegacyWaterParticle;
-
-static CGImageRef CreateLegacyWaterMask(LegacyWaterParticle *particles, NSUInteger count,
-                                  int band, double radius, size_t width,
-                                  size_t height) {
-  CGColorSpaceRef space = CGColorSpaceCreateDeviceGray();
-  CGContextRef maskContext = CGBitmapContextCreate(
-      NULL, width, height, 8, width, space, (CGBitmapInfo)kCGImageAlphaNone);
-  CGColorSpaceRelease(space);
-  if (!maskContext)
-    return NULL;
-  CGContextSetGrayFillColor(maskContext, 0, 1);
-  CGContextFillRect(maskContext,
-                    CGRectMake(0, 0, (CGFloat)width, (CGFloat)height));
-  CGContextSetGrayFillColor(maskContext, 1, 1);
-  CGContextSetShouldAntialias(maskContext, true);
-  for (NSUInteger index = 0; index < count; index++) {
-    LegacyWaterParticle particle = particles[index];
-    if (particle.material != 0 || (band >= 0 && particle.depthBand != band))
-      continue;
-    /* Dense samples overlap into a liquid sheet. Sparse samples keep their
-     * measured separation, so genuine spray does not turn into a fake blob. */
-    double visualRadius = (particle.localDensity > 2 ? 1.72 : 1.12) * radius;
-    CGContextFillEllipseInRect(maskContext,
-                               CGRectMake(particle.point.x - visualRadius,
-                                          particle.point.y - visualRadius,
-                                          2 * visualRadius, 2 * visualRadius));
-  }
-  CGImageRef mask = CGBitmapContextCreateImage(maskContext);
-  CGContextRelease(maskContext);
-  return mask;
-}
-
-static void DrawLegacyWaterBody(CGContextRef context, LegacyWaterParticle *particles,
-                          NSUInteger count, double radius, size_t width,
-                          size_t height) {
-  CGImageRef mask =
-      CreateLegacyWaterMask(particles, count, -1, radius, width, height);
-  if (!mask)
-    return;
-  double canvasWidth = (double)width, canvasHeight = (double)height;
-  CGRect canvas = CGRectMake(0, 0, (CGFloat)canvasWidth,
-                             (CGFloat)canvasHeight);
-  CGContextSaveGState(context);
-  CGContextClipToMask(context, CGRectOffset(canvas, 2, -2), mask);
-  CGContextSetRGBFillColor(context, 0, 0.01, 0.025, 0.26);
-  CGContextFillRect(context, canvas);
-  CGContextRestoreGState(context);
-  CGFloat colors[8] = {
-      0.025, 0.32, 0.61, 0.79,
-      0.10, 0.69, 0.96, 0.87,
-  };
-  CGContextSaveGState(context);
-  CGContextClipToMask(context, canvas, mask);
-  DrawVerticalGradient(context, canvas, colors);
-  CGContextRestoreGState(context);
-  CGImageRelease(mask);
-}
-
-static void DrawLegacyWaterBand(CGContextRef context, LegacyWaterParticle *particles,
-                          NSUInteger count, int band, double radius) {
-  for (NSUInteger index = 0; index < count; index++) {
-    LegacyWaterParticle particle = particles[index];
-    if (particle.material != 0 || particle.depthBand != band)
-      continue;
-    double dx = particle.point.x - particle.previousPoint.x,
-           dy = particle.point.y - particle.previousPoint.y,
-           travel = hypot(dx, dy);
-    if (particle.localDensity <= 7 && travel > 0.8) {
-      double limited = fmin(travel, 2.8 * radius + 7),
-             factor = limited / travel;
-      CGContextSetRGBStrokeColor(context, 0.18, 0.72, 1, 0.23);
-      CGContextSetLineWidth(context, fmax(1, 0.62 * radius));
-      CGContextSetLineCap(context, kCGLineCapRound);
-      CGContextMoveToPoint(context, particle.point.x, particle.point.y);
-      CGContextAddLineToPoint(context, particle.point.x - dx * factor,
-                              particle.point.y - dy * factor);
-      CGContextStrokePath(context);
-      CGContextSetLineCap(context, kCGLineCapButt);
-    }
-    if (particle.localDensity <= 7) {
-      FillCircle(context, particle.point, 1.10 * radius, 0.08, 0.52, 0.88,
-                 0.72);
-      StrokeCircle(context, particle.point, 1.08 * radius, 0.66, 0.94, 1, 0.42,
-                   fmax(0.7, 0.16 * radius));
-      FillCircle(context,
-                 CGPointMake(particle.point.x - 0.30 * radius,
-                             particle.point.y + 0.34 * radius),
-                 fmax(0.7, 0.23 * radius), 0.90, 0.99, 1, 0.76);
-    } else if (particle.surface) {
-      /* Dense water still needs trajectory-derived texture.  Short surface
-         streaks expose circulation and impact waves without moving or adding
-         any simulated sample. */
-      if (travel > 0.15 && index % 3 == 0) {
-        double limited = fmin(travel, 3.2 * radius + 5.0),
-               factor = limited / travel;
-        CGContextSetRGBStrokeColor(context, 0.74, 0.97, 1.0, 0.55);
-        CGContextSetLineWidth(context, fmax(0.8, 0.28 * radius));
-        CGContextSetLineCap(context, kCGLineCapRound);
-        CGContextMoveToPoint(context, particle.point.x, particle.point.y);
-        CGContextAddLineToPoint(context,
-                                particle.point.x - dx * factor,
-                                particle.point.y - dy * factor);
-        CGContextStrokePath(context);
-        CGContextSetLineCap(context, kCGLineCapButt);
-      }
-      if (index % 4 == 0)
-        StrokeCircle(context, particle.point, 0.90 * radius,
-                     0.64, 0.93, 1.0, 0.15, fmax(0.55, 0.10 * radius));
-      FillCircle(context,
-                 CGPointMake(particle.point.x - 0.12 * radius,
-                             particle.point.y + 0.22 * radius),
-                 fmax(0.55, 0.22 * radius), 0.78, 0.97, 1, 0.48);
-    }
-  }
-}
-
-static LegacyWaterParticle *
-BuildLegacyWaterParticles(NSDictionary *frame, NSDictionary *previousFrame,
-                     NSArray *materials, PhyVideoCamera camera, double radius,
-                     size_t width, size_t height, NSUInteger *outputCount) {
-  NSArray *values =
-              [frame[@"p"] isKindOfClass:[NSArray class]] ? frame[@"p"] : @[],
-          *previous = [previousFrame[@"p"] isKindOfClass:[NSArray class]]
-                          ? previousFrame[@"p"]
-                          : @[];
-  NSUInteger count = values.count;
-  *outputCount = count;
-  if (count == 0)
-    return NULL;
-  LegacyWaterParticle *particles = calloc(count, sizeof(LegacyWaterParticle));
-  if (!particles)
-    return NULL;
-  double cellSize = fmax(4, 2.4 * radius);
-  int columns = AtLeastOne((int)ceil((double)width / cellSize)),
-      rows = AtLeastOne((int)ceil((double)height / cellSize));
-  int *occupancy = calloc((size_t)columns * (size_t)rows, sizeof(int));
-  double bucketWidth = fmax(3, 1.8 * radius);
-  int buckets = AtLeastOne((int)ceil((double)width / bucketWidth));
-  double *surfaceHeight = malloc((size_t)buckets * sizeof(double));
-  if (!occupancy || !surfaceHeight) {
-    free(occupancy);
-    free(surfaceHeight);
-    free(particles);
-    return NULL;
-  }
-  for (int bucket = 0; bucket < buckets; bucket++)
-    surfaceHeight[bucket] = -DBL_MAX;
-  for (NSUInteger index = 0; index < count; index++) {
-    CameraPoint projected = Project(Vector(values[index]), camera);
-    CameraPoint old = Project(index < previous.count ? Vector(previous[index])
-                                                     : Vector(values[index]),
-                              camera);
-    NSString *material = index < materials.count ? materials[index] : @"water";
-    particles[index] = (LegacyWaterParticle){CGPointMake(projected.u, projected.v),
-                                        CGPointMake(old.u, old.v),
-                                        projected.depth,
-                                        [material isEqual:@"sand"] ? 1 : 0,
-                                        0,
-                                        DepthBand(projected.depth, camera),
-                                        NO};
-    int column = (int)floor(projected.u / cellSize),
-        row = (int)floor(projected.v / cellSize);
-    if (column >= 0 && column < columns && row >= 0 && row < rows)
-      occupancy[row * columns + column]++;
-    if (particles[index].material == 0) {
-      int bucket = (int)floor(projected.u / bucketWidth);
-      if (bucket >= 0 && bucket < buckets)
-        surfaceHeight[bucket] = fmax(surfaceHeight[bucket], projected.v);
-    }
-  }
-  for (NSUInteger index = 0; index < count; index++) {
-    int column = (int)floor(particles[index].point.x / cellSize),
-        row = (int)floor(particles[index].point.y / cellSize), density = 0;
-    for (int y = row - 1; y <= row + 1; y++)
-      for (int x = column - 1; x <= column + 1; x++)
-        if (x >= 0 && x < columns && y >= 0 && y < rows)
-          density += occupancy[y * columns + x];
-    particles[index].localDensity = density;
-    int bucket = (int)floor(particles[index].point.x / bucketWidth);
-    if (bucket >= 0 && bucket < buckets)
-      particles[index].surface =
-          particles[index].point.y >= surfaceHeight[bucket] - 0.80 * radius;
-  }
-  free(surfaceHeight);
-  free(occupancy);
-  return particles;
-}
-
 
 /* The legacy depth bands remain only for sand and opaque scene objects. */
 static RenderParticle *
@@ -1117,11 +897,9 @@ static BOOL AppendCapsuleGeometry(NSMutableArray *vertices,NSMutableArray *objec
 }
 
 typedef struct {
-  CameraPoint center, recordedCenter;
+  CameraPoint center;
   double radius;
   int material,next;
-  NSUInteger originalIndex;
-  BOOL sparse;
 } LiquidSample;
 
 static int CompareLiquidSamples(const void *left,const void *right) {
@@ -1141,13 +919,12 @@ static int CompareLiquidSamples(const void *left,const void *right) {
  * original footprint. Dense bins need no expansion and skip the neighbor walk;
  * its result is independent of insertion order and avoids quadratic work. */
 static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
-    PhyVideoCamera camera,double particleRadius,size_t width,size_t height,
-    int sparseNeighborThreshold) {
+    PhyVideoCamera camera,double particleRadius,size_t width,size_t height) {
   if (samples.count>INT_MAX) return NULL;
   double cellSize=fmax(2.3,8*particleRadius*camera.scale);
   int columns=(int)ceil((double)width/cellSize)+2,
       rows=(int)ceil((double)height/cellSize)+2;
-  size_t binCount=(size_t)columns*(size_t)rows*kMaterialCount;
+  size_t binCount=(size_t)columns*(size_t)rows*5;
   int *heads=malloc(binCount*sizeof(int)),*counts=calloc(binCount,sizeof(int));
   LiquidSample *points=calloc(samples.count,sizeof(LiquidSample));
   CameraPoint *smoothed=calloc(samples.count,sizeof(CameraPoint));
@@ -1162,7 +939,7 @@ static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
       free(heads);free(counts);free(points);free(smoothed);return NULL;
     }
     int material=RenderMaterial(i<materials.count?materials[i]:@"water");
-    points[i]=(LiquidSample){center,center,baseRadius,material,-1,i,NO};
+    points[i]=(LiquidSample){center,baseRadius,material,-1};
   }
   /* Canonicalize before any neighbourhood accumulation.  Rendering remains
    * independent of the trajectory's sample order even though floating-point
@@ -1216,7 +993,6 @@ static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
     }
     if (nearest[2]<DBL_MAX)
       point->radius=fmax(baseRadius,fmin(5.5*particleRadius*camera.scale,1.35*sqrt(nearest[2])));
-    point->sparse=neighborCount<=sparseNeighborThreshold;
     if (neighborCount>=4 && weightTotal>1.0) {
       double du=.55*(meanU/weightTotal-point->center.u),
              dv=.55*(meanV/weightTotal-point->center.v),
@@ -1235,88 +1011,6 @@ static LiquidSample *BuildLiquidSamples(NSArray *samples,NSArray *materials,
   return points;
 }
 
-static void BlendSparseWaterPixel(uint8_t *pixels,size_t pixel,
-    double red,double green,double blue,double alpha) {
-  alpha=Clamp(alpha,0,1);
-  double oldAlpha=pixels[4*pixel+3]/255.0;
-  const double color[3]={red,green,blue};
-  for (size_t channel=0;channel<3;channel++)
-    pixels[4*pixel+channel]=(uint8_t)(255*Clamp(
-        color[channel]*alpha+(pixels[4*pixel+channel]/255.0)*(1-alpha),0,1));
-  pixels[4*pixel+3]=(uint8_t)(255*Clamp(alpha+oldAlpha*(1-alpha),0,1));
-}
-
-/* Sparse recorded samples keep the small, separate blue beads and bounded
- * motion traces of v2. Rasterizing into the mesh's depth buffer lets the cone
- * hide droplets behind it; no sample positions or velocities are changed. */
-static void DrawSparseWaterDroplets(uint8_t *pixels,float *sceneDepth,
-    LiquidSample *points,NSUInteger count,NSArray *previousPositions,
-    PhyVideoCamera camera,size_t width,size_t height,double particleRadius,
-    BOOL cohesiveWater) {
-  double radius=cohesiveWater ? Clamp(.72*particleRadius*camera.scale,1.5,5.0)
-                              : Clamp(1.08*particleRadius*camera.scale,1.65,8.5);
-  if (![previousPositions isKindOfClass:[NSArray class]]) previousPositions=@[];
-  for (NSUInteger i=0;i<count;i++) {
-    LiquidSample point=points[i];
-    if (point.material!=0 || !point.sparse) continue;
-    CameraPoint center=point.recordedCenter,previous=center;
-    if (point.originalIndex<previousPositions.count &&
-        MeshVector(previousPositions[point.originalIndex]))
-      previous=Project(previousPositions[point.originalIndex],camera);
-    double dx=center.u-previous.u,dy=center.v-previous.v,travel=hypot(dx,dy);
-    if (travel>0.8) {
-      double limited=fmin(travel,2.8*radius+7),factor=limited/travel;
-      double ax=center.u-dx*factor,ay=center.v-dy*factor;
-      double halfWidth=fmax(1,0.62*radius)*.5;
-      int left=(int)Clamp(floor(fmin(ax,center.u)-halfWidth-1),0,(double)width-1),
-          right=(int)Clamp(ceil(fmax(ax,center.u)+halfWidth+1),0,(double)width-1),
-          bottom=(int)Clamp(floor(fmin(ay,center.v)-halfWidth-1),0,(double)height-1),
-          top=(int)Clamp(ceil(fmax(ay,center.v)+halfWidth+1),0,(double)height-1);
-      double lengthSquared=(center.u-ax)*(center.u-ax)+(center.v-ay)*(center.v-ay);
-      for (int y=bottom;y<=top;y++) for (int x=left;x<=right;x++) {
-        double u=lengthSquared>0?Clamp((((double)x+.5-ax)*(center.u-ax)+
-            ((double)y+.5-ay)*(center.v-ay))/lengthSquared,0,1):1;
-        double distance=hypot((double)x+.5-(ax+u*(center.u-ax)),
-                              (double)y+.5-(ay+u*(center.v-ay)));
-        double coverage=Clamp(halfWidth+.5-distance,0,1);
-        if (coverage<=0) continue;
-        double z=previous.depth+(center.depth-previous.depth)*(1-factor+u*factor);
-        size_t pixel=((height-1-(size_t)y)*width+(size_t)x);
-        if (z<sceneDepth[pixel]) continue;
-        BlendSparseWaterPixel(pixels,pixel,.18,.72,1,.23*coverage);
-      }
-    }
-    double bodyRadius=(cohesiveWater?1.0:1.10)*radius;
-    int left=(int)Clamp(floor(center.u-bodyRadius-1),0,(double)width-1),
-        right=(int)Clamp(ceil(center.u+bodyRadius+1),0,(double)width-1),
-        bottom=(int)Clamp(floor(center.v-bodyRadius-1),0,(double)height-1),
-        top=(int)Clamp(ceil(center.v+bodyRadius+1),0,(double)height-1);
-    for (int y=bottom;y<=top;y++) for (int x=left;x<=right;x++) {
-      double ux=(double)x+.5-center.u,uy=(double)y+.5-center.v;
-      double distance=hypot(ux,uy);
-      double coverage=Clamp(bodyRadius+.5-distance,0,1);
-      if (coverage<=0) continue;
-      double z=center.depth+particleRadius*sqrt(fmax(0,1-(distance/bodyRadius)*(distance/bodyRadius)));
-      size_t pixel=((height-1-(size_t)y)*width+(size_t)x);
-      if (z<sceneDepth[pixel]) continue;
-      BlendSparseWaterPixel(pixels,pixel,cohesiveWater?.10:.08,
-          cohesiveWater?.58:.52,cohesiveWater?.86:.88,
-          (cohesiveWater?.62:.72)*coverage);
-      double rimWidth=fmax(cohesiveWater?.5:.7,(cohesiveWater?.10:.16)*radius),
-          rim=Clamp(.5*rimWidth+.5-
-          fabs(distance-1.08*radius),0,1);
-      if (rim>0) BlendSparseWaterPixel(pixels,pixel,.66,.94,1,
-          (cohesiveWater?.20:.42)*rim);
-      double highlight=hypot(ux+.30*radius,uy-.34*radius);
-      double highlightRadius=fmax(.7,.23*radius);
-      double glint=Clamp(highlightRadius+.5-highlight,0,1);
-      if (glint>0) BlendSparseWaterPixel(pixels,pixel,.90,.99,1,
-          (cohesiveWater?.45:.76)*glint);
-      sceneDepth[pixel]=(float)z;
-    }
-  }
-}
-
 /* A compact screen-space field joins nearby recorded liquid samples. The
  * front-depth gate prevents distant overlapping layers from adding density.
  * Fixed, depth-aware spatial passes remove individual sphere highlights; no
@@ -1327,20 +1021,17 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
   NSArray *samples=frame[@"p"] ?: @[];
   if (![samples isKindOfClass:[NSArray class]]) return NO;
   if (!samples.count) return YES;
-  BOOL present[kMaterialCount]={NO},hasLiquid=NO;
+  BOOL present[5]={NO,NO,NO,NO,NO};
   for (NSUInteger i=0;i<samples.count;i++) {
     if (!MeshVector(samples[i])) return NO;
     int material=RenderMaterial(i<materials.count?materials[i]:@"water");
-    if (material!=1) {present[material]=YES;hasLiquid=YES;}
+    if (material!=1) present[material]=YES;
   }
-  if (!hasLiquid) return YES;
+  if (!present[0] && !present[2] && !present[3] && !present[4]) return YES;
   if (!isfinite(particleRadius) || particleRadius<=0 ||
       !isfinite(camera.scale) || camera.scale<=0) return NO;
-  BOOL cohesiveWater=[frame[@"__cohesive_water"] boolValue];
-  LiquidSample *points=BuildLiquidSamples(samples,materials,camera,particleRadius,
-      width,height,cohesiveWater?3:7);
+  LiquidSample *points=BuildLiquidSamples(samples,materials,camera,particleRadius,width,height);
   if (!points) return NO;
-  BOOL separateSparseWater=[frame[@"__separate_sparse_water"] boolValue];
   size_t count=width*height;
   float *field=calloc(count,sizeof(float)),*front=malloc(count*sizeof(float)),
         *smooth=malloc(count*sizeof(float));
@@ -1353,15 +1044,14 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
   double contourResolution=Clamp((radius-3.0)/3.0,0,1);
   double coverageThreshold=.12+.08*contourResolution;
   double coverageFeather=.10+.04*contourResolution;
-  for (int material=0;material<kMaterialCount;material++) {
+  for (int material=0;material<5;material++) {
     if (!present[material]) continue;
     for (size_t i=0;i<count;i++) {field[i]=0;front[i]=-FLT_MAX;}
     int minimumX=(int)width,minimumY=(int)height,maximumX=-1,maximumY=-1;
     /* The first traversal finds the visible front envelope. The second adds
      * only nearby samples to an order-independent, bounded-support field. */
     for (int pass=0;pass<2;pass++) for (NSUInteger i=0;i<samples.count;i++) {
-      if (points[i].material!=material ||
-          (separateSparseWater && material==0 && points[i].sparse)) continue;
+      if (points[i].material!=material) continue;
       CameraPoint center=points[i].center;
       double supportRadius=points[i].radius;
       int left=(int)Clamp(floor(center.u-supportRadius),0,(double)width-1),
@@ -1435,10 +1125,6 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
       float *swap=source;source=target;target=swap;
     }
     CGFloat colors[8];LiquidPalette(material,colors);
-    if (cohesiveWater && material==0) {
-      colors[0]=.06;colors[1]=.32;colors[2]=.47;colors[3]=.98;
-      colors[4]=.32;colors[5]=.80;colors[6]=1.0;colors[7]=1.0;
-    }
     for (int y=minimumY;y<=maximumY;y++) for (int x=minimumX;x<=maximumX;x++) {
       size_t pixel=(height-1-(size_t)y)*width+(size_t)x;
       double coverage=Clamp((field[pixel]-coverageThreshold)/coverageFeather,0,1);
@@ -1462,15 +1148,12 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
        * This is a deterministic display cue, not a refraction solver: the
        * reconstructed depth and every trajectory sample remain unchanged. */
       double alpha=coverage*(material==0?
-          (cohesiveWater ? (.78+.14*(1-nz)+.04*thickness)
-                         : (.58+.24*(1-nz)+.08*thickness))
-          :(material==2?.97:1.0));
+          (.58+.24*(1-nz)+.08*thickness):(material==2?.97:1.0));
       double oldAlpha=pixels[4*pixel+3]/255.0;
       for (int channel=0;channel<3;channel++) {
         double base=colors[4+channel]*(1-.36*thickness)+colors[channel]*.36*thickness;
         double value=base*(.40+.60*light)+gloss*(material==0?.46:(material==4?.52:.24));
         if (material==4) value=base*(.30+.58*Clamp(.5+.5*ny,0,1))+.46*gloss;
-        if (material==5) value=base*(.78+.22*light)+.08*gloss; /* Display glow, not heat. */
         pixels[4*pixel+(size_t)channel]=(uint8_t)(255*Clamp(
             Clamp(value,0,1)*alpha+(pixels[4*pixel+(size_t)channel]/255.0)*(1-alpha),0,1));
       }
@@ -1478,9 +1161,6 @@ static BOOL DrawLiquidSurface(uint8_t *pixels, float *sceneDepth,
       sceneDepth[pixel]=(float)z;
     }
   }
-  if (separateSparseWater)
-    DrawSparseWaterDroplets(pixels,sceneDepth,points,samples.count,
-        frame[@"__previous_p"],camera,width,height,particleRadius,cohesiveWater);
   free(field);free(front);free(smooth);free(points);
   return YES;
 }
@@ -1682,12 +1362,12 @@ static BOOL DrawMeshes(CGContextRef context, NSArray *vertices,
   return rendered;
 }
 
-static BOOL DrawFrameWithWaterStyle(CGContextRef context, NSDictionary *frame,
+BOOL PhyVideoDrawFrame(CGContextRef context, NSDictionary *frame,
                       NSDictionary *previousFrame, NSArray *materials,
                       NSArray *rigidShapes, NSArray *colliders, NSArray *meshObjects,
                       NSArray *minimum, NSArray *maximum, PhyVideoCamera camera,
-                      double particleRadius, size_t width, size_t height,
-                      BOOL legacyWater) {
+                      double particleRadius, size_t width, size_t height) {
+  (void)previousFrame; /* Rendering uses recorded positions without temporal effects. */
   DrawBackdrop(context, width, height);
   DrawGround(context, colliders, minimum, maximum, camera);
   if (frame[@"q"]) {
@@ -1707,24 +1387,16 @@ static BOOL DrawFrameWithWaterStyle(CGContextRef context, NSDictionary *frame,
   }
   double screenRadius = Clamp(1.08 * particleRadius * camera.scale, 1.65, 8.5);
   NSUInteger count = 0;
-  RenderParticle *particles = legacyWater ? NULL :
+  RenderParticle *particles =
       BuildRenderParticles(frame, materials, camera,screenRadius, width, &count);
   NSArray *gravity =
               [frame[@"g"] isKindOfClass:[NSArray class]] ? frame[@"g"] : @[],
           *rigids =
               [frame[@"r"] isKindOfClass:[NSArray class]] ? frame[@"r"] : @[];
-  NSUInteger legacyCount=0;
-  LegacyWaterParticle *legacy=NULL;
-  if (legacyWater) {
-    legacy=BuildLegacyWaterParticles(frame,previousFrame,materials,camera,
-        screenRadius,width,height,&legacyCount);
-    if (legacyCount && !legacy) {free(particles);return NO;}
-    if (legacy) DrawLegacyWaterBody(context,legacy,legacyCount,screenRadius,width,height);
-  } else if (!DrawLiquidLayer(context,frame,materials,camera,width,height,particleRadius)) {
+  if (!DrawLiquidLayer(context,frame,materials,camera,width,height,particleRadius)) {
     free(particles);return NO;
   }
   for (int band = 0; band < kDepthBands; band++) {
-    if (legacy) DrawLegacyWaterBand(context,legacy,legacyCount,band,screenRadius);
     if (particles) {
       DrawSandBand(context, particles, count, band, screenRadius);
     }
@@ -1736,7 +1408,6 @@ static BOOL DrawFrameWithWaterStyle(CGContextRef context, NSDictionary *frame,
     DrawRigids(context, rigids, rigidShapes, camera, band);
   }
   free(particles);
-  free(legacy);
   if (!DrawMeshes(context, frame[@"m"] ?: @[], meshObjects, camera, width, height,nil,materials,particleRadius))
     return NO;
   CGContextSetRGBStrokeColor(context, 0.58, 0.76, 0.91, 0.18);
@@ -1746,15 +1417,6 @@ static BOOL DrawFrameWithWaterStyle(CGContextRef context, NSDictionary *frame,
       CGRectInset(CGRectMake(0, 0, (CGFloat)width, (CGFloat)height), 12.5,
                   12.5));
   return YES;
-}
-
-BOOL PhyVideoDrawFrame(CGContextRef context, NSDictionary *frame,
-                      NSDictionary *previousFrame, NSArray *materials,
-                      NSArray *rigidShapes, NSArray *colliders, NSArray *meshObjects,
-                      NSArray *minimum, NSArray *maximum, PhyVideoCamera camera,
-                      double particleRadius, size_t width, size_t height) {
-  return DrawFrameWithWaterStyle(context,frame,previousFrame,materials,rigidShapes,
-      colliders,meshObjects,minimum,maximum,camera,particleRadius,width,height,NO);
 }
 
 static NSDictionary *DisplayIndexMap(id identifiers,id positions) {
@@ -1842,26 +1504,8 @@ BOOL PhyVideoDrawTrajectoryFrame(CGContextRef context,NSDictionary *frame,
   if ([links isKindOfClass:[NSArray class]]) for (id link in links)
     if ([link isKindOfClass:[NSDictionary class]] && (link[@"endpoints"] || link[@"solid"])) mixed=YES;
   if (!mixed) {
-    NSArray *vertices=frame[@"m"];
-    BOOL noMesh=(!vertices || ([vertices isKindOfClass:[NSArray class]] && vertices.count==0)) &&
-        [meshObjects isKindOfClass:[NSArray class]] && meshObjects.count==0;
-    BOOL waterOnly=[materials isKindOfClass:[NSArray class]];
-    for (id material in materials)
-      if (![material isKindOfClass:[NSString class]] || ![material isEqual:@"water"])
-        waterOnly=NO;
-    BOOL legacyWater=noMesh && waterOnly &&
-        [scene[@"__presentation_water_renderer"] isEqual:@"legacy_v2"];
-    NSDictionary *displayFrame=frame;
-    if (noMesh && waterOnly &&
-        [scene[@"__presentation_water_renderer"] isEqual:@"cohesive_spray"]) {
-      NSMutableDictionary *cohesiveFrame=[frame mutableCopy];
-      cohesiveFrame[@"__separate_sparse_water"]=@YES;
-      cohesiveFrame[@"__cohesive_water"]=@YES;
-      cohesiveFrame[@"__previous_p"]=previousFrame[@"p"] ?: @[];
-      displayFrame=cohesiveFrame;
-    }
-    BOOL rendered=DrawFrameWithWaterStyle(context,displayFrame,previousFrame,materials,shapes,
-        colliders,meshObjects,minimum,maximum,camera,radius,width,height,legacyWater);
+    BOOL rendered=PhyVideoDrawFrame(context,frame,previousFrame,materials,shapes,colliders,
+        meshObjects,minimum,maximum,camera,radius,width,height);
     return rendered && (!links || PhyVideoDrawConnections(context,frame,scene,
                         trajectory[@"gravity_body_ids"],camera));
   }
@@ -1883,15 +1527,6 @@ BOOL PhyVideoDrawTrajectoryFrame(CGContextRef context,NSDictionary *frame,
                *rigids=DisplayIndexMap(trajectory[@"rigid_ids"] ?: @[],frame[@"r"] ?: @[]);
   if (!points || !rigids || ![(frame[@"m"] ?: @[]) isKindOfClass:[NSArray class]]) return NO;
   NSMutableDictionary *displayFrame=[frame mutableCopy];displayFrame[@"q"]=frame[@"q"] ?: @[];
-  BOOL waterOnly=[materials isKindOfClass:[NSArray class]];
-  for (id material in materials)
-    if (![material isKindOfClass:[NSString class]] || ![material isEqual:@"water"])
-      waterOnly=NO;
-  if (waterOnly && meshObjects.count>0 && [frame[@"m"] count]>0 &&
-      [scene[@"__presentation_water_renderer"] isEqual:@"mesh_hybrid"]) {
-    displayFrame[@"__separate_sparse_water"]=@YES;
-    displayFrame[@"__previous_p"]=previousFrame[@"p"] ?: @[];
-  }
   NSMutableArray *vertices=[(frame[@"m"] ?: @[]) mutableCopy],*objects=[meshObjects mutableCopy],
                  *overlayLinks=[NSMutableArray array],*overlayPositions=[NSMutableArray array],
                  *overlayEntities=[NSMutableArray array],*overlayIDs=[NSMutableArray array],
@@ -1953,29 +1588,15 @@ static void CameraSphereSamples(NSMutableArray *samples,NSArray *center,double r
     [samples addObject:@[@(VectorValue(center,0)+x*radius),@(VectorValue(center,1)+y*radius),
                         @(VectorValue(center,2)+z*radius)]];
 }
-static PhyVideoCamera ApplyPresentationZoom(NSDictionary *scene,PhyVideoCamera camera) {
-  id value=scene[@"__presentation_camera_zoom"];
-  if([value isKindOfClass:[NSNumber class]]) {
-    double zoom=[value doubleValue];
-    if(isfinite(zoom) && zoom>=1.0 && zoom<=3.0) camera.scale*=zoom;
-  }
-  return camera;
-}
 PhyVideoCamera PhyVideoBuildTrajectoryCamera(NSDictionary *scene,NSDictionary *trajectory,
                                             size_t width,size_t height) {
   NSArray *frames=trajectory[@"frames"] ?: @[],*shapes=trajectory[@"rigid_shapes"] ?: @[],
           *colliders=scene[@"colliders"] ?: @[],*minimum=Vector(scene[@"world"][@"bounds"][@"min"]),
           *maximum=Vector(scene[@"world"][@"bounds"][@"max"]);
   double particleRadius=[trajectory[@"particle_radius"] doubleValue];
-  id focus=scene[@"__presentation_camera_corners"];
-  if([focus isKindOfClass:[NSArray class]] && [focus count]==8) {
-    return ApplyPresentationZoom(scene,PhyVideoBuildCamera(
-        @[@{@"p":focus}],@[],colliders,minimum,maximum,particleRadius,width,height));
-  }
   BOOL mixed=scene[@"coupling"]!=nil;
   for (NSDictionary *frame in frames) if(frame[@"q"]) {mixed=YES;break;}
-  if(!mixed) return ApplyPresentationZoom(scene,PhyVideoBuildCamera(
-      frames,shapes,colliders,minimum,maximum,particleRadius,width,height));
+  if(!mixed) return PhyVideoBuildCamera(frames,shapes,colliders,minimum,maximum,particleRadius,width,height);
   NSMutableDictionary *entities=[NSMutableDictionary dictionary],*meshes=[NSMutableDictionary dictionary];
   for(id entity in scene[@"entities"] ?: @[])
     if([entity isKindOfClass:[NSDictionary class]] && [entity[@"id"] isKindOfClass:[NSString class]])
@@ -2021,6 +1642,5 @@ PhyVideoCamera PhyVideoBuildTrajectoryCamera(NSDictionary *scene,NSDictionary *t
     NSMutableDictionary *expanded=[frame mutableCopy];expanded[@"__camera_extra_points"]=samples;
     [expandedFrames addObject:expanded];
   }
-  return ApplyPresentationZoom(scene,PhyVideoBuildCamera(
-      expandedFrames,shapes,colliders,minimum,maximum,particleRadius,width,height));
+  return PhyVideoBuildCamera(expandedFrames,shapes,colliders,minimum,maximum,particleRadius,width,height);
 }

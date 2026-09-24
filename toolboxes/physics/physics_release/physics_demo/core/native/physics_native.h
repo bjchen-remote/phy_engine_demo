@@ -9,7 +9,7 @@
 #  define PHY_EXPORT __attribute__((visibility("default")))
 #endif
 
-#define PHY_ABI_VERSION 6u
+#define PHY_ABI_VERSION 5u
 
 enum {
     PHY_MATERIAL_WATER = 0,
@@ -103,8 +103,6 @@ typedef struct {
     double bounds_min[3];
     double bounds_max[3];
     double gravity_G;
-    double particle_gravity_density;
-    double gravity_theta;
     double softening;
     double water_sand_drag;
     double wetting_rate;

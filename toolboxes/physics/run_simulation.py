@@ -7,10 +7,8 @@ provide Python, shell commands, filesystem paths, or arbitrary scene JSON.
 from __future__ import annotations
 
 import json
-import math
 import os
 import random
-import re
 import sys
 import tempfile
 from pathlib import Path
@@ -25,22 +23,6 @@ sys.path.insert(0, str(ENGINE_ROOT))
 
 class UnsupportedRequest(ValueError):
     pass
-
-
-_EXPLICIT_LENGTH = re.compile(
-    r"(?:\d+(?:[.,]\d+)?|[零〇一二两三四五六七八九十百千半点]+)[\s-]*"
-    r"(?:微米|毫米|厘米|米|"
-    r"(?:micromet(?:er|re)s?|millimet(?:er|re)s?|centimet(?:er|re)s?|"
-    r"met(?:er|re)s?|[µμu]m|mm|cm|m)"
-    r"(?=$|[^a-z]|waterdrop|droplet|radius|diameter))"
-)
-_DROP_SIZE_WORD = re.compile(r"半径|直径|radius|diameter")
-
-
-def _has_explicit_size(text: str) -> bool:
-    """Fixed release scenes cannot preserve a requested physical length."""
-    lowered = text.lower()
-    return bool(_EXPLICIT_LENGTH.search(lowered) or _DROP_SIZE_WORD.search(lowered))
 
 
 def _read_request(path: Path) -> Dict[str, Any]:
@@ -85,18 +67,6 @@ def _load_scene(name: str) -> Dict[str, Any]:
 
 def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
     compact = "".join(text.lower().split())
-    has_drop = any(word in compact for word in (
-        "水滴", "水珠", "一滴水", "waterdrop", "droplet",
-    ))
-    if has_drop and _has_explicit_size(text):
-        raise UnsupportedRequest(
-            "The fixed-example route cannot preserve explicit water-drop dimensions. "
-            "Use the modeling tools to author scene_json with the requested radius/diameter "
-            "and other lengths, then call physics_prepare; do not substitute a preset size."
-        )
-    if (has_drop
-            and any(word in compact for word in ("圆锥", "锥体", "cone"))):
-        return "water_droplet_cone", _load_scene("droplet_cone.json")
     if any(word in compact for word in ('三体', 'threebody', 'three-body')):
         scene = _load_scene('three_body.json')
         if any(word in compact for word in ('随机', 'random')):
@@ -114,7 +84,7 @@ def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
             scene['name'] += '-' + str(seed)
         return 'three_body', scene
     chinese_drop = (
-        has_drop
+        ("水滴" in compact or ("一滴水" in compact))
         and any(word in compact for word in ("落到", "落在", "掉到", "撞到"))
         and any(word in compact for word in ("地板", "地面", "地上", "平面"))
     )
@@ -123,41 +93,15 @@ def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
         and any(word in compact for word in ("ground", "floor", "plane"))
     )
     if chinese_drop or english_drop:
-        dry = any(word in compact for word in ("干燥", "干地面", "干地板", "dry"))
-        small = any(word in compact for word in (
-            "细水珠", "毫米级", "微型水滴", "microdroplet",
-        ))
-        visible_splash = any(word in compact for word in (
-            "水花", "飞溅", "溅起", "splash", "spray",
-        ))
-        if dry:
-            if visible_splash and not small:
-                scene_name = "droplet_ground_splash.json"
-                route_name = "water_droplet_ground_splash"
-            else:
-                scene_name = "droplet_ground_dry.json"
-                route_name = "water_droplet_ground_dry"
-        elif any(word in compact for word in (
-            "预湿", "湿润", "湿地面", "湿地板", "水膜", "已有水",
-            "prewet", "pre-wet", "wetfloor", "wetground", "wetfilm", "waterfilm",
-        )):
-            if small:
-                scene_name = "droplet_ground_micro_wet.json"
-                route_name = "water_droplet_ground_micro_wet"
-            else:
-                scene_name = "droplet_ground_macro_wet.json"
-                route_name = "water_droplet_ground_macro_wet"
-        elif small:
-            scene_name = "droplet_ground_dry.json"
-            route_name = "water_droplet_ground_dry"
-        elif visible_splash:
-            # When wetness is unspecified, use the demonstrated airborne
-            # splash and disclose the pre-existing film to the caller.
-            scene_name = "droplet_ground_macro_wet.json"
-            route_name = "water_droplet_ground_macro_wet"
+        if any(word in compact for word in ("高清", "高细节", "精细", "highdetail")):
+            scene_name = "droplet_ground.json"
+            route_name = "water_droplet_ground_balanced"
+        elif any(word in compact for word in ("极速", "快速", "预览", "rapid", "fast")):
+            scene_name = "droplet_ground_rapid.json"
+            route_name = "water_droplet_ground_rapid"
         else:
-            scene_name = "droplet_ground_splash.json"
-            route_name = "water_droplet_ground_splash"
+            scene_name = "droplet_ground_fast.json"
+            route_name = "water_droplet_ground_fast"
         scene = _load_scene(scene_name)
         scene["budget"]["backend"] = "native"
         return route_name, scene
@@ -185,141 +129,16 @@ def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
 
 
 def _watchable_segments(duration: float) -> list[dict[str, float]]:
-    """Play the complete physical trajectory at one steady slow-motion rate."""
+    """Slow a short physical impact for inspection without changing its states."""
+    first = duration * 0.25
+    second = duration * 0.50
     return [
-        {
-            "physical_start_s": 0.0,
-            "physical_end_s": duration,
-            "playback_duration_s": max(4.0, min(12.0, 8.0 * duration)),
-        },
+        {"physical_start_s": 0.0, "physical_end_s": 0.0, "playback_duration_s": 0.5},
+        {"physical_start_s": 0.0, "physical_end_s": first, "playback_duration_s": 1.5},
+        {"physical_start_s": first, "physical_end_s": second, "playback_duration_s": 2.2},
+        {"physical_start_s": second, "physical_end_s": duration, "playback_duration_s": 1.8},
+        {"physical_start_s": duration, "physical_end_s": duration, "playback_duration_s": 0.8},
     ]
-
-
-def _impact_time(scene: dict) -> float | None:
-    """Estimate first floor contact from the authored drop's initial state."""
-    gravity = scene.get("world", {}).get("gravity", [0, 0, 0])
-    if not isinstance(gravity, list) or len(gravity) != 3 or gravity[1] >= 0:
-        return None
-    for entity in scene.get("entities", []):
-        shape = entity.get("shape", {})
-        if (entity.get("type") != "fluid" or entity.get("preset") != "water"
-                or shape.get("type") != "sphere"):
-            continue
-        center = shape.get("center", [])
-        velocity = entity.get("velocity", [0, 0, 0])
-        radius = shape.get("radius")
-        if (not isinstance(center, list) or len(center) != 3
-                or not isinstance(velocity, list) or len(velocity) != 3
-                or not isinstance(radius, (int, float))):
-            continue
-        gaps = [center[1] - radius - collider.get("offset", 0)
-                for collider in scene.get("colliders", [])
-                if collider.get("type") == "plane" and collider.get("normal") == [0, 1, 0]]
-        for obstacle in scene.get("entities", []):
-            solid = obstacle.get("shape", {})
-            position = obstacle.get("position", [])
-            if (obstacle.get("type") == "mesh" and isinstance(position, list)
-                    and len(position) == 3):
-                mesh_bounds = obstacle.get("mesh", {}).get("metadata", {}).get("bounds")
-                if (isinstance(mesh_bounds, list) and len(mesh_bounds) == 2
-                        and all(isinstance(corner, list) and len(corner) == 3
-                                for corner in mesh_bounds)
-                        and position[0] + mesh_bounds[0][0] - radius <= center[0]
-                        <= position[0] + mesh_bounds[1][0] + radius
-                        and position[2] + mesh_bounds[0][2] - radius <= center[2]
-                        <= position[2] + mesh_bounds[1][2] + radius):
-                    gaps.append(center[1] - radius - position[1] - mesh_bounds[1][1])
-                continue
-            if (obstacle.get("type") != "rigid" or obstacle.get("mass") != 0
-                    or solid.get("type") != "sphere" or not isinstance(position, list)
-                    or len(position) != 3):
-                continue
-            reach = radius + solid.get("radius", 0)
-            lateral_squared = (center[0] - position[0]) ** 2 + (center[2] - position[2]) ** 2
-            if lateral_squared < reach * reach:
-                top_contact_y = position[1] + math.sqrt(reach * reach - lateral_squared)
-                gaps.append(center[1] - top_contact_y)
-        if gaps:
-            gap = min(gaps)
-            if gap <= 0:
-                return 0.0
-            acceleration = -gravity[1]
-            return (velocity[1] + math.sqrt(velocity[1] ** 2 + 2 * acceleration * gap)) / acceleration
-    return None
-
-
-def _short_water_impact(scene: dict) -> bool:
-    """Recognize a prepared drop impact without relying on its generated name."""
-    world = scene.get("world", {})
-    duration = world.get("duration")
-    gravity = world.get("gravity")
-    if not isinstance(duration, (int, float)) or not 0 < duration <= 2.0:
-        return False
-    if not isinstance(gravity, list) or len(gravity) != 3 or gravity[1] >= 0:
-        return False
-    planes = [
-        collider for collider in scene.get("colliders", [])
-        if collider.get("type") == "plane"
-        and collider.get("normal") == [0, 1, 0]
-    ]
-    for entity in scene.get("entities", []):
-        if (entity.get("type") != "fluid" or entity.get("preset") != "water"
-                or entity.get("shape", {}).get("type") != "sphere"):
-            continue
-        shape = entity["shape"]
-        center = shape.get("center")
-        radius = shape.get("radius")
-        if (isinstance(center, list) and len(center) == 3
-                and isinstance(radius, (int, float))
-                and any(center[1] - radius > plane.get("offset", 0)
-                        for plane in planes)):
-            return True
-    return False
-
-
-def _water_impact_display(scene: dict) -> tuple[str, float, float | None, list[dict[str, float]]]:
-    """Choose display from physical content, including Agent-authored scenes.
-
-    Route names identify catalog examples, but the QQ Agent normally supplies
-    its own scene. Presentation must recognize the same water/ground geometry
-    in either case. Neither renderer nor camera changes solver states.
-    """
-    duration = float(scene["world"]["duration"])
-    fluids = [entity for entity in scene.get("entities", [])
-              if entity.get("type") in ("fluid", "granular")]
-    water_only = bool(fluids) and all(
-        entity.get("type") == "fluid" and entity.get("preset") == "water"
-        for entity in fluids
-    )
-    meshes = [entity for entity in scene.get("entities", []) if entity.get("type") == "mesh"]
-    coupled = scene.get("coupling") is not None
-    film = any(entity.get("id") == "film" for entity in fluids)
-    drops = [entity for entity in fluids if entity.get("shape", {}).get("type") == "sphere"]
-    radius = drops[0].get("shape", {}).get("radius", 0) if drops else 0
-    impact = bool(drops) and _impact_time(scene) is not None
-    if impact and water_only and meshes and coupled:
-        return "mesh_hybrid", 1.6, None, _watchable_segments(duration)
-    uncoupled = (not meshes and not coupled
-                 and not any(entity.get("type") == "rigid" and entity.get("mass") != 0
-                             for entity in scene.get("entities", []))
-                 and not scene.get("connections"))
-    if impact and water_only and uncoupled:
-        if radius < 0.02:
-            return "legacy_v2", 1.5 if film else 1.0, 0.99 if film else None, _watchable_segments(duration)
-        if film:
-            return "cohesive_spray", 1.7, None, _watchable_segments(duration)
-        # The collision walls may be metres away to avoid false rebounds.
-        # Frame the impact itself, while allowing distant late beads to leave
-        # the camera just as they would in a fixed physical camera.
-        return "legacy_v2", 1.7 if len(drops) == 1 else 1.0, None, _watchable_segments(duration)
-    return "continuous", 1.0, None, _watchable_segments(duration)
-
-
-def _needs_watchable_video(scene: dict, route_name: str, request_text: str) -> bool:
-    normalized = "".join(request_text.lower().split())
-    if any(word in normalized for word in ("实时", "原速", "正常速度", "realtime", "real-time")):
-        return False
-    return route_name.startswith("water_droplet_ground_") or _short_water_impact(scene)
 
 
 def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
@@ -339,10 +158,7 @@ def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
 
 
 def _publish_watchable_video(
-    artifacts: Path, summary: Dict[str, Any], duration: float,
-    camera_zoom: float = 1.0, camera_focus_quantile: float | None = None,
-    water_renderer: str = "continuous",
-    segments: list[dict[str, float]] | None = None,
+    artifacts: Path, summary: Dict[str, Any], duration: float
 ) -> Dict[str, Any]:
     from physics_demo.analysis.results import _summary
     from physics_demo.io.video import encode_watchable_mp4
@@ -354,11 +170,8 @@ def _publish_watchable_video(
             artifacts / "result.json",
             temporary_video,
             fps=30,
-            segments=segments or _watchable_segments(duration),
-            timeout_seconds=60.0,
-            camera_zoom=camera_zoom,
-            camera_focus_quantile=camera_focus_quantile,
-            water_renderer=water_renderer,
+            segments=_watchable_segments(duration),
+            timeout_seconds=18.0,
         )
         os.replace(temporary_video, video)
     finally:
@@ -411,12 +224,10 @@ def main(argv: list[str]) -> int:
     route_name, scene = route(_routing_text(request), seed=seed)
 
     scene.setdefault('budget', {}).setdefault('validation', 'visual')
-    return simulate_scene(scene, artifacts, route_name, _routing_text(request))
+    return simulate_scene(scene, artifacts, route_name)
 
 
-def simulate_scene(
-    scene: dict, artifacts: Path, route_name: str = "agent_authored", request_text: str = ""
-) -> int:
+def simulate_scene(scene: dict, artifacts: Path, route_name: str = "agent_authored") -> int:
     from physics_demo.runner import simulate
 
     summary = simulate(scene, artifacts, make_video=True)
@@ -427,15 +238,9 @@ def simulate_scene(
     if not video.is_file() or video.stat().st_size <= 0:
         raise RuntimeError("verified simulation completed without simulation.mp4")
     presentation = None
-    if _needs_watchable_video(scene, route_name, request_text):
-        renderer, zoom, focus, segments = _water_impact_display(scene)
-        duration = float(scene["world"]["duration"])
+    if route_name.startswith("water_droplet_ground_"):
         metadata = _publish_watchable_video(
-            artifacts, summary, duration,
-            camera_zoom=zoom,
-            camera_focus_quantile=focus,
-            water_renderer=renderer,
-            segments=segments,
+            artifacts, summary, float(scene["world"]["duration"])
         )
         presentation = metadata["presentation"]
     print(

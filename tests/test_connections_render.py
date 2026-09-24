@@ -23,15 +23,14 @@ int main(int argc, const char *argv[]) {
     NSDictionary *scene = root[@"scene"], *trajectory = root[@"trajectory"];
     NSDictionary *frame = trajectory[@"frames"][0];
     PhyVideoCamera camera = {1, 0, 1, 0, 0, 0, 45, 160, 120, -5, 5};
-    if ([root[@"floor_test"] boolValue]) {camera.sinePitch=.5;camera.cosinePitch=sqrt(.75);}
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
     CGContextRef context = CGBitmapContextCreate(NULL, 320, 240, 8, 320 * 4,
         space, (CGBitmapInfo)kCGBitmapByteOrder32Big |
                    (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(space);
     if (!context) return 3;
-    BOOL rendered = PhyVideoDrawFrame(context, frame, frame, trajectory[@"particle_materials"] ?: @[], @[], scene[@"colliders"] ?: @[], @[],
-        scene[@"world"][@"bounds"][@"min"], scene[@"world"][@"bounds"][@"max"], camera, 0.03, 320, 240);
+    BOOL rendered = PhyVideoDrawFrame(context, frame, frame, @[], @[], @[], @[],
+        @[@-4,@-4,@-4], @[@4,@4,@4], camera, 0.03, 320, 240);
     if (rendered && ![root[@"skip_overlay"] boolValue])
       rendered = PhyVideoDrawConnections(context, frame, scene,
           trajectory[@"gravity_body_ids"], camera);
@@ -80,31 +79,6 @@ class ConnectionRenderTests(unittest.TestCase):
             "trajectory": {"frames": [{"t": 0, "p": [], "g": [[-2, 0, 0], [2, 0, 0]], "r": []}],
                            "gravity_body_ids": ["anchor", "mass"]},
         }
-
-    def test_distant_walls_do_not_change_visible_ground_grid_scale(self):
-        payload=self.payload();payload["skip_overlay"]=True;payload["floor_test"]=True
-        payload["trajectory"]["frames"][0]["g"]=[]
-        payload["scene"]["colliders"]=[{"type":"plane","normal":[0,1,0],"offset":0}]
-        payload["scene"]["world"]["bounds"]={"min":[-50,-1,-50],"max":[50,4,50]}
-        first=self.render(payload)
-        payload["scene"]["world"]["bounds"]={"min":[-100,-1,-100],"max":[100,4,100]}
-        self.assertEqual(first,self.render(payload))
-
-    def test_lava_has_warm_opaque_pixels_instead_of_metallic_grey(self):
-        payload = self.payload()
-        payload["skip_overlay"] = True
-        frame = payload["trajectory"]["frames"][0]
-        frame["g"] = []
-        frame["p"] = [[x*.05, y*.05, 0] for x in range(-3,4) for y in range(-3,4)]
-        payload["trajectory"]["particle_materials"] = ["lava"] * len(frame["p"])
-        lava = self.render(payload)
-        payload["trajectory"]["particle_materials"] = ["molten_lead"] * len(frame["p"])
-        metal = self.render(payload)
-        def warm_count(data):
-            return sum(data[i]>100 and data[i]>2*data[i+1] and data[i]>3*data[i+2]
-                       for i in range(0,len(data),4))
-        self.assertGreater(warm_count(lava),40)
-        self.assertEqual(warm_count(metal),0)
 
     def render(self, payload, *, success=True):
         source, raw = self.root / "frame.json", self.root / "frame.rgba"

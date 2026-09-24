@@ -12,16 +12,6 @@ from .limits import MAX_SCENE_FILE_BYTES
 
 
 EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
-    "self_gravitating_liquid": {
-        "file": "self_gravitating_liquid.json",
-        "use_for": ["mutually attracting liquid blobs", "liquid merger with self-gravity"],
-        "limitations": "Incompressible visual particles with one reference density and explicit scaled G; not stellar gas or point-mass/particle exchange.",
-        "mechanism_boundary": {
-            "modeled": ["particle_self_gravity", "single_pressure_phase"],
-            "unavailable": ["particle_point_mass_gravity_exchange", "compressible_gas"],
-        },
-        "common_patches": ["/interactions/gravity_G", "/interactions/softening", "/interactions/gravity_theta", "/interactions/particle_gravity_density", "/world/duration"],
-    },
     "three_body_queries": {
         "file": "three_body_queries.json",
         "use_for": ["finite-window three-body stability", "quantitative orbit data"],
@@ -43,56 +33,14 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     "three_body": {
         "file": "three_body.json",
         "use_for": ["three-body orbit", "softened N-body gravity"],
-        "limitations": "Point-mass model only; use self_gravitating_liquid for particle-only self-gravity. Point-mass/particle exchange is unavailable.",
+        "limitations": "Point masses only; particle matter is not gravitationally coupled.",
         "common_patches": ["/world/duration", "/entities/@body-a/position", "/entities/@body-a/velocity"],
     },
     "droplet_ground": {
         "file": "droplet_ground.json",
-        "use_for": ["millimetre water drop onto explicitly dry ground", "impact and spreading on a dry floor"],
-        "limitations": "Single-phase visual liquid on a dry static floor; this model may spread without airborne splash. No calibrated wetting/contact angle or surrounding air.",
+        "use_for": ["millimetre water drop onto a floor", "impact, spread, and recoil preview"],
+        "limitations": "Single-phase visual liquid on a static floor; no calibrated wetting/contact angle or surrounding air.",
         "common_patches": ["/entities/@drop/shape/center/1", "/entities/@drop/shape/radius", "/budget/quality"],
-    },
-    "droplet_ground_splash": {
-        "file": "droplet_ground_splash.json",
-        "use_for": ["visible large water-drop splash onto dry ground", "ordinary unscaled water drop onto ground when a splash is wanted"],
-        "inherited_assumptions": [
-            "A 0.32 m radius water body starts 1.55 m above dry ground under Earth gravity.",
-            "The dramatic large-scale splash is a visual-modeling choice, not a millimetre droplet prediction.",
-            "The ±4 m horizontal collision walls stay outside the recorded 0.8 s impact window.",
-        ],
-        "limitations": "This 0.8 s macroscopic dry-floor scene shows early radial spray without recorded side-wall contact. It is a visual reference, not a millimetre-drop or experimentally calibrated prediction. Keep explicit user dimensions even if the result spreads less.",
-        "common_patches": ["/entities/@drop/shape/center/1", "/entities/@drop/shape/radius", "/world/duration"],
-    },
-    "droplet_ground_macro_wet": {
-        "file": "droplet_ground_macro_wet.json",
-        "use_for": ["visible large water-drop splash onto a prewetted ground", "0.32 m radius drop over a 4 cm water film"],
-        "inherited_assumptions": [
-            "A 0.32 m radius water body starts 1.55 m above the ground under Earth gravity.",
-            "A finite 1.0 m square, 4 cm deep water film already covers the impact area.",
-            "The drop and film use surface_tension=0.055, a 10% increase over the 0.05 trial baseline.",
-        ],
-        "limitations": "The upward spray depends on a pre-existing 4 cm water film. Surface tension is an uncalibrated model coefficient, not a direct measurement of molecular attraction. This visual single-phase SPH scene has no resolved air, calibrated wetting, or validated splash threshold; do not describe it as a dry-ground result.",
-        "common_patches": ["/entities/@drop/shape/center/1", "/entities/@drop/shape/radius", "/entities/@film/shape/size", "/entities/@drop/properties/surface_tension", "/entities/@film/properties/surface_tension", "/world/duration"],
-    },
-    "droplet_ground_micro_wet": {
-        "file": "droplet_ground_micro_wet.json",
-        "use_for": ["visible 3 mm water drop splash onto a thin prewetted film", "millimetre-scale splash when a wet surface is acceptable"],
-        "inherited_assumptions": [
-            "A 3 mm radius drop starts 25 mm above a 1.2 mm water film under Earth gravity.",
-            "The wet film is a finite 10 mm square and is required for the visible upward droplets in this preset.",
-        ],
-        "limitations": "Visual single-phase SPH approximation; this example does not demonstrate a dry-ground microdroplet crown or calibrated contact angle.",
-        "common_patches": ["/entities/@drop/shape/center/1", "/entities/@drop/shape/radius", "/entities/@film/shape/size", "/world/duration"],
-    },
-    "droplet_cone": {
-        "file": "droplet_cone.json",
-        "use_for": ["water drop onto an upright cone", "visible water flowing down a conical mesh"],
-        "inherited_assumptions": [
-            "A 0.09 m radius water body falls onto a static 0.6 m high cone with a 0.35 m base radius.",
-            "The cone is copper colored to keep the blue water visible; the physical window ends at 0.8 s before most spray reaches the finite walls.",
-        ],
-        "limitations": "Fluid-mesh contact is qualitative: the mesh has collision response but no pressure-boundary density support, wetting adhesion, fluid-cone friction or calibrated contact angle. Jet heights and splash thresholds have not been validated against experiments; upward droplets alone are not evidence of numerical error. World bounds are collision walls, not camera framing.",
-        "common_patches": ["/entities/@drop/shape/radius", "/entities/@drop/shape/center/1", "/entities/@cone/color", "/world/duration", "/world/bounds"],
     },
     "liquid_preset_showcase": {
         "file": "liquid_preset_showcase.json",
@@ -107,10 +55,6 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "Preset coefficients and appearance are visual models; density, temperature, phase change, adhesion, non-Newtonian rheology, and immiscibility are absent.",
         "physics_boundary": "Use this to compare supported visual behavior and rendering, not real material properties or process safety.",
-        "mechanism_boundary": {
-            "modeled": ["single_pressure_phase", "visual_liquid_presets"],
-            "unavailable": ["density_contrast", "phase_change", "non_newtonian_rheology"],
-        },
         "common_patches": [
             "/entities/@water-drop/shape/center/1",
             "/entities/@honey-drop/shape/center/1",
@@ -126,8 +70,8 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     },
     "droplet_sphere": {
         "file": "droplet_sphere.json",
-        "use_for": ["water drop onto a static ball", "liquid flowing around a spherical obstacle"],
-        "limitations": "A 0.09 m water body meets a static 0.28 m sphere in a 0.8 s window. This is a sphere obstacle, not a dry-floor splash example; wetting, air and breakup are not calibrated.",
+        "use_for": ["drop onto a ball", "flow around a sphere"],
+        "limitations": "The sphere is a static analytic obstacle.",
         "common_patches": ["/entities/@drop/shape/center/1", "/entities/@ball/shape/radius", "/budget/quality"],
     },
     "water_blob": {
@@ -144,18 +88,14 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
     },
     "high_detail_droplet_sphere": {
         "file": "high_detail_droplet_sphere.json",
-        "use_for": ["high-detail water drop onto a static sphere", "sphere obstacle resolution benchmark"],
-        "limitations": "A 0.12 m drop contacts a static 0.28 m sphere; use only for sphere requests. High quality uses a 120 second budget and is not calibrated for wetting or air-driven breakup.",
+        "use_for": ["high-detail liquid impact", "quality benchmark"],
+        "limitations": "Designed for the high quality tier and a 50–60 second budget.",
         "common_patches": ["/entities/@drop/shape/center/1", "/budget/wall_time_s"],
     },
     "geyser": {
         "file": "geyser.json",
         "use_for": ["timed upward water jet", "prescribed geyser"],
         "limitations": "The upward push is a prescribed field, not a resolved pump.",
-        "mechanism_boundary": {
-            "modeled": ["finite_initial_liquid", "timed_prescribed_force"],
-            "unavailable": ["continuous_inflow", "resolved_pump", "discharge_rate"],
-        },
         "common_patches": ["/force_fields/@upward-burst/acceleration/1", "/force_fields/@upward-burst/end_time"],
     },
     "sand_blast": {
@@ -205,10 +145,6 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No continuous emitter, moving bottle, glass optics, bubbles, foam, or air phase.",
         "physics_boundary": "Use as a visual pour and containment shot, not a fill-rate or slosh-load measurement.",
-        "mechanism_boundary": {
-            "modeled": ["finite_initial_liquid", "static_container"],
-            "unavailable": ["continuous_inflow", "moving_bottle", "fill_rate", "gas_phase"],
-        },
         "reference_prepare": {"budget_s": 55, "particles": 1152, "p50_s": 7.618, "p90_s": 15.205},
         "common_patches": [
             "/entities/@product-liquid/velocity",
@@ -229,10 +165,6 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No pump, continuous jet, nozzle pressure, atomized mist, or moving sculpture.",
         "physics_boundary": "The ring contact and ballistic arc are visual; the prescribed lift cannot estimate pump power.",
-        "mechanism_boundary": {
-            "modeled": ["finite_initial_liquid", "timed_prescribed_force", "static_hoop"],
-            "unavailable": ["continuous_inflow", "nozzle_pressure", "pump_power"],
-        },
         "reference_prepare": {"budget_s": 55, "particles": 1331, "p50_s": 10.067, "p90_s": 19.364},
         "common_patches": [
             "/force_fields/@fountain-pulse/acceleration/1",
@@ -253,10 +185,6 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No free-surface calibration, turbulence model, scour, debris, structural response, or continuous inflow.",
         "physics_boundary": "Suitable for flow-path communication only; do not infer loads, discharge, flood level, or safety margins.",
-        "mechanism_boundary": {
-            "modeled": ["finite_initial_liquid", "static_piers", "timed_prescribed_force"],
-            "unavailable": ["continuous_inflow", "discharge_rate", "structural_load", "scour"],
-        },
         "reference_prepare": {"budget_s": 55, "particles": 4480, "p50_s": 24.509, "p90_s": 43.849},
         "common_patches": [
             "/entities/@flood-water/velocity/0",
@@ -277,10 +205,6 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "Wet-sand weakening and drag are qualitative; there is no sediment transport, surf, or calibrated soil law.",
         "physics_boundary": "Use for a destruction beat and relative visual tuning, not erosion rates or coastal design.",
-        "mechanism_boundary": {
-            "modeled": ["finite_initial_liquid", "qualitative_wetting_drag"],
-            "unavailable": ["calibrated_erosion", "sediment_transport", "soil_strength"],
-        },
         "reference_prepare": {"budget_s": 55, "particles": 4549, "p50_s": 21.121, "p90_s": 38.078},
         "common_patches": [
             "/entities/@wave/velocity/0",
@@ -341,10 +265,6 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No rotating tyres, moving vehicle, aerodynamics, spray droplets below particle scale, or structural coupling.",
         "physics_boundary": "Use only for visual flow paths and shot design; do not infer wading depth, ingress, drag, or safety.",
-        "mechanism_boundary": {
-            "modeled": ["moving_finite_liquid", "static_vehicle_proxy"],
-            "unavailable": ["moving_vehicle", "wheel_rotation", "water_ingress", "vehicle_drag"],
-        },
         "reference_prepare": {"budget_s": 55, "particles": 3645, "p50_s": 14.112, "p90_s": 26.205},
         "common_patches": [
             "/entities/@road-water/velocity/0",
@@ -546,7 +466,7 @@ def example(name: str) -> dict[str, Any]:
     scene = strict_json_loads(path.read_text(encoding="utf-8"))
     customer_metadata = {
         key: item[key]
-        for key in ("customer_prompts", "inherited_assumptions", "physics_boundary", "reference_prepare", "mechanism_boundary")
+        for key in ("customer_prompts", "inherited_assumptions", "physics_boundary", "reference_prepare")
         if key in item
     }
     return guided({
@@ -560,9 +480,9 @@ def example(name: str) -> dict[str, Any]:
         "scene": scene,
         "scene_json": json.dumps(scene, separators=(",", ":"), ensure_ascii=False),
     }, "example_loaded", choose_action(
-        "Compare every explicit user value and requested mechanism with the example. Preserve a matching example's explicit fluid properties; do not reapply generic water defaults. Check mechanism_boundary before treating an example as a match.",
+        "Compare every explicit user value with the example.",
         [
-            tool_action("physics_liquid", "Resolve a newly requested liquid material before patching; preserve an example's explicit material properties when the liquid is unchanged.", when="The prompt changes the example's named liquid or introduces a new fluid entity."),
+            tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, or molten lead."),
             tool_action("physics_patch", "Patch all explicit differences atomically.", when="The prompt changes any example value."),
             tool_action("physics_prepare", "Validate and plan the unchanged example.", when="The example already matches the prompt."),
         ],

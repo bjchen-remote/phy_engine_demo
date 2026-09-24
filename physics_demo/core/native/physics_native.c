@@ -1,7 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "physics_native.h"
-#include "particle_gravity.h"
 
 #include <float.h>
 #include <math.h>
@@ -54,9 +53,10 @@ typedef struct {
     int32_t *slot_count;
     int32_t *slot_start;
     int32_t *slot_cursor;
-    int32_t *particle_slot;
+    int64_t *particle_x;
+    int64_t *particle_y;
+    int64_t *particle_z;
     int32_t *ordered_particles;
-    int32_t *neighbor_slots;
     int32_t *neighbor_offsets;
     int32_t *neighbors;
     size_t neighbor_capacity;
@@ -68,9 +68,6 @@ typedef struct {
     PhyDiagnostics *diagnostics;
     ThreadPool pool;
     CompactGrid grid;
-    PGTree gravity_tree;
-    double *gravity_ax, *gravity_ay, *gravity_az;
-    double particle_gravity_maximum;
     double h;
     double h2;
     double volume;
@@ -367,7 +364,6 @@ static int grid_initialize(CompactGrid *grid, int particle_count) {
         if (capacity > SIZE_MAX / 2u) return 0;
         capacity *= 2u;
     }
-    if (capacity > INT32_MAX) return 0;
     grid->slot_capacity = capacity;
     grid->slot_used = (uint8_t *)calloc(capacity, sizeof(uint8_t));
     grid->slot_x = (int64_t *)calloc(capacity, sizeof(int64_t));
@@ -377,15 +373,15 @@ static int grid_initialize(CompactGrid *grid, int particle_count) {
     grid->slot_start = (int32_t *)calloc(capacity, sizeof(int32_t));
     grid->slot_cursor = (int32_t *)calloc(capacity, sizeof(int32_t));
     size_t particle_capacity = particle_count > 0 ? (size_t)particle_count : 1u;
-    if (particle_capacity > SIZE_MAX / (27u * sizeof(int32_t))) return 0;
-    grid->particle_slot = (int32_t *)calloc(particle_capacity, sizeof(int32_t));
+    grid->particle_x = (int64_t *)calloc(particle_capacity, sizeof(int64_t));
+    grid->particle_y = (int64_t *)calloc(particle_capacity, sizeof(int64_t));
+    grid->particle_z = (int64_t *)calloc(particle_capacity, sizeof(int64_t));
     grid->ordered_particles = (int32_t *)calloc(particle_capacity, sizeof(int32_t));
-    grid->neighbor_slots = (int32_t *)calloc(27u * particle_capacity, sizeof(int32_t));
     grid->neighbor_offsets = (int32_t *)calloc(particle_capacity + 1u, sizeof(int32_t));
     return grid->slot_used && grid->slot_x && grid->slot_y && grid->slot_z &&
            grid->slot_count && grid->slot_start && grid->slot_cursor &&
-           grid->particle_slot && grid->ordered_particles &&
-           grid->neighbor_slots && grid->neighbor_offsets;
+           grid->particle_x && grid->particle_y && grid->particle_z &&
+           grid->ordered_particles && grid->neighbor_offsets;
 }
 
 static void grid_destroy(CompactGrid *grid) {
@@ -396,9 +392,10 @@ static void grid_destroy(CompactGrid *grid) {
     free(grid->slot_count);
     free(grid->slot_start);
     free(grid->slot_cursor);
-    free(grid->particle_slot);
+    free(grid->particle_x);
+    free(grid->particle_y);
+    free(grid->particle_z);
     free(grid->ordered_particles);
-    free(grid->neighbor_slots);
     free(grid->neighbor_offsets);
     free(grid->neighbors);
     memset(grid, 0, sizeof(*grid));
@@ -552,21 +549,27 @@ static void neighbor_count_job(void *opaque, int begin, int end) {
         if (solver_deadline_reached(solver)) return;
         int count = 0;
         unsigned deadline_counter = 0u;
-        size_t base = 27u * (size_t)grid->slot_start[grid->particle_slot[index]];
-        for (int neighbor = 0; neighbor < 27; ++neighbor) {
-            int slot = grid->neighbor_slots[base + neighbor];
-            if (slot < 0) continue;
-            int start = grid->slot_start[slot];
-            int stop = start + grid->slot_count[slot];
-            for (int cursor = start; cursor < stop; ++cursor) {
-                deadline_counter += 1u;
-                if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
-                int other = grid->ordered_particles[cursor];
-                if (other == index) continue;
-                double rx = input->x[index] - input->x[other];
-                double ry = input->y[index] - input->y[other];
-                double rz = input->z[index] - input->z[other];
-                if (rx * rx + ry * ry + rz * rz < solver->h2) count += 1;
+        int64_t cell_x = grid->particle_x[index];
+        int64_t cell_y = grid->particle_y[index];
+        int64_t cell_z = grid->particle_z[index];
+        for (int dz = -1; dz <= 1; ++dz) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    size_t slot = grid_slot(grid, cell_x + dx, cell_y + dy, cell_z + dz, 0);
+                    if (slot == SIZE_MAX) continue;
+                    int start = grid->slot_start[slot];
+                    int stop = start + grid->slot_count[slot];
+                    for (int cursor = start; cursor < stop; ++cursor) {
+                        deadline_counter += 1u;
+                        if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
+                        int other = grid->ordered_particles[cursor];
+                        if (other == index) continue;
+                        double rx = input->x[index] - input->x[other];
+                        double ry = input->y[index] - input->y[other];
+                        double rz = input->z[index] - input->z[other];
+                        if (rx * rx + ry * ry + rz * rz < solver->h2) count += 1;
+                    }
+                }
             }
         }
         grid->neighbor_offsets[index + 1] = count;
@@ -581,22 +584,28 @@ static void neighbor_fill_job(void *opaque, int begin, int end) {
         if (solver_deadline_reached(solver)) return;
         int write = grid->neighbor_offsets[index];
         unsigned deadline_counter = 0u;
-        size_t base = 27u * (size_t)grid->slot_start[grid->particle_slot[index]];
-        for (int neighbor = 0; neighbor < 27; ++neighbor) {
-            int slot = grid->neighbor_slots[base + neighbor];
-            if (slot < 0) continue;
-            int start = grid->slot_start[slot];
-            int stop = start + grid->slot_count[slot];
-            for (int cursor = start; cursor < stop; ++cursor) {
-                deadline_counter += 1u;
-                if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
-                int other = grid->ordered_particles[cursor];
-                if (other == index) continue;
-                double rx = input->x[index] - input->x[other];
-                double ry = input->y[index] - input->y[other];
-                double rz = input->z[index] - input->z[other];
-                if (rx * rx + ry * ry + rz * rz < solver->h2) {
-                    grid->neighbors[write++] = other;
+        int64_t cell_x = grid->particle_x[index];
+        int64_t cell_y = grid->particle_y[index];
+        int64_t cell_z = grid->particle_z[index];
+        for (int dz = -1; dz <= 1; ++dz) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    size_t slot = grid_slot(grid, cell_x + dx, cell_y + dy, cell_z + dz, 0);
+                    if (slot == SIZE_MAX) continue;
+                    int start = grid->slot_start[slot];
+                    int stop = start + grid->slot_count[slot];
+                    for (int cursor = start; cursor < stop; ++cursor) {
+                        deadline_counter += 1u;
+                        if ((deadline_counter & 255u) == 0u && solver_deadline_reached(solver)) return;
+                        int other = grid->ordered_particles[cursor];
+                        if (other == index) continue;
+                        double rx = input->x[index] - input->x[other];
+                        double ry = input->y[index] - input->y[other];
+                        double rz = input->z[index] - input->z[other];
+                        if (rx * rx + ry * ry + rz * rz < solver->h2) {
+                            grid->neighbors[write++] = other;
+                        }
+                    }
                 }
             }
         }
@@ -623,9 +632,11 @@ static int grid_rebuild(Solver *solver) {
         int64_t cx = (int64_t)floor(input->x[index] / solver->h);
         int64_t cy = (int64_t)floor(input->y[index] / solver->h);
         int64_t cz = (int64_t)floor(input->z[index] / solver->h);
+        grid->particle_x[index] = cx;
+        grid->particle_y[index] = cy;
+        grid->particle_z[index] = cz;
         size_t slot = grid_slot(grid, cx, cy, cz, 1);
         if (slot == SIZE_MAX || grid->slot_count[slot] >= 512) return 0;
-        grid->particle_slot[index] = (int32_t)slot;
         grid->slot_count[slot] += 1;
     }
     int offset = 0;
@@ -636,29 +647,9 @@ static int grid_rebuild(Solver *solver) {
         offset += grid->slot_count[slot];
     }
     for (int index = 0; index < count; ++index) {
-        size_t slot = (size_t)grid->particle_slot[index];
+        size_t slot = grid_slot(grid, grid->particle_x[index], grid->particle_y[index], grid->particle_z[index], 0);
         int target = grid->slot_start[slot] + grid->slot_cursor[slot]++;
         grid->ordered_particles[target] = index;
-    }
-    /* Every occupied slot has a unique slot_start. Cache its 27 adjacent slots
-     * in the original dz/dy/dx order so count and fill see identical candidates. */
-    for (size_t slot = 0; slot < grid->slot_capacity; ++slot) {
-        if (!grid->slot_used[slot]) continue;
-        if (solver_deadline_reached(solver)) return 0;
-        size_t base = 27u * (size_t)grid->slot_start[slot];
-        int neighbor = 0;
-        for (int dz = -1; dz <= 1; ++dz) {
-            for (int dy = -1; dy <= 1; ++dy) {
-                for (int dx = -1; dx <= 1; ++dx) {
-                    size_t adjacent = grid_slot(
-                        grid, grid->slot_x[slot] + dx,
-                        grid->slot_y[slot] + dy, grid->slot_z[slot] + dz, 0
-                    );
-                    grid->neighbor_slots[base + neighbor++] =
-                        adjacent == SIZE_MAX ? -1 : (int32_t)adjacent;
-                }
-            }
-        }
     }
 
     grid->neighbor_offsets[0] = 0;
@@ -736,12 +727,6 @@ static int solver_initialize(Solver *solver, PhySimulation *input, PhyDiagnostic
     if (!pool_initialize(&solver->pool, input->thread_count)) return 0;
     if (!grid_initialize(&solver->grid, input->particle_count)) return 0;
     size_t count = input->particle_count > 0 ? (size_t)input->particle_count : 1u;
-    if (input->gravity_G > 0 && input->particle_count > 0) {
-        if ((input->gravity_theta > 0 && !pg_init(&solver->gravity_tree, input->particle_count)) ||
-            !allocate_double_array(&solver->gravity_ax, count) ||
-            !allocate_double_array(&solver->gravity_ay, count) ||
-            !allocate_double_array(&solver->gravity_az, count)) return 0;
-    }
     return allocate_double_array(&solver->prev_x, count) &&
            allocate_double_array(&solver->prev_y, count) &&
            allocate_double_array(&solver->prev_z, count) &&
@@ -781,8 +766,6 @@ static int solver_initialize(Solver *solver, PhySimulation *input, PhyDiagnostic
 }
 
 static void solver_destroy(Solver *solver) {
-    pg_destroy(&solver->gravity_tree);
-    free(solver->gravity_ax); free(solver->gravity_ay); free(solver->gravity_az);
     free(solver->prev_x);
     free(solver->prev_y);
     free(solver->prev_z);
@@ -818,45 +801,6 @@ static void solver_destroy(Solver *solver) {
     memset(solver, 0, sizeof(*solver));
 }
 
-static void particle_gravity_job(void *opaque, int begin, int end) {
-    Solver *s = opaque;
-    PhySimulation *in = s->input;
-    double gm = in->gravity_G * in->particle_gravity_density * s->volume;
-    for (int i = begin; i < end; ++i) {
-        if ((i & 7) == 0 && solver_deadline_reached(s)) return;
-        double a[3];
-        pg_acceleration(&s->gravity_tree, i, in->gravity_theta, in->softening, gm, a);
-        s->gravity_ax[i] = a[0]; s->gravity_ay[i] = a[1]; s->gravity_az[i] = a[2];
-    }
-}
-
-static int prepare_particle_gravity(Solver *s) {
-    if (!s->gravity_ax) return 1;
-    PhySimulation *in = s->input;
-    if (!finite3(in->x[0], in->y[0], in->z[0])) return 0;
-    if (in->gravity_theta > 0) pg_build(&s->gravity_tree, in->x, in->y, in->z);
-    else pg_bind_positions(&s->gravity_tree, in->particle_count, in->x, in->y, in->z);
-    pool_run(&s->pool, in->particle_count, particle_gravity_job, s);
-    if (solver_deadline_reached(s)) return 0;
-    double mean[3] = {0};
-    for (int i = 0; i < in->particle_count; ++i) {
-        mean[0] += s->gravity_ax[i] / in->particle_count;
-        mean[1] += s->gravity_ay[i] / in->particle_count;
-        mean[2] += s->gravity_az[i] / in->particle_count;
-    }
-    s->particle_gravity_maximum = 0;
-    for (int i = 0; i < in->particle_count; ++i) {
-        /* Equal inertial masses: remove the tree's net internal-force error.
-         * This preserves linear, but not exact angular, momentum. */
-        s->gravity_ax[i] -= mean[0]; s->gravity_ay[i] -= mean[1]; s->gravity_az[i] -= mean[2];
-        double a = sqrt(s->gravity_ax[i]*s->gravity_ax[i] +
-            s->gravity_ay[i]*s->gravity_ay[i] + s->gravity_az[i]*s->gravity_az[i]);
-        if (!isfinite(a)) return 0;
-        s->particle_gravity_maximum = fmax(s->particle_gravity_maximum, a);
-    }
-    return 1;
-}
-
 static void save_previous_and_apply_gravity_job(void *opaque, int begin, int end) {
     Solver *solver = (Solver *)opaque;
     PhySimulation *input = solver->input;
@@ -868,9 +812,6 @@ static void save_previous_and_apply_gravity_job(void *opaque, int begin, int end
         double ax = input->gravity[0];
         double ay = input->gravity[1];
         double az = input->gravity[2];
-        if (solver->gravity_ax) {
-            ax += solver->gravity_ax[index]; ay += solver->gravity_ay[index]; az += solver->gravity_az[index];
-        }
         if (input->field_count > 0) {
             force_field_acceleration(
                 input, input->particle_field_mask[index],
@@ -2252,11 +2193,6 @@ static int validate_input(const PhySimulation *input) {
         !isfinite(input->output_fps) || !isfinite(input->gravity_G) ||
         !isfinite(input->softening) || !isfinite(input->water_sand_drag) ||
         !isfinite(input->wetting_rate) || !isfinite(input->deadline_seconds)) return 0;
-    if (!isfinite(input->particle_gravity_density) || !isfinite(input->gravity_theta) ||
-        input->gravity_theta < 0 || input->gravity_theta > 0.7) return 0;
-    if (input->particle_count > 0 && input->gravity_G > 0 &&
-        (input->body_count > 0 || input->particle_gravity_density <= 0 ||
-         input->particle_gravity_density > 30000 || input->softening < 1e-6)) return 0;
     if (floor(input->output_fps) != input->output_fps) return 0;
     double required_intervals_value = ceil(input->duration * input->output_fps - 1.0e-10);
     if (!isfinite(required_intervals_value) || required_intervals_value > (double)INT32_MAX - 1.0) return 0;
@@ -2321,11 +2257,11 @@ uint32_t phy_abi_version(void) {
 
 const char *phy_build_string(void) {
 #if defined(__clang__)
-    return "c11-dfsph-v6-particle-gravity-soa-pthreads/clang-" __clang_version__;
+    return "c11-dfsph-v5-observers-soa-pthreads/clang-" __clang_version__;
 #elif defined(__GNUC__)
-    return "c11-dfsph-v6-particle-gravity-soa-pthreads/gcc-" __VERSION__;
+    return "c11-dfsph-v5-observers-soa-pthreads/gcc-" __VERSION__;
 #else
-    return "c11-dfsph-v6-particle-gravity-soa-pthreads/unknown-compiler";
+    return "c11-dfsph-v5-observers-soa-pthreads/unknown-compiler";
 #endif
 }
 
@@ -2401,25 +2337,6 @@ int phy_simulate(PhySimulation *input, PhyDiagnostics *diagnostics) {
                 }
                 double segment_end = next_force_boundary(input, simulation_time, nominal_end);
                 double segment_dt = segment_end - simulation_time;
-                if (!prepare_particle_gravity(&solver)) {
-                    timed_out = atomic_load_explicit(&solver.deadline_exceeded, memory_order_relaxed);
-                    failed = !timed_out;
-                    break;
-                }
-                if (solver.gravity_ax) {
-                    /* Re-evaluate on every shared-clock substep; never clamp a
-                     * stiff gravitational event to the ordinary CFL work cap. */
-                    double safe_dt = 0.2 / sqrt(input->gravity_G * input->particle_gravity_density);
-                    if (solver.particle_gravity_maximum > 0)
-                        safe_dt = fmin(safe_dt, 0.2 * sqrt(input->spacing / solver.particle_gravity_maximum));
-                    for (int i = 0; i < input->particle_count; ++i) {
-                        double speed = sqrt(input->vx[i]*input->vx[i] + input->vy[i]*input->vy[i] + input->vz[i]*input->vz[i]);
-                        if (speed > 0) safe_dt = fmin(safe_dt, 0.25 * input->spacing / speed);
-                    }
-                    segment_dt = fmin(segment_dt, safe_dt);
-                    segment_end = simulation_time + segment_dt;
-                    if (segment_end <= simulation_time || segment_dt < 1e-12) { failed = 1; break; }
-                }
                 solver.current_dt = segment_dt;
                 solver.current_time = simulation_time;
                 if (!gravity_substep(&solver) || !particle_substep(&solver)) {
@@ -2521,9 +2438,7 @@ struct PhyContext {
 static int validate_context_input(const PhySimulation *input) {
     /* Bound counts before validate_input follows any caller-owned array. These
      * caps cover the public particle quality presets and coupled-world limits. */
-    /* Persistent contact contexts have an external shared clock. Full
-     * particle self-gravity uses phy_simulate and its own adaptive scheduler. */
-    if (!input || input->gravity_G != 0 || input->particle_count < 0 || input->particle_count > 24000 ||
+    if (!input || input->particle_count < 0 || input->particle_count > 24000 ||
         input->body_count < 0 || input->body_count > 64 ||
         input->collider_count < 0 || input->collider_count > 64 ||
         input->field_count < 0 || input->field_count > 32 ||

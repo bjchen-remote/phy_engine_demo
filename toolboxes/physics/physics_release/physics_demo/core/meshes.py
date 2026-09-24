@@ -59,28 +59,21 @@ def _orient2(a, b, c):
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 
-def _inside2(p, tri, tolerance=EPSILON, edge_lengths=None):
-    if edge_lengths is None:
-        edge_lengths = [math.hypot(*(tri[(i + 1) % 3][k] - tri[i][k] for k in range(2)))
-                        for i in range(3)]
-    signs = [_orient2(tri[i], tri[(i + 1) % 3], p) / edge_lengths[i] for i in range(3)]
+def _inside2(p, tri, tolerance=EPSILON):
+    signs = [_orient2(tri[i], tri[(i + 1) % 3], p) /
+             math.hypot(*(tri[(i + 1) % 3][k] - tri[i][k] for k in range(2))) for i in range(3)]
     return min(signs) >= -tolerance or max(signs) <= tolerance
 
 
-def _segment2(a, b, c, d, tolerance=EPSILON, ab_length=None, cd_length=None):
+def _segment2(a, b, c, d, tolerance=EPSILON):
     """Contact points of two planar segments, including collinear overlap."""
-    if ab_length is None:
-        ab_length = math.hypot(b[0] - a[0], b[1] - a[1])
-    if cd_length is None:
-        cd_length = math.hypot(d[0] - c[0], d[1] - c[1])
-
-    def on(p, x, y, length):
-        return (abs(_orient2(x, y, p)) <= tolerance * length and
+    def on(p, x, y):
+        return (abs(_orient2(x, y, p)) <= tolerance * math.hypot(y[0] - x[0], y[1] - x[1]) and
                 all(min(x[k], y[k]) - tolerance <= p[k] <= max(x[k], y[k]) + tolerance for k in range(2)))
-    contacts = [p for p in (a, b) if on(p, c, d, cd_length)] + [p for p in (c, d) if on(p, a, b, ab_length)]
+    contacts = [p for p in (a, b) if on(p, c, d)] + [p for p in (c, d) if on(p, a, b)]
     u, v = [b[k] - a[k] for k in range(2)], [d[k] - c[k] for k in range(2)]
     denominator = u[0] * v[1] - u[1] * v[0]
-    if abs(denominator) > 1e-14 * ab_length * cd_length:
+    if abs(denominator) > 1e-14 * math.hypot(*u) * math.hypot(*v):
         delta = [c[k] - a[k] for k in range(2)]
         t = (delta[0] * v[1] - delta[1] * v[0]) / denominator
         s = (delta[0] * u[1] - delta[1] * u[0]) / denominator
@@ -89,30 +82,7 @@ def _segment2(a, b, c, d, tolerance=EPSILON, ab_length=None, cd_length=None):
     return contacts
 
 
-@dataclass
-class _TriangleGeometry:
-    vertices: list
-    normal: list
-    axis: int
-    axes: list
-    projected: list
-    projected_edges: list
-
-
-def _triangle_geometry(vertices):
-    """Cache geometry that stays fixed while a triangle meets many BVH candidates."""
-    normal = cross(sub(vertices[1], vertices[0]), sub(vertices[2], vertices[0]))
-    length = norm(normal)
-    normal = [n / length for n in normal]
-    axis = max(range(3), key=lambda k: abs(normal[k]))
-    axes = [k for k in range(3) if k != axis]
-    projected = [[p[k] for k in axes] for p in vertices]
-    projected_edges = [math.hypot(*(projected[(i + 1) % 3][k] - projected[i][k] for k in range(2)))
-                       for i in range(3)]
-    return _TriangleGeometry(vertices, normal, axis, axes, projected, projected_edges)
-
-
-def _prepared_triangles_intersect(left_geometry, right_geometry, shared):
+def _triangles_intersect(left, right, shared):
     """Detect contact beyond the vertices/edge two triangles intentionally share."""
     def allowed(p, common):
         if any(norm(sub(p, q)) <= EPSILON for q in common):
@@ -123,30 +93,25 @@ def _prepared_triangles_intersect(left_geometry, right_geometry, shared):
             return -EPSILON <= t <= 1 + EPSILON and norm(sub(p, [common[0][k] + t * edge[k] for k in range(3)])) <= EPSILON
         return False
 
-    for source_geometry, target_geometry in ((left_geometry, right_geometry),
-                                             (right_geometry, left_geometry)):
-        source, target = source_geometry.vertices, target_geometry.vertices
-        normal = target_geometry.normal
+    for source, target in ((left, right), (right, left)):
+        normal = cross(sub(target[1], target[0]), sub(target[2], target[0]))
+        length = norm(normal)
+        normal = [n / length for n in normal]
         distances = [dot(sub(p, target[0]), normal) for p in source]
         if min(distances) > EPSILON or max(distances) < -EPSILON:
             return False
-        axis, axes = target_geometry.axis, target_geometry.axes
+        axis = max(range(3), key=lambda k: abs(normal[k]))
+        axes = [k for k in range(3) if k != axis]
         flat = lambda p: [p[k] for k in axes]
-        target2 = target_geometry.projected
+        target2 = [flat(p) for p in target]
         for i, a in enumerate(source):
             b = source[(i + 1) % 3]
             da, db = distances[i], distances[(i + 1) % 3]
-            a2 = flat(a)
-            if (abs(da) <= EPSILON and
-                    _inside2(a2, target2, edge_lengths=target_geometry.projected_edges) and
-                    not allowed(a, shared)):
+            if abs(da) <= EPSILON and _inside2(flat(a), target2) and not allowed(a, shared):
                 return True
             if abs(da) <= EPSILON and abs(db) <= EPSILON:
-                b2 = flat(b)
-                edge_length = math.hypot(b2[0] - a2[0], b2[1] - a2[1])
                 for j in range(3):
-                    for p2 in _segment2(a2, b2, target2[j], target2[(j + 1) % 3],
-                                        ab_length=edge_length, cd_length=target_geometry.projected_edges[j]):
+                    for p2 in _segment2(flat(a), flat(b), target2[j], target2[(j + 1) % 3]):
                         p = list(target[0])
                         p[axes[0]], p[axes[1]] = p2
                         p[axis] = target[0][axis] - sum(normal[k] * (p[k] - target[0][k]) for k in axes) / normal[axis]
@@ -155,15 +120,9 @@ def _prepared_triangles_intersect(left_geometry, right_geometry, shared):
             elif da * db < 0:
                 t = da / (da - db)
                 p = [a[k] + t * (b[k] - a[k]) for k in range(3)]
-                if _inside2(flat(p), target2,
-                            edge_lengths=target_geometry.projected_edges) and not allowed(p, shared):
+                if _inside2(flat(p), target2) and not allowed(p, shared):
                     return True
     return False
-
-
-def _triangles_intersect(left, right, shared):
-    """Standalone exact test, also used by exhaustive geometry diagnostics."""
-    return _prepared_triangles_intersect(_triangle_geometry(left), _triangle_geometry(right), shared)
 
 
 @dataclass
@@ -191,7 +150,6 @@ def _intersection_pair(vertices, triangles, groups=None, stats=None):
     boxes = [(tuple(min(vertices[v][k] for v in face) for k in range(3)),
               tuple(max(vertices[v][k] for v in face) for k in range(3))) for face in triangles]
     centers = [tuple(lo[k] + hi[k] for k in range(3)) for lo, hi in boxes]
-    geometry = [None] * len(triangles)
     counters = stats if stats is not None else {}
     counters.update(node_tests=0, candidate_pairs=0, exact_tests=0)
 
@@ -202,13 +160,6 @@ def _intersection_pair(vertices, triangles, groups=None, stats=None):
             raise ValueError("Mesh intersection audit exceeds its bounded work budget; simplify or split the mesh.")
         if work % 256 == 0 and time.monotonic() > deadline:
             raise ValueError("Mesh intersection audit exceeds its 2-second time budget; simplify or split the mesh.")
-
-    def prepared(index):
-        cached = geometry[index]
-        if cached is None:
-            cached = _triangle_geometry([vertices[v] for v in triangles[index]])
-            geometry[index] = cached
-        return cached
 
     def build(indices):
         box = (tuple(min(boxes[i][0][k] for i in indices) for k in range(3)),
@@ -243,8 +194,8 @@ def _intersection_pair(vertices, triangles, groups=None, stats=None):
                         continue
                     common = set(triangles[index]) & set(triangles[other]) if groups is None else set()
                     counters["exact_tests"] += 1
-                    if _prepared_triangles_intersect(prepared(index), prepared(other),
-                                                     [vertices[v] for v in common]):
+                    if _triangles_intersect([vertices[v] for v in triangles[index]],
+                                            [vertices[v] for v in triangles[other]], [vertices[v] for v in common]):
                         return other, index
         elif a is b:
             pending.extend(((a.left, a.left), (a.left, a.right), (a.right, a.right)))

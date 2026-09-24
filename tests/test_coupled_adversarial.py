@@ -130,29 +130,6 @@ class CoupledAdversarialTests(unittest.TestCase):
                 self.assertFalse(response["ok"])
                 self.assertIn("point_collision_radius", {e["code"] for e in response["errors"]})
 
-    def test_mesh_thickness_constrains_shared_contact_cfl_before_simulation(self):
-        definition = scene()
-        definition["world"].update(gravity=[0, -9.81, 0], duration=.01, dt=.001)
-        definition["entities"] = [
-            {"id": "drop", "type": "fluid", "shape": {"type": "sphere", "center": [0, .015, 0], "radius": .003},
-             "spacing": .0004, "velocity": [0, -1, 0],
-             "properties": {"viscosity": .03, "surface_tension": .5}},
-            {"id": "ground", "type": "mesh", "motion": "static", "thickness": 1e-5,
-             "mesh": {"vertices": [[-.03, 0, -.03], [.03, 0, -.03],
-                                   [.03, 0, .03], [-.03, 0, .03]],
-                      "triangles": [[0, 1, 2], [0, 2, 3]]}},
-        ]
-        definition["connections"] = []
-        too_thin = prepare(definition)
-        self.assertFalse(too_thin["ready_to_simulate"])
-        self.assertIn("coupling_budget_exceeded", {e["code"] for e in too_thin["errors"]})
-        self.assertGreater(too_thin["plan"]["coupling_initial_cfl_substeps"], 64)
-
-        definition["entities"][1]["thickness"] = .0004
-        resolved = prepare(definition)
-        self.assertTrue(resolved["ready_to_simulate"], resolved)
-        self.assertLessEqual(resolved["plan"]["coupling_initial_cfl_substeps"], 64)
-
     def test_mesh_pin_attachment_uses_zero_velocity(self):
         definition = scene()
         definition["world"].update(duration=.001, dt=.001)

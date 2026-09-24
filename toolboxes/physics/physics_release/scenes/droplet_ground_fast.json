@@ -2,12 +2,11 @@
   "budget": {
     "backend": "native",
     "quality": "balanced",
-    "validation": "visual",
     "wall_time_s": 30
   },
   "colliders": [
     {
-      "friction": 0.8,
+      "friction": 0.25,
       "id": "ground",
       "normal": [
         0,
@@ -16,7 +15,7 @@
       ],
       "offset": 0,
       "type": "plane",
-      "water_adhesion": 80.0
+      "water_adhesion": 220.0
     }
   ],
   "entities": [
@@ -24,47 +23,19 @@
       "id": "drop",
       "preset": "water",
       "properties": {
-        "surface_tension": 1.0,
+        "surface_tension": 10.0,
         "viscosity": 0.03
       },
       "shape": {
         "center": [
           0,
-          0.025,
+          0.015,
           0
         ],
         "radius": 0.003,
         "type": "sphere"
       },
-      "spacing": 0.0004,
-      "type": "fluid",
-      "velocity": [
-        0,
-        0,
-        0
-      ]
-    },
-    {
-      "id": "film",
-      "preset": "water",
-      "properties": {
-        "surface_tension": 1.0,
-        "viscosity": 0.03
-      },
-      "shape": {
-        "center": [
-          0,
-          0.0008,
-          0
-        ],
-        "size": [
-          0.01,
-          0.0012,
-          0.01
-        ],
-        "type": "box"
-      },
-      "spacing": 0.0004,
+      "spacing": 0.0005,
       "type": "fluid",
       "velocity": [
         0,
@@ -73,19 +44,19 @@
       ]
     }
   ],
-  "name": "millimetre-water-drop-on-prewetted-ground",
+  "name": "qq-water-droplet-ground-fast",
   "version": 1,
   "world": {
     "bounds": {
       "max": [
-        0.1,
-        0.035,
-        0.1
+        0.04,
+        0.025,
+        0.04
       ],
       "min": [
-        -0.1,
+        -0.04,
         0,
-        -0.1
+        -0.04
       ]
     },
     "dt": 0.001,
@@ -95,6 +66,6 @@
       -9.81,
       0
     ],
-    "output_fps": 120
+    "output_fps": 60
   }
 }

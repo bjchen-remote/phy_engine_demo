@@ -699,76 +699,15 @@ def encode_watchable_mp4(
     segments: list[dict[str, float]],
     timeout_seconds: float = 30.0,
     max_bytes: int | None = None,
-    camera_zoom: float = 1.0,
-    camera_focus_quantile: float | None = None,
-    water_renderer: str = "continuous",
 ) -> dict[str, Any]:
     """Encode a smooth, slowed presentation while preserving the source run."""
-    if (not isinstance(camera_zoom, (int, float)) or isinstance(camera_zoom, bool)
-            or not math.isfinite(camera_zoom) or not 1.0 <= camera_zoom <= 3.0):
-        raise VideoEncodingError("Presentation camera zoom must be between 1 and 3.")
-    if camera_focus_quantile is not None and (
-        not isinstance(camera_focus_quantile, (int, float))
-        or isinstance(camera_focus_quantile, bool)
-        or not math.isfinite(camera_focus_quantile)
-        or not 0.9 <= camera_focus_quantile < 1.0
-    ):
-        raise VideoEncodingError("Presentation camera focus quantile must be in [0.9, 1).")
-    if water_renderer not in ("continuous", "cohesive_spray", "legacy_v2", "mesh_hybrid"):
-        raise VideoEncodingError("Unknown presentation water renderer.")
     try:
         document = json.loads(result_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise VideoEncodingError(f"Cannot read presentation source result: {error}") from error
     if not isinstance(document, dict):
         raise VideoEncodingError("Presentation source result must be a JSON object.")
-    if water_renderer != "continuous":
-        scene = document.get("scene", {})
-        trajectory = document.get("trajectory", {})
-        frames = trajectory.get("frames", []) if isinstance(trajectory, dict) else []
-        if (
-            not isinstance(scene, dict)
-            or not isinstance(trajectory, dict)
-            or not isinstance(frames, list)
-            or any(not isinstance(frame, dict) for frame in frames)
-            or not trajectory.get("particle_materials")
-            or any(material != "water" for material in trajectory["particle_materials"])
-        ):
-            raise VideoEncodingError("Special water presentation requires recorded water samples.")
-        has_mesh = bool(trajectory.get("mesh_objects")) and any(frame.get("m") for frame in frames)
-        connections = scene.get("connections") or []
-        mixed = (scene.get("coupling") is not None
-                 or any(frame.get("q") is not None for frame in frames)
-                 or any(link.get("endpoints") or link.get("solid")
-                        for link in connections if isinstance(link, dict)))
-        if water_renderer in ("legacy_v2", "cohesive_spray") and (has_mesh or mixed):
-            raise VideoEncodingError("This water presentation requires uncoupled water without meshes.")
-        if water_renderer == "mesh_hybrid" and not (has_mesh and mixed):
-            raise VideoEncodingError("Hybrid water presentation requires a coupled water-mesh scene.")
     retimed, presentation = _retime_result_document(document, fps=fps, segments=segments)
-    if water_renderer != "continuous":
-        retimed["scene"]["__presentation_water_renderer"] = water_renderer
-    presentation["water_renderer"] = water_renderer
-    if camera_focus_quantile is not None:
-        positions = [point for frame in document["trajectory"]["frames"]
-                     for point in frame.get("p", [])]
-        if positions:
-            lower = (1.0 - camera_focus_quantile) / 2.0
-            minimum, maximum = [], []
-            for axis in range(3):
-                values = sorted(float(point[axis]) for point in positions)
-                minimum.append(values[int(lower * (len(values) - 1))])
-                maximum.append(values[int((1.0 - lower) * (len(values) - 1))])
-            retimed["scene"]["__presentation_camera_corners"] = [
-                [x, y, z]
-                for x in (minimum[0], maximum[0])
-                for y in (minimum[1], maximum[1])
-                for z in (minimum[2], maximum[2])
-            ]
-            presentation["camera_focus_quantile"] = float(camera_focus_quantile)
-    if camera_zoom != 1.0:
-        retimed["scene"]["__presentation_camera_zoom"] = float(camera_zoom)
-        presentation["camera_zoom"] = float(camera_zoom)
     with tempfile.TemporaryDirectory(prefix="physics-video-presentation-") as directory:
         temporary_result = Path(directory) / "result.json"
         temporary_result.write_text(
@@ -780,11 +719,5 @@ def encode_watchable_mp4(
                           timeout_seconds=timeout_seconds,
                           **({"max_bytes":max_bytes} if max_bytes is not None else {}))
     metadata["presentation"] = presentation
-    if water_renderer == "legacy_v2":
-        metadata["renderer"]["name"] = "coregraphics-legacy-water-v2"
-    elif water_renderer == "cohesive_spray":
-        metadata["renderer"]["name"] = "coregraphics-cohesive-water-spray"
-    elif water_renderer == "mesh_hybrid":
-        metadata["renderer"]["name"] = "coregraphics-mesh-liquid-hybrid"
     metadata["renderer"]["temporal_interpolation"] = "piecewise-linear recorded-state interpolation"
     return metadata
