@@ -2,9 +2,10 @@
 #define PHYSICS_CONNECTIONS_NATIVE_H
 #include <stdint.h>
 
-#define CONNECTIONS_ABI 1u
+#define CONNECTIONS_ABI 3u
 /* Synchronous borrowed buffers: caller owns all pointers until return. */
-typedef struct { int32_t type, a, b; double rest, stiffness, damping; } Connection;
+/* break_tensile_strain = -1 disables failure; otherwise strain is dimensionless. */
+typedef struct { int32_t type, a, b; double rest, stiffness, damping, break_tensile_strain; } Connection;
 typedef struct {
     int32_t type;
     double origin[3], vector[3], strength, radius, secondary_strength, start_time, end_time;
@@ -24,6 +25,10 @@ typedef struct {
     ConnectionField *field;
     ConnectionMetric *metric;
     double *frames, *frame_times, *observation_times, *observation_values;
+    /* One output per connection: -1 while intact; otherwise first failure time. */
+    double *break_times;
+    /* One output per connection: -1 while intact; otherwise length at failure. */
+    double *break_lengths;
 } ConnectionSimulation;
 typedef struct {
     int32_t status, completed, finite, frames_written, observations_written;
@@ -31,6 +36,7 @@ typedef struct {
     double simulated_time_s, runtime_s, max_rod_error_m, max_rope_extension_m, max_constraint_error_ratio, max_speed_m_s;
     double initial_kinetic_energy, final_kinetic_energy, initial_spring_energy, final_spring_energy;
     double connection_peak_relative_energy_drift;
+    double connection_prebreak_peak_relative_energy_drift;
 } ConnectionDiagnostics;
 
 #if defined(__GNUC__)

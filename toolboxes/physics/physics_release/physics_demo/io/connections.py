@@ -10,13 +10,14 @@ MAX_CONNECTIONS = 256
 MAX_SUBSTEPS = 64
 MAX_STEPS = 250_000
 MAX_WORK = 100_000_000
+MAX_BREAK_TENSILE_STRAIN = 10.0
 CAPABILITIES = {
     "types": ["spring", "rod", "rope"],
     "algorithm": "C11 Hooke velocity Verlet, split exact axial damping, SHAKE/RATTLE rod constraints and unilateral rope projection",
     "limits": {"max_nodes": 64, "max_connections": MAX_CONNECTIONS, "max_substeps": MAX_SUBSTEPS,
                "max_iterations": 64, "standalone_only": True},
     "gravity": "Point masses use explicit force_fields; world.gravity does not act on them.",
-    "accuracy": "Ideal massless links: springs have axial stiffness/damping, rods fix distance, ropes limit maximum distance with inelastic take-up. No link collision, bending, fracture or material calibration.",
+    "accuracy": "Ideal massless links: springs have axial stiffness/damping and optional one-way tensile strain failure, rods fix distance, ropes limit maximum distance with inelastic take-up. No link collision, bending, continuum fracture or material calibration.",
 }
 
 
@@ -66,13 +67,18 @@ def validate_scene(scene: dict, errors: list[dict]) -> None:
         if not isinstance(kind, str) or kind not in {"spring", "rod", "rope"}:
             issue("connection_kind", path + ".type", "Use spring, rod or rope.")
             continue
-        allowed = {"id", "type", "entities", "rest_length"} | ({"stiffness", "damping"} if kind == "spring" else set())
-        for key in sorted(set(link) - allowed):
+        allowed = {"id", "type", "entities", "rest_length"} | ({"stiffness", "damping", "break_tensile_strain"} if kind == "spring" else set())
+        if kind != "spring" and "break_tensile_strain" in link:
+            issue("unsupported_connection_fracture", path + ".break_tensile_strain",
+                  "Tensile failure is available only on standalone point-mass springs, not rods or ropes.")
+        for key in sorted(set(link) - allowed - {"break_tensile_strain"}):
             issue("unknown_field", path + "." + key, "Unknown connection field.")
         params = {"rest_length": (1e-6, 1000.0)}
         if kind == "spring":
             link.setdefault("damping", 0.0)
             params.update(stiffness=(1e-9, 1e7), damping=(0.0, 1e5))
+            if "break_tensile_strain" in link:
+                params["break_tensile_strain"] = (0.0, MAX_BREAK_TENSILE_STRAIN)
         valid_parameters = True
         for key, (low, high) in params.items():
             value = link.get(key)
@@ -174,6 +180,7 @@ def make_plan(scene: dict, include_video: bool) -> dict[str, Any]:
 
 def result_checks(scene: dict, plan: dict, trajectory: dict) -> dict[str, bool]:
     nodes, links, diagnostics = scene["entities"], scene["connections"], trajectory["diagnostics"]
+    breakable = any("break_tensile_strain" in link for link in links)
     if trajectory.get("gravity_body_ids") != [node["id"] for node in nodes]:
         raise ValueError("Connection node IDs do not match the scene order.")
     if trajectory.get("rigid_ids") != [] or trajectory.get("rigid_shapes") != []:
@@ -182,6 +189,63 @@ def result_checks(scene: dict, plan: dict, trajectory: dict) -> dict[str, bool]:
         for i, node in enumerate(nodes):
             if (index == 0 or node["fixed"]) and frame["g"][i] != node["position"]:
                 raise ValueError("Initial or fixed connection node positions disagree with the scene.")
+    if breakable:
+        times = diagnostics.get("connection_break_times_s")
+        if not isinstance(times, list) or len(times) != len(links):
+            raise ValueError("Connection break times do not match the scene.")
+        break_lengths = diagnostics.get("connection_break_lengths_m")
+        if not isinstance(break_lengths, list) or len(break_lengths) != len(links):
+            raise ValueError("Connection failure lengths do not match the scene.")
+        by_id = {node["id"]: node for node in nodes}
+        for link, event_time, failed_length in zip(links, times, break_lengths):
+            if (event_time is None) != (failed_length is None):
+                raise ValueError("Connection failure time and length disagree.")
+            initial_length = math.dist(*(by_id[ident]["position"] for ident in link["entities"]))
+            initially_over = ("break_tensile_strain" in link and
+                              initial_length > link["rest_length"] * (1 + link["break_tensile_strain"]))
+            if initially_over != (event_time == 0):
+                raise ValueError("Initial connection failure state disagrees with the scene.")
+            if event_time is None:
+                continue
+            if ("break_tensile_strain" not in link or not finite_number(event_time)
+                    or not 0 <= event_time <= diagnostics["simulated_time_s"]):
+                raise ValueError("Connection break time is invalid.")
+            if (not finite_number(failed_length)
+                    or failed_length <= link["rest_length"] * (1 + link["break_tensile_strain"])):
+                raise ValueError("Connection failure witness does not exceed the tensile threshold.")
+            if event_time == 0 and not math.isclose(failed_length, initial_length,
+                                                     rel_tol=1e-12, abs_tol=1e-12):
+                raise ValueError("Initial connection failure witness disagrees with geometry.")
+        if (type(diagnostics.get("broken_connection_count")) is not int
+                or diagnostics["broken_connection_count"] != sum(t is not None for t in times)):
+            raise ValueError("Connection break count is invalid.")
+        for frame in trajectory["frames"]:
+            active = frame.get("connection_active")
+            if (not isinstance(active, list) or len(active) != len(links)
+                    or any(type(value) is not bool for value in active)):
+                raise ValueError("Per-frame connection state is invalid.")
+            if active != [event_time is None or frame["t"] + 1e-12 < event_time for event_time in times]:
+                raise ValueError("Per-frame connection state disagrees with break times.")
+        observations = trajectory.get("observations")
+        if isinstance(observations, dict):
+            link_index = {link["id"]: i for i, link in enumerate(links)}
+            for query in scene.get("queries", []):
+                metric = query["metric"]
+                if metric["type"] not in {"spring_force", "spring_energy"}:
+                    continue
+                event_time = times[link_index[metric["connection"]]]
+                if event_time is None:
+                    continue
+                for t, value in zip(observations.get("times", []),
+                                    observations.get("columns", {}).get(query["id"], [])):
+                    if t + 1e-12 >= event_time and value != 0:
+                        raise ValueError("Broken spring retains force or elastic energy.")
+    elif ("connection_break_times_s" in diagnostics or "connection_break_lengths_m" in diagnostics
+          or "connection_prebreak_peak_relative_energy_drift" in diagnostics
+          or "connection_prebreak_energy_conservation_applicable" in diagnostics
+          or "broken_connection_count" in diagnostics
+          or any("connection_active" in frame for frame in trajectory["frames"])):
+        raise ValueError("Unbreakable connections cannot declare fracture state.")
     limits = {kind: max((max(1e-6, link["rest_length"] * 1e-4) for link in links if link["type"] == kind), default=1e-6)
               for kind in ("rod", "rope")}
     values = {}
@@ -204,7 +268,9 @@ def result_checks(scene: dict, plan: dict, trajectory: dict) -> dict[str, bool]:
             error = math.dist(a, b) - link["rest_length"]
             tolerance = max(1e-6, link["rest_length"] * 1e-4)
             geometry_valid &= error <= tolerance if link["type"] == "rope" else abs(error) <= max(.001 * link["rest_length"], tolerance)
-    applicable = not scene["force_fields"] and all(link["type"] == "spring" and link["damping"] == 0 for link in links)
+    applicable = (not scene["force_fields"] and
+                  all(link["type"] == "spring" and link["damping"] == 0 for link in links) and
+                  (not breakable or diagnostics["broken_connection_count"] == 0))
     if diagnostics.get("connection_energy_conservation_applicable") is not applicable:
         raise ValueError("Connection energy applicability disagrees with the scene.")
     checks = {"connection_rod_length_residual": values["max_rod_error_m"] <= limits["rod"],
@@ -216,4 +282,16 @@ def result_checks(scene: dict, plan: dict, trajectory: dict) -> dict[str, bool]:
         final = values["final_kinetic_energy"] + values["final_spring_energy"]
         checks["connection_endpoint_energy_drift_at_most_0_02"] = abs(final - initial) <= max(1e-12, .02 * initial)
         checks["connection_peak_energy_drift_at_most_0_02"] = values["connection_peak_relative_energy_drift"] <= .02
+    if breakable:
+        peak = diagnostics.get("connection_prebreak_peak_relative_energy_drift")
+        if not finite_number(peak) or peak < 0:
+            raise ValueError("Prebreak connection energy drift must be finite and nonnegative.")
+        first_break = min((t for t in times if t is not None), default=None)
+        prebreak_applicable = (not scene["force_fields"] and
+                               all(link["type"] == "spring" and link["damping"] == 0 for link in links) and
+                               first_break is not None and first_break > 0)
+        if diagnostics.get("connection_prebreak_energy_conservation_applicable") is not prebreak_applicable:
+            raise ValueError("Prebreak connection energy applicability disagrees with the scene.")
+        if prebreak_applicable:
+            checks["connection_prebreak_peak_energy_drift_at_most_0_02"] = peak <= .02
     return checks

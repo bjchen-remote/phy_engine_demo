@@ -126,6 +126,23 @@ class ConnectionRenderTests(unittest.TestCase):
         payload["skip_overlay"] = True
         self.assertEqual(image, self.render(payload))
 
+    def test_failed_spring_disappears_and_frame_state_is_required(self):
+        payload = self.payload()
+        payload["scene"]["connections"][0]["break_tensile_strain"] = .1
+        payload["trajectory"]["frames"][0]["connection_active"] = [True]
+        intact = self.render(payload)
+        payload["trajectory"]["frames"][0]["connection_active"] = [False]
+        failed = self.render(payload)
+        self.assertNotEqual(intact, failed)
+        cyan = lambda image: sum(image[i + 1] > 170 and image[i + 2] > 180
+                                 for i in range(0, len(image), 4))
+        self.assertGreater(cyan(intact), cyan(failed) + 50)
+        self.assertEqual(self.pixel(failed, 70, 120), self.pixel(intact, 70, 120))
+        del payload["trajectory"]["frames"][0]["connection_active"]
+        self.render(payload, success=False)
+        payload["trajectory"]["frames"][0]["connection_active"] = [1]
+        self.render(payload, success=False)
+
     def test_types_have_distinct_geometry_and_true_endpoint_mounts(self):
         images = {kind: self.render(self.payload(kind, 5)) for kind in ("spring", "rod", "rope")}
         self.assertEqual(len(set(images.values())), 3)
@@ -205,6 +222,14 @@ class ConnectionRenderTests(unittest.TestCase):
         metadata = probe_mp4(output)
         self.assertEqual(metadata["sample_count"], 4)
         self.assertEqual(metadata["codec_tag"], "jpeg")
+        payload["scene"]["connections"][0]["break_tensile_strain"] = .1
+        for index, frame in enumerate(payload["trajectory"]["frames"]):
+            frame["connection_active"] = [index < 2]
+        source.write_text(json.dumps(payload))
+        process = subprocess.run([str(encoder), str(source), str(output), "10"],
+                                 capture_output=True, text=True, timeout=20)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        self.assertEqual(probe_mp4(output)["sample_count"], 4)
 
 
 if __name__ == "__main__":

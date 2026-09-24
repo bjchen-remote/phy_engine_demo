@@ -18,6 +18,7 @@ from physics_demo.limits import (
     MAX_PHYSICAL_DURATION_S,
     MAX_FORCE_FIELDS,
     MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
+    NO_DEADLINE_WALL_TIME_S,
     MAX_PARTICLE_SPACING,
     MAX_SCENE_DEPTH,
     MAX_SCENE_NODES,
@@ -167,7 +168,7 @@ CAPABILITIES: dict[str, Any] = {
     "unsupported": [
         "engineering-grade multiphase CFD",
         "air-resolved splash thresholds",
-        "fracture or calibrated soil mechanics",
+        "continuum mesh or rigid-body fracture, and calibrated soil mechanics",
         "cloth/membrane water balloons",
         "general articulated joints",
         "continuous particle emitters or sinks",
@@ -460,7 +461,6 @@ def normalize_and_validate(raw: Any, *, allow_unlimited: bool = False) -> dict[s
     unlimited = budget.get("unlimited_runtime", False)
     if type(unlimited) is not bool:
         errors.append(_issue("unlimited_runtime", "budget.unlimited_runtime", "unlimited_runtime must be boolean."))
-    from ..limits import NO_DEADLINE_WALL_TIME_S
     if unlimited is True and not allow_unlimited:
         errors.append(_issue("unlimited_runtime_authorization", "budget.unlimited_runtime",
                              "Only the host can authorize unlimited runtime."))
@@ -908,7 +908,10 @@ def normalize_and_validate(raw: Any, *, allow_unlimited: bool = False) -> dict[s
                 if e["type"]=="rigid_body":
                     assumptions.append("Rigid body geometry/pivot: " + repr({k:e[k] for k in ("id","shape","pivot") if k in e}))
         elif scene.get("connections"):
-            assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots, fixed-length rods and inelastic tension-only ropes between point masses. No collision, bending, fracture or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
+            if any("break_tensile_strain" in link for link in scene["connections"]):
+                assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots and optional irreversible one-way tensile strain failure, fixed-length rods and inelastic tension-only ropes between point masses. Failure is sampled at t=0 and completed native substeps; strain is (length-rest_length)/rest_length and failure occurs strictly above break_tensile_strain. This is a link failure proxy, not continuum beam fracture. No collision, bending or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
+            else:
+                assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots, fixed-length rods and inelastic tension-only ropes between point masses. No collision, bending, fracture or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
             assumptions.append("Effective connections: " + repr(scene["connections"]) + "; requested solver settings: " + repr(scene["connection_settings"]))
         if any(e["type"] == "mesh" for e in entities):
             assumptions.append("Mesh model: elastic triangle surface with stretch/bending and closed global volume constraints; no calibrated solid stress, self-collision, cutting or general edge-edge CCD. Effective solver settings: " + repr(scene["mesh_settings"]))

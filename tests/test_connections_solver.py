@@ -84,6 +84,66 @@ class ConnectionSolverTests(unittest.TestCase):
         self.assertTrue(diagnostics.completed)
         return simulation, diagnostics
 
+    def test_optional_tensile_failure_is_irreversible_and_queries_zero_after_break(self):
+        value = scene(dt=.01, duration=.2)
+        value["entities"][1]["position"] = [1., 0., 0.]
+        value["entities"][1]["velocity"] = [1., 0., 0.]
+        value["connections"][0]["break_tensile_strain"] = .05
+        result = run(value)
+        times = result["diagnostics"]["connection_break_times_s"]
+        self.assertEqual(result["diagnostics"]["broken_connection_count"], 1)
+        self.assertGreater(times[0], .05)
+        self.assertLess(times[0], .07)
+        self.assertGreater(result["diagnostics"]["connection_break_lengths_m"][0], 1.05)
+        self.assertFalse(result["diagnostics"]["connection_energy_conservation_applicable"])
+        self.assertEqual(result["frames"][0]["connection_active"], [True])
+        self.assertEqual(result["frames"][-1]["connection_active"], [False])
+        for t, force, energy in zip(result["observations"]["times"],
+                                    result["observations"]["columns"]["force"],
+                                    result["observations"]["columns"]["energy"]):
+            if t >= times[0]:
+                self.assertEqual((force, energy), (0., 0.))
+        self.assertEqual(result["diagnostics"]["final_spring_energy"], 0.)
+        self.assertEqual(sum(not frame["connection_active"][0] for frame in result["frames"]),
+                         sum(frame["t"] + 1e-12 >= times[0] for frame in result["frames"]))
+
+    def test_threshold_above_peak_does_not_break_and_initial_break_never_heals(self):
+        value = scene(dt=.01, duration=.2)
+        value["entities"][1]["position"] = [1., 0., 0.]
+        value["entities"][1]["velocity"] = [1., 0., 0.]
+        value["connections"][0]["break_tensile_strain"] = .5
+        intact = run(value)
+        self.assertEqual(intact["diagnostics"]["connection_break_times_s"], [None])
+        self.assertTrue(all(frame["connection_active"] == [True] for frame in intact["frames"]))
+        self.assertTrue(intact["diagnostics"]["connection_energy_conservation_applicable"])
+        value["entities"][1]["position"] = [1.2, 0., 0.]
+        value["entities"][1]["velocity"] = [-2., 0., 0.]
+        value["connections"][0]["break_tensile_strain"] = .1
+        broken = run(value)
+        self.assertEqual(broken["diagnostics"]["connection_break_times_s"], [0.])
+        self.assertAlmostEqual(broken["diagnostics"]["connection_break_lengths_m"][0], 1.2)
+        self.assertFalse(broken["diagnostics"]["connection_prebreak_energy_conservation_applicable"])
+        self.assertTrue(all(frame["connection_active"] == [False] for frame in broken["frames"]))
+        self.assertLess(broken["frames"][-1]["g"][1][0], 1.)
+        self.assertTrue(all(force == 0. for force in broken["observations"]["columns"]["force"]))
+        self.assertTrue(all(energy == 0. for energy in broken["observations"]["columns"]["energy"]))
+
+    def test_only_overstretched_edge_in_small_network_fails(self):
+        value = scene(dt=.005, duration=.1)
+        value["entities"][1]["position"] = [1., 0., 0.]
+        value["entities"][1]["velocity"] = [1., 0., 0.]
+        value["entities"].append(node("end", [2., 0., 0.]))
+        value["connections"][0]["break_tensile_strain"] = .03
+        value["connections"].append({"id": "second", "type": "spring",
+                                      "entities": ["bob", "end"], "rest_length": 1.,
+                                      "stiffness": 16., "damping": 0.,
+                                      "break_tensile_strain": .5})
+        result = run(value)
+        self.assertEqual(result["diagnostics"]["broken_connection_count"], 1)
+        self.assertIsNotNone(result["diagnostics"]["connection_break_times_s"][0])
+        self.assertIsNone(result["diagnostics"]["connection_break_times_s"][1])
+        self.assertEqual(result["frames"][-1]["connection_active"], [False, True])
+
     def test_undamped_oscillator_second_order(self):
         errors = []
         for dt in (.02, .01):
@@ -277,10 +337,12 @@ class ConnectionSolverTests(unittest.TestCase):
             self.assertAlmostEqual(simulation.velocities[3 if kind == "radial" else 4], .001, delta=1e-8)
 
     def test_native_abi_bounds_pointers_nan_and_deadline(self):
-        self.assertEqual(self.library.connections_abi_version(), 1)
+        self.assertEqual(self.library.connections_abi_version(), 3)
         mutations = [("abi", 999), ("nodes", 65), ("connections", 257), ("metrics", 17),
                      ("substeps", 0), ("substeps", 65), ("iterations", 65), ("dt", math.nan),
-                     ("frame_capacity", 1), ("positions", C.POINTER(C.c_double)())]
+                     ("frame_capacity", 1), ("positions", C.POINTER(C.c_double)()),
+                     ("break_times", C.POINTER(C.c_double)()),
+                     ("break_lengths", C.POINTER(C.c_double)())]
         for name, value in mutations:
             with self.subTest(name=name, value=value):
                 original = scene()
@@ -291,6 +353,7 @@ class ConnectionSolverTests(unittest.TestCase):
         for mutation in (lambda s: setattr(s.connection[0], "a", 900),
                          lambda s: setattr(s.connection[0], "type", 9),
                          lambda s: setattr(s.connection[0], "stiffness", -1),
+                         lambda s: setattr(s.connection[0], "break_tensile_strain", 11),
                          lambda s: setattr(s.metric[0], "a", 999),
                          lambda s: s.mass.__setitem__(1, 0),
                          lambda s: s.velocities.__setitem__(0, 1)):

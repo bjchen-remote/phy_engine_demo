@@ -612,6 +612,27 @@ def _retime_result_document(
         later <= earlier for earlier, later in zip(source_times, source_times[1:])
     ):
         raise VideoEncodingError("Presentation source timestamps must be finite and strictly increasing.")
+    diagnostics = trajectory.get("diagnostics")
+    has_frame_states = any("connection_active" in frame for frame in frames)
+    has_break_times = isinstance(diagnostics, dict) and "connection_break_times_s" in diagnostics
+    break_times: list[float | None] | None = None
+    if has_frame_states or has_break_times:
+        raw_times = diagnostics.get("connection_break_times_s") if isinstance(diagnostics, dict) else None
+        if not isinstance(raw_times, list) or not raw_times:
+            raise VideoEncodingError("Presentation connection failure times are missing.")
+        if any(value is not None and (type(value) not in (int, float)
+                                      or not math.isfinite(value)
+                                      or not source_times[0] <= value <= source_times[-1])
+               for value in raw_times):
+            raise VideoEncodingError("Presentation connection failure times are invalid.")
+        break_times = raw_times
+        for frame in frames:
+            states = frame.get("connection_active")
+            expected = [failure is None or float(frame["t"]) + 1e-12 < failure
+                        for failure in break_times]
+            if (not isinstance(states, list) or len(states) != len(break_times)
+                    or any(type(state) is not bool for state in states) or states != expected):
+                raise VideoEncodingError("Presentation source connection states disagree with failure times.")
     if not isinstance(segments, list) or not segments:
         raise VideoEncodingError("Presentation retiming requires at least one segment.")
 
@@ -664,16 +685,19 @@ def _retime_result_document(
         )
         right_index = bisect.bisect_left(source_times, physical_time)
         if right_index <= 0:
-            display_frames.append(copy.deepcopy(frames[0]))
-            continue
-        if right_index >= len(frames):
-            display_frames.append(copy.deepcopy(frames[-1]))
-            continue
-        left_index = right_index - 1
-        amount = (physical_time - source_times[left_index]) / (
-            source_times[right_index] - source_times[left_index]
-        )
-        display_frames.append(_interpolate_display_frame(frames[left_index], frames[right_index], amount))
+            display_frame = copy.deepcopy(frames[0])
+        elif right_index >= len(frames):
+            display_frame = copy.deepcopy(frames[-1])
+        else:
+            left_index = right_index - 1
+            amount = (physical_time - source_times[left_index]) / (
+                source_times[right_index] - source_times[left_index]
+            )
+            display_frame = _interpolate_display_frame(frames[left_index], frames[right_index], amount)
+        if break_times is not None:
+            display_frame["connection_active"] = [failure is None or display_frame["t"] + 1e-12 < failure
+                                                   for failure in break_times]
+        display_frames.append(display_frame)
 
     retimed = copy.deepcopy(document)
     retimed["trajectory"]["frames"] = display_frames

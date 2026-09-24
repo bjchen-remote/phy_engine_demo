@@ -174,7 +174,10 @@
       "type": "array",
       "maxItems": 256,
       "items": {
-        "$ref": "#/$defs/coupled_connection"
+        "anyOf": [
+          {"$ref": "#/$defs/connection"},
+          {"$ref": "#/$defs/coupled_connection"}
+        ]
       }
     },
     "connection_settings": {
@@ -656,6 +659,12 @@
               "minimum": 0,
               "maximum": 100000,
               "default": 0
+            },
+            "break_tensile_strain": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "Optional irreversible tensile failure threshold (length-rest_length)/rest_length; dimensionless. Standalone point-mass spring only."
             }
           }
         },

@@ -146,7 +146,10 @@ def validate_scene(scene: dict, errors: list[dict]) -> None:
         if kind not in ("spring","rod","rope"):
             issue("connection_kind",path+".type","Use spring, rod or rope.");continue
         allowed={"id","type","entities","endpoints","rest_length","solid"}|({"stiffness","damping"} if kind=="spring" else set())
-        for key in set(link)-allowed:issue("unknown_field",path+"."+key,"Unknown connection field.")
+        if "break_tensile_strain" in link:
+            issue("unsupported_connection_fracture",path+".break_tensile_strain",
+                  "Mixed coupling has fixed connections; tensile spring failure is available only in standalone point-mass scenes.")
+        for key in set(link)-allowed-{"break_tensile_strain"}:issue("unknown_field",path+"."+key,"Unknown connection field.")
         if ("entities" in link)==("endpoints" in link):
             issue("connection_target",path,"Specify exactly one of entities:[idA,idB] or endpoints:[{entity,...},{entity,...}].");continue
         if "entities" in link and (not isinstance(link["entities"],list) or any(not isinstance(x,str) for x in link["entities"])):

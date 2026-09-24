@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "physics",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "entrypoint": "toolbox_adapter.py",
   "capabilities": [
     "通过结构化 API 自主构造、组合和校验引擎支持的场景，并生成视频：点质量与三体、液体、沙、摆、弹簧、刚体、软体网格及已声明的耦合与观测量",

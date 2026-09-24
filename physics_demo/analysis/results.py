@@ -57,6 +57,8 @@ def physics_claims(scene: dict[str, Any] | None = None) -> dict[str, str]:
         claims["connections"] = "Ideal massless Hooke springs and axial dashpots between point masses; rods fix length and ropes cap length with inelastic take-up. Constraints can dissipate numerical energy. No collision, bending, fracture, calibrated stress or fluid/mesh coupling. Only explicit fields accelerate nodes."
         if scene is not None:
             claims["point_mass"] = "Translating point masses accelerated by declared connections and explicit fields; no collision, rotation or mutual gravity in this route."
+            if any("break_tensile_strain" in link for link in scene["connections"]):
+                claims["connections"] = "Ideal massless springs may fail irreversibly when sampled tensile strain exceeds their declared threshold. Broken springs exert no force and store no elastic energy. This is a discrete link failure proxy, not continuum fracture or calibrated stress; no collision, bending or fluid/mesh coupling. Only explicit fields accelerate nodes."
     return claims
 
 def verified_measurements(result: dict[str, Any], root: Path | None) -> dict[str, Any]:

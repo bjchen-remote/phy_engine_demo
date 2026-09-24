@@ -58,7 +58,7 @@ Use a dedicated output directory containing only known run artifacts. Filesystem
 
 | Model | Supported interpretation | Outside its scope |
 |---|---|---|
-| Point mass | Softened N-body, standalone links, or opt-in collision-radius point in [coupling](coupling.md) | World gravity, resolved point spin, permanent stability proof |
+| Point mass | Softened N-body, standalone links with optional tensile spring failure, or opt-in collision-radius point in [coupling](coupling.md) | World gravity, resolved point spin, continuum fracture, permanent stability proof |
 | Liquid | Native DFSPH visual single-phase free surface; water/honey/glue/molten-lead presets and numerical diagnostics | Calibrated CFD/material data, density contrast, immiscibility, air/bubbles, wetting/splash thresholds, pressure/loads, non-Newtonian rheology, heat/phase change/chemistry |
 | Particle self-gravity | Native softened Barnes-Hut/direct gravity on fluid/granular particles; one shared reference density | Particle/point-mass gravity exchange, compressible gas, exact tree angular momentum or orbital-stability certification |
 | Sand/water-sand | Contacts, wetting, weakened cohesion and drag; qualitative erosion | Soil constitutive law, pore pressure, sediment rate, strength/scour prediction |
