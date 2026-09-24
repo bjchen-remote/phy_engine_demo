@@ -10,6 +10,7 @@ import platform
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -20,7 +21,7 @@ def profile(package: Path, job: Path) -> str:
     def literal(path):
         return str(Path(path).resolve()).replace("\\", "\\\\").replace('"', '\\"')
     roots = ["/System", "/usr", "/Applications", "/opt/homebrew", "/Library/Developer", "/private/etc",
-             "/private/var/select", "/var/select", "/dev", package, job]
+             "/private/var/select", "/var/select", "/dev", sys.prefix, sys.base_prefix, package, job]
     parents = ["/", "/Library", "/Library/Developer", "/private", "/private/var", "/var"]
     reads = " ".join(f'(subpath "{literal(path)}")' for path in roots)
     reads += " " + " ".join(f'(literal "{literal(path)}")' for path in parents)
@@ -32,7 +33,7 @@ def profile(package: Path, job: Path) -> str:
 
 
 def execute(package: Path, job: Path, phase: str, timeout: int) -> None:
-    command = ["/usr/bin/sandbox-exec", "-p", profile(package, job), "/usr/bin/python3",
+    command = ["/usr/bin/sandbox-exec", "-p", profile(package, job), sys.executable,
                str(package / manifest(package)["entrypoint"]), "--phase", phase,
                "--task", str(job / "task.json")]
     environment = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin", "TMPDIR": str(job / "work/tmp"),
