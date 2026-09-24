@@ -80,9 +80,9 @@ def _apply_budget_override(scene: dict[str, Any], budget_seconds: float | None) 
     if budget_seconds is None:
         return None
     if not finite_number(budget_seconds):
-        return {"code": "budget_number", "path": "budget_seconds", "message": "budget_seconds must be one finite number in [1, 300].", "retryable": True, "suggestion": "Use a numeric value from 1 through 300."}
+        return {"code": "budget_number", "path": "budget_seconds", "message": f"budget_seconds must be one finite number in [1, {MAX_WALL_TIME_S}].", "retryable": True, "suggestion": f"Use a numeric value from 1 through {MAX_WALL_TIME_S}."}
     if not 1.0 <= float(budget_seconds) <= MAX_WALL_TIME_S:
-        return {"code": "budget_range", "path": "budget_seconds", "message": "budget_seconds must be in [1, 300].", "retryable": True, "suggestion": "Use a value from 1 through 300."}
+        return {"code": "budget_range", "path": "budget_seconds", "message": f"budget_seconds must be in [1, {MAX_WALL_TIME_S}].", "retryable": True, "suggestion": f"Use a value from 1 through {MAX_WALL_TIME_S}."}
     scene["budget"]["wall_time_s"] = float(budget_seconds)
     return None
 
@@ -181,7 +181,7 @@ def prepare(scene: Any, budget_seconds: float | None = None) -> dict[str, Any]:
             "code": "budget_infeasible", "path": "budget.wall_time_s",
             "message": f"The estimated p90 runtime is {timing['total_p90_s']:.3f} s, above the {timing['hard_limit_s']:.3f} s hard limit after bounded coarsening.",
             "retryable": True,
-            "suggestion": "Propose a shorter duration, lower output_fps, simpler geometry, or a budget up to 60 seconds; do not silently change an explicit user requirement.",
+            "suggestion": f"Propose a shorter duration, lower output_fps, simpler geometry, or a budget up to {MAX_WALL_TIME_S} seconds; do not silently change an explicit user requirement.",
         }
     if error:
         result.update(ok=False, ready_to_simulate=False, stage="estimate", errors=[error])
@@ -212,7 +212,7 @@ def simulate(
             'estimate', 'budget_infeasible', 'budget.wall_time_s',
             f'The estimated p90 runtime is {estimate_value:.3f} s, above the {wall_budget:.3f} s hard limit after safe coarsening.',
             retryable=True,
-            suggestion='Reduce physical duration or output_fps, simplify the scene, or increase the wall-time budget up to 60 seconds.',
+            suggestion=f'Reduce physical duration or output_fps, simplify the scene, or increase the wall-time budget up to {MAX_WALL_TIME_S} seconds.',
             plan=plan,
         )
     run_hash = hashlib.sha256(_json_bytes(normalized)).hexdigest()

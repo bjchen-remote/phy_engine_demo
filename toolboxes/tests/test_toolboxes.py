@@ -1,4 +1,5 @@
 import copy
+from contextlib import ExitStack
 import importlib.util
 import json
 from pathlib import Path
@@ -6,10 +7,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import registry
+import build_physics
 from smoke import validate_result
 
 
@@ -236,6 +239,122 @@ class VideoBudgetProtocolTests(unittest.TestCase):
             result=json.loads((job/'work/physics/artifacts/summary.json').read_text())
             self.assertTrue(result['ok'])
             self.assertFalse((job/'artifacts/simulation.mp4').exists())
+
+
+class PhysicsReleaseBuildTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.source = Path(self.temporary.name) / "source"
+        self.release = Path(self.temporary.name) / "release"
+        source_files = {
+            "physics_demo/engine.py": b"engine source\n",
+            "examples/example.json": b"{}\n",
+            "examples/reference.png": b"image bytes",
+            "agent/physics-simulation/SKILL.md": b"manual source\n",
+            "agent/physics-simulation/references/guide.md": b"reference source\n",
+            "agent/tools.json": b"{}\n",
+            "agent/scene-v1.schema.json": b"{}\n",
+        }
+        for relative, content in source_files.items():
+            path = self.source / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        prebuilt = self.release / "prebuilt"
+        prebuilt.mkdir(parents=True)
+        for name in build_physics.PREBUILT_NAMES:
+            path = prebuilt / name
+            path.write_bytes(name.encode())
+            path.chmod(0o755)
+        for name in build_physics.PACKAGE_FILES:
+            (self.release / name).write_bytes(name.encode())
+        paths = {
+            "SOURCE_ROOT": self.source,
+            "SOURCE_PACKAGE": self.source / "physics_demo",
+            "SOURCE_EXAMPLES": self.source / "examples",
+            "SOURCE_MANUAL": self.source / "agent/physics-simulation",
+            "RELEASE_ROOT": self.release,
+            "RELEASE_PACKAGE": self.release / "physics_release/physics_demo",
+            "RELEASE_SCENES": self.release / "physics_release/scenes",
+            "RELEASE_EXAMPLES": self.release / "physics_release/examples",
+            "RELEASE_MANUAL": self.release / "manual",
+            "PREBUILT": prebuilt,
+            "MANIFEST": self.release / "physics_release/manifest.json",
+        }
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        for name, path in paths.items():
+            stack.enter_context(mock.patch.object(build_physics, name, path))
+        stack.enter_context(mock.patch.object(
+            build_physics, "_scene_documents",
+            return_value={"generated.json": {"name": "generated"}},
+        ))
+        build_physics._sync_sources()
+        build_physics._atomic_write_json(
+            build_physics.MANIFEST, build_physics._manifest_payload()
+        )
+
+    def assert_check_fails(self, message):
+        with self.assertRaisesRegex(build_physics.ReleaseBuildError, message):
+            build_physics._verify()
+
+    def test_manifest_binds_all_copied_files_and_prebuilt_assets(self):
+        manifest = build_physics._verify()
+        self.assertEqual(set(manifest["files"]), {
+            "physics_demo/engine.py", "scenes/generated.json",
+            "examples/example.json", "examples/reference.png",
+            "manual/SKILL.md", "manual/references/guide.md",
+            "tools.json", "scene-v1.schema.json",
+            *(f"prebuilt/{name}" for name in build_physics.PREBUILT_NAMES),
+            *(f"package/{name}" for name in build_physics.PACKAGE_FILES),
+        })
+        binary = build_physics.PREBUILT / build_physics.PREBUILT_NAMES[0]
+        binary.write_bytes(b"changed binary")
+        self.assert_check_fails("release manifest does not match packaged bytes")
+
+    def test_check_detects_stale_sources_without_modifying_release(self):
+        changes = (
+            (self.source / "agent/physics-simulation/SKILL.md", "stale release manual file"),
+            (self.source / "examples/reference.png", "stale release example file"),
+            (self.source / "agent/tools.json", "stale release file: tools.json"),
+            (self.source / "agent/scene-v1.schema.json", "stale release file: scene-v1.schema.json"),
+        )
+        for source, message in changes:
+            with self.subTest(source=source.name):
+                original = source.read_bytes()
+                source.write_bytes(original + b"changed")
+                self.assert_check_fails(message)
+                self.assertEqual(source.read_bytes(), original + b"changed")
+                source.write_bytes(original)
+        self.assertEqual(build_physics._verify()["files"], build_physics._manifest_payload()["files"])
+
+    def test_check_detects_missing_and_extra_release_files(self):
+        missing = self.release / "physics_release/examples/example.json"
+        missing.unlink()
+        self.assert_check_fails("missing release example file: example.json")
+        build_physics._sync_sources()
+        for relative, message in (
+            ("manual/obsolete.md", "extra release manual file: obsolete.md"),
+            ("physics_release/examples/obsolete.json", "extra release example file: obsolete.json"),
+            ("physics_release/scenes/obsolete.json", "extra release scene: obsolete.json"),
+            ("prebuilt/obsolete", "extra prebuilt asset: obsolete"),
+        ):
+            path = self.release / relative
+            path.write_bytes(b"obsolete")
+            self.assert_check_fails(message)
+            path.unlink()
+        (self.release / "scene-v1.schema.json").unlink()
+        self.assert_check_fails("missing release file: scene-v1.schema.json")
+
+    def test_sync_removes_obsolete_copied_files(self):
+        for relative in (
+            "manual/obsolete.md",
+            "physics_release/examples/obsolete.json",
+            "physics_release/scenes/obsolete.json",
+        ):
+            (self.release / relative).write_bytes(b"obsolete")
+        build_physics._sync_sources()
+        self.assertEqual(build_physics._verify()["files"], build_physics._manifest_payload()["files"])
 
 
 if __name__ == "__main__":

@@ -129,16 +129,22 @@ def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
 
 
 def _watchable_segments(duration: float) -> list[dict[str, float]]:
-    """Slow a short physical impact for inspection without changing its states."""
-    first = duration * 0.25
-    second = duration * 0.50
-    return [
-        {"physical_start_s": 0.0, "physical_end_s": 0.0, "playback_duration_s": 0.5},
-        {"physical_start_s": 0.0, "physical_end_s": first, "playback_duration_s": 1.5},
-        {"physical_start_s": first, "physical_end_s": second, "playback_duration_s": 2.2},
-        {"physical_start_s": second, "physical_end_s": duration, "playback_duration_s": 1.8},
-        {"physical_start_s": duration, "physical_end_s": duration, "playback_duration_s": 0.8},
-    ]
+    """Show the full physical trajectory at one steady display-only slow-motion rate."""
+    return [{
+        "physical_start_s": 0.0,
+        "physical_end_s": duration,
+        "playback_duration_s": max(duration, min(8.0, max(4.0, 5.0 * duration))),
+    }]
+
+
+def _needs_watchable_video(route_name: str, scene: dict) -> bool:
+    """Slow short water presentations uniformly, including agent-authored scenes."""
+    liquid_scene = route_name.startswith("water_droplet_ground_") or any(
+        isinstance(entity, dict) and entity.get("type") == "fluid"
+        for entity in scene.get("entities", [])
+    )
+    duration = scene.get("world", {}).get("duration")
+    return liquid_scene and isinstance(duration, (int, float)) and 0.0 < duration < 8.0
 
 
 def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
@@ -171,9 +177,17 @@ def _publish_watchable_video(
             temporary_video,
             fps=30,
             segments=_watchable_segments(duration),
-            timeout_seconds=18.0,
+            timeout_seconds=30.0,
         )
-        os.replace(temporary_video, video)
+        real_time_video = artifacts / "simulation-realtime.mp4"
+        if real_time_video.exists():
+            raise RuntimeError("real-time source video already exists")
+        os.replace(video, real_time_video)
+        try:
+            os.replace(temporary_video, video)
+        except Exception:
+            os.replace(real_time_video, video)
+            raise
     finally:
         temporary_video.unlink(missing_ok=True)
 
@@ -238,7 +252,7 @@ def simulate_scene(scene: dict, artifacts: Path, route_name: str = "agent_author
     if not video.is_file() or video.stat().st_size <= 0:
         raise RuntimeError("verified simulation completed without simulation.mp4")
     presentation = None
-    if route_name.startswith("water_droplet_ground_"):
+    if _needs_watchable_video(route_name, scene):
         metadata = _publish_watchable_video(
             artifacts, summary, float(scene["world"]["duration"])
         )

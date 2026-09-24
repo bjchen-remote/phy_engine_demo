@@ -32,6 +32,13 @@ static void pg_destroy(PGTree *t) {
     free(t->order); free(t->scratch); free(t->rank); free(t->nodes);
 }
 
+static void pg_bind_positions(PGTree *t, int count,
+                              const double *x, const double *y, const double *z) {
+    t->count = count;
+    t->used = 0;
+    t->position[0] = x; t->position[1] = y; t->position[2] = z;
+}
+
 static int pg_octant(const PGTree *t, int i, const double mid[3]) {
     return (t->position[0][i] >= mid[0]) |
         ((t->position[1][i] >= mid[1]) << 1) |
@@ -77,8 +84,7 @@ static int pg_node(PGTree *t, int start, int count, int depth) {
 }
 
 static void pg_build(PGTree *t, const double *x, const double *y, const double *z) {
-    t->position[0] = x; t->position[1] = y; t->position[2] = z;
-    t->used = 0;
+    pg_bind_positions(t, t->count, x, y, z);
     for (int i = 0; i < t->count; ++i) t->order[i] = i;
     pg_node(t, 0, t->count, 0);
     for (int i = 0; i < t->count; ++i) t->rank[t->order[i]] = i;

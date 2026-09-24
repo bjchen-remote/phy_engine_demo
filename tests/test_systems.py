@@ -98,7 +98,7 @@ class SystemFactoryTests(unittest.TestCase):
         cases = [("lengths", [0]), ("lengths", [1001]), ("lengths", [401]),
                  ("masses", [1e-10]), ("masses", [1e12 + 1]),
                  ("angles", [7]), ("angular_velocities", [-501]),
-                 ("gravity", 0), ("gravity", 251), ("duration", 0), ("duration", 31),
+                 ("gravity", 0), ("gravity", 251), ("duration", 0), ("duration", 61),
                  ("dt", .00009), ("dt", .051), ("output_fps", 0),
                  ("output_fps", 60.5), ("output_fps", 24.5),
                  ("wall_time_s", .9), ("wall_time_s", 301)]

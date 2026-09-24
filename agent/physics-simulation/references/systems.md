@@ -31,7 +31,7 @@ The initial factories are `pendulum` and `double_pendulum`. They use the existin
 | `angles` | `[0.6]` or `[2.0,2.4]` | Each `[-2π,2π]` rad |
 | `angular_velocities` | 0 per rod | Each `[-500,500]` rad/s; derived bob speed at most 500 m/s |
 | `gravity` | 9.81 | Positive magnitude `[1e-9,250]` m/s² toward world −Y |
-| `duration` | 8 | `[1e-4,30]` s |
+| `duration` | 8 | `[1e-4,60]` s |
 | `dt` | 0.002 | `[1e-4,0.05]` s; preparation still checks resolution/work |
 | `output_fps` | 30 | Integer `[1,60]`; affects video, not observation cadence |
 | `quality` | `balanced` | `preview`, `balanced`, `high` |

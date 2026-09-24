@@ -36,7 +36,7 @@
         "duration": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "maximum": 30
+          "maximum": 60
         },
         "dt": {
           "type": "number",
@@ -1725,7 +1725,7 @@
             "hold_for": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30,
+              "maximum": 60,
               "default": 0
             }
           }
@@ -1949,12 +1949,12 @@
             "start_time": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30
+              "maximum": 60
             },
             "end_time": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "maximum": 30
+              "maximum": 60
             }
           }
         },
@@ -1999,12 +1999,12 @@
             "start_time": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30
+              "maximum": 60
             },
             "end_time": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "maximum": 30
+              "maximum": 60
             }
           }
         },
@@ -2058,12 +2058,12 @@
             "start_time": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30
+              "maximum": 60
             },
             "end_time": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "maximum": 30
+              "maximum": 60
             }
           }
         }

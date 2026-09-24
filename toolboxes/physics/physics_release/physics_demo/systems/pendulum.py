@@ -8,7 +8,7 @@ geometry. Explicit uniform gravity acts on each bob.
 
 Limits: lengths [1e-6,1000], total length <=400 m, masses [1e-9,1e12],
 angles [-2*pi,2*pi], angular velocities [-500,500], resulting bob speeds
-<=500 m/s, gravity [1e-9,250], duration [1e-4,30], dt [1e-4,.05], integer
+<=500 m/s, gravity [1e-9,250], duration [1e-4,60], dt [1e-4,.05], integer
 output_fps [1,60], wall_time_s [1,300]. Quality is preview/balanced/high.
 Prepare still decides numerical and resource feasibility; these checks do not
 certify trajectory accuracy, stability or chaotic behaviour.
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 
-from ..limits import MAX_WALL_TIME_S
+from ..limits import MAX_PHYSICAL_DURATION_S, MAX_WALL_TIME_S
 
 
 _FIELDS = frozenset({
@@ -57,7 +57,7 @@ def _build(spec: dict, count: int, expected_type: str) -> dict:
                     -2.0 * math.pi, 2.0 * math.pi)
     omegas = _array(spec, "angular_velocities", [0.0] * count, -500.0, 500.0)
     gravity = _number(spec.get("gravity", 9.81), "gravity", 1e-9, 250.0)
-    duration = _number(spec.get("duration", 8.0), "duration", 1e-4, 30.0)
+    duration = _number(spec.get("duration", 8.0), "duration", 1e-4, MAX_PHYSICAL_DURATION_S)
     dt = _number(spec.get("dt", 0.002), "dt", 1e-4, 0.05)
     fps = _number(spec.get("output_fps", 30), "output_fps", 1, 60)
     if not fps.is_integer():

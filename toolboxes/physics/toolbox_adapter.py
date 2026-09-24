@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import time
@@ -13,6 +14,60 @@ import run_simulation as engine
 
 def write(path: Path, **value) -> None:
     engine._atomic_write_json(path, {"schema_version": 1, **value})
+
+
+def _run_pcb(spec: dict, job: Path, task: dict, started: float) -> None:
+    """Execute the isolated PCB domain without entering the mechanical engine."""
+    from pcb_thermal import simulate_pcb_thermal
+    from pcb_video import PcbVideoError, render_pcb_video
+
+    artifacts = job / 'artifacts'
+    work = job / 'work/pcb'
+    work.mkdir(parents=True, exist_ok=True)
+    write(job / 'progress.json', state='running', fraction=0,
+          updated_at=time.time())
+    result = simulate_pcb_thermal(spec)
+    input_power = sum(component['power_w'] for component in spec['components'])
+    deposited_power = math.fsum(math.fsum(row) for row in result['power_w'])
+    duration = result['duration_s']
+    balance = result['energy_balance']['residual']
+    balance_scale = input_power * (duration if result['mode'] == 'transient' else 1)
+    checks = {
+        'component_power_conserved':math.isfinite(deposited_power) and
+            abs(deposited_power - input_power) <= max(1e-9, 1e-8 * abs(input_power)),
+        'energy_balance':math.isfinite(balance) and
+            abs(balance) <= max(1e-7, 1e-6 * abs(balance_scale)),
+        'finite_temperature':all(math.isfinite(value) and value > -273.15
+            for row in result['temperature_c'] for value in row),
+    }
+    if not all(checks.values()):
+        write(artifacts / 'result-manifest.json', status='failed', failure={
+            'code':'numerical_validation_failed', 'stage':'pcb_thermal',
+            'retryable':False, 'failed_checks':[key for key, passed in checks.items() if not passed]})
+        raise RuntimeError('PCB thermal verification failed')
+    engine._atomic_write_json(work/'result.json', result)
+    remaining = task['limits']['wall_time_seconds'] - (time.monotonic() - started)
+    try:
+        video = artifacts / 'simulation.mp4'
+        media = render_pcb_video(result, spec, video,
+                                 max_bytes=task['limits']['max_output_bytes'],
+                                 timeout_seconds=remaining)
+    except PcbVideoError as error:
+        write(artifacts / 'result-manifest.json', status='failed', failure={
+            'code':'video_delivery_failed', 'stage':'presentation',
+            'retryable':False, 'message':str(error)[:300]})
+        return
+    digest = hashlib.sha256(video.read_bytes()).hexdigest()
+    write(artifacts/'result-manifest.json', status='succeeded',
+          outputs=[{'path':video.name, 'media_type':'video/mp4', 'sha256':digest}],
+          verification={'passed':True,
+                        'checks':[key for key, passed in checks.items() if passed] + ['video_decode'],
+                        'domain':'pcb_thermal', 'energy_balance':result['energy_balance'],
+                        'solver':result['solver'], 'media':media},
+          summary=(f"PCB 热仿真完成：总功耗 {result['total_power_w']:.3g} W，"
+                   f"最高温度 {result['max_temperature_c']:.3g} °C。"))
+    write(job/'progress.json', state='completed', fraction=1,
+          updated_at=time.time())
 
 
 def main() -> None:
@@ -33,7 +88,9 @@ def main() -> None:
         api_call(root, job, task)
         return
     prepared = job/'work/prepared-scene.json'
-    scene = json.loads(prepared.read_text())['scene'] if prepared.exists() else None
+    prepared_model = json.loads(prepared.read_text()) if prepared.exists() else None
+    scene = prepared_model['scene'] if prepared_model else None
+    domain = prepared_model.get('domain', 'physics') if prepared_model else 'physics'
     if scene is None and task['request'].get('plan_required'):
         if args.phase == 'probe':
             write(job/'capability.json', supported=False, estimated_seconds=None, reason='model_not_prepared')
@@ -42,7 +99,12 @@ def main() -> None:
     text = task["request"]["text"]
     seed = int.from_bytes(hashlib.sha256(str(task.get('task_id', '')).encode()).digest()[:8], 'big')
     try:
-        if scene is not None:
+        if scene is not None and domain == 'pcb_thermal':
+            from pcb_thermal import validate_pcb_spec
+            scene = validate_pcb_spec(scene)
+            name = 'pcb_thermal'
+            estimate = prepared_model['estimated_seconds']
+        elif scene is not None:
             from physics_demo.runner import prepare
             checked = prepare(scene, task['limits']['wall_time_seconds'])
             if not checked.get('ready_to_simulate'):
@@ -50,8 +112,9 @@ def main() -> None:
             name = 'agent_authored'
         else:
             name, _ = engine.route(text, seed=seed)
-        estimate = (checked["agent_report"]["estimated_wall_time_s"]["p90"]
-                    if scene is not None else (25 if name.startswith("water_") else 15))
+        if domain != 'pcb_thermal':
+            estimate = (checked["agent_report"]["estimated_wall_time_s"]["p90"]
+                        if scene is not None else (25 if name.startswith("water_") else 15))
         supported = estimate <= task["limits"]["wall_time_seconds"]
         reason = "" if supported else "insufficient_time_budget"
     except engine.UnsupportedRequest:
@@ -63,6 +126,9 @@ def main() -> None:
     artifacts = job / "artifacts"
     if not supported:
         write(artifacts / "result-manifest.json", status="unsupported", reason=reason)
+        return
+    if domain == 'pcb_thermal':
+        _run_pcb(scene, job, task, started)
         return
     root = Path(__file__).resolve().parent
     os.environ["PHYSICS_DEMO_NATIVE_LIBRARY"] = str(root / "prebuilt/libphysics_native.dylib")

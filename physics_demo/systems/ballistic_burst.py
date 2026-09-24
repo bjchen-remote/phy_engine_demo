@@ -5,7 +5,7 @@ import math
 
 from .validation import _number
 from ..core.liquids import LIQUID_PRESET_NAMES
-from ..limits import MAX_WALL_TIME_S
+from ..limits import MAX_PHYSICAL_DURATION_S, MAX_WALL_TIME_S
 
 BURST_SCOPE = (
     "Finite initially launched liquid parcels under constant downward gravity. "
@@ -36,7 +36,7 @@ def build_ballistic_burst(spec: dict) -> dict:
     count = int(count_value)
     spacing = number("spacing", 0.03, 0.0001, 0.5)
     gravity = number("gravity", 9.81, 1e-9, 250)
-    duration = number("duration", 3.2, 0.0001, 30)
+    duration = number("duration", 3.2, 0.0001, MAX_PHYSICAL_DURATION_S)
     dt = number("dt", 0.002, 0.0001, 0.05)
     wall = number("wall_time_s", 60, 1, MAX_WALL_TIME_S)
     quality, validation, preset = (spec.get("quality", "balanced"),
