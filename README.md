@@ -6,7 +6,7 @@ Agent Physics is a lightweight simulator built for AI agents. An agent describes
 
 The project focuses on **composable scenes, fast visual feedback, and reproducible experiments**. Python provides the interfaces and orchestration; C11 powers the numerical kernels. A standalone toolbox connects the simulator to different agents and applications.
 
-[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [Release notes](docs/release-1.2.4.md)
+[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [Release notes](docs/release-1.3.3.md)
 
 ## What it can simulate
 
@@ -111,7 +111,7 @@ python3 -m unittest discover -s toolboxes/tests -v
 python3 toolboxes/build_physics.py --check
 ```
 
-The current toolbox version is **1.2.4**. The published version passed 389 engine tests and 13 module tests; details are in the [release notes](docs/release-1.2.4.md). Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
+The current toolbox version is **1.3.3**. It preserves the waterball baseline, restores native self-gravity and finite liquid launch tools, and encodes liquid videos with steady slow motion while retaining their real-time source. See the [release notes](docs/release-1.3.3.md). Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
 
 ## License
 

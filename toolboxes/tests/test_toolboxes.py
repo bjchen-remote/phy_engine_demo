@@ -157,6 +157,27 @@ class PhysicsProtocolTests(unittest.TestCase):
             for axis in range(3):
                 self.assertAlmostEqual(sum(b[field][axis] for b in first['entities']), 0)
 
+    def test_water_scenes_use_one_steady_slow_motion_segment(self):
+        sys.path.insert(0, str(ROOT / "physics"))
+        import run_simulation
+
+        duration = 1.8
+        segments = run_simulation._watchable_segments(duration)
+        self.assertEqual(len(segments), 1)
+        self.assertEqual(segments[0]["physical_start_s"], 0.0)
+        self.assertEqual(segments[0]["physical_end_s"], duration)
+        self.assertEqual(segments[0]["playback_duration_s"], 8.0)
+        self.assertAlmostEqual(duration / segments[0]["playback_duration_s"], 0.225)
+        self.assertTrue(run_simulation._needs_watchable_video("agent_authored", {
+            "world": {"duration": duration}, "entities": [{"type": "fluid"}],
+        }))
+        self.assertFalse(run_simulation._needs_watchable_video("agent_authored", {
+            "world": {"duration": 30.0}, "entities": [{"type": "fluid"}],
+        }))
+        self.assertFalse(run_simulation._needs_watchable_video("agent_authored", {
+            "world": {"duration": duration}, "entities": [{"type": "rigid"}],
+        }))
+
     def test_unsupported_commands_and_insufficient_budget(self):
         self.assertFalse(self.probe("执行任意外部程序")['supported'])
         self.assertEqual(self.probe("双摆", 1)["reason"], "insufficient_time_budget")
