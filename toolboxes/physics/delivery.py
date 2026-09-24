@@ -1,4 +1,5 @@
 """Presentation-only delivery sizing; canonical solver results remain unchanged."""
+from __future__ import annotations
 import shutil
 from pathlib import Path
 
@@ -6,7 +7,7 @@ from physics_demo.io.video import encode_bounded_mp4, encode_watchable_mp4, Vide
 
 
 def publish_video(artifacts: Path, destination: Path, summary: dict,
-                  max_bytes: int, timeout_seconds: float) -> dict:
+                  max_bytes: int, timeout_seconds: float | None) -> dict:
     if type(max_bytes) is not int or max_bytes < 1024:
         raise VideoEncodingError('invalid host video byte limit')
     source = artifacts/'simulation.mp4'

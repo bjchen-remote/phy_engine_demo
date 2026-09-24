@@ -77,7 +77,7 @@ def api_call(root: Path, job: Path, task: dict) -> None:
             frames = 1 if spec['mode'] == 'steady' else spec['transient']['snapshot_count']
             estimate = max(25.0, min(300.0, 15.0 + cells * steps / 4000.0 + frames * 0.6))
             budget = task['limits']['wall_time_seconds']
-            ready = estimate <= budget
+            ready = budget is None or estimate <= budget
             result = {'ok':True, 'ready_to_simulate':ready,
                       'code':'ready' if ready else 'insufficient_time_budget',
                       'spec_json':json.dumps(spec, ensure_ascii=False),
@@ -126,7 +126,8 @@ def api_call(root: Path, job: Path, task: dict) -> None:
                 raise ValueError('PCB execution requires spec_json, not scene_json')
             if 'spec_json' in arguments and _pcb_spec({'spec_json':arguments['spec_json']}) != prepared:
                 raise ValueError('PCB model must match the last prepared model')
-            if 'budget_seconds' in arguments and arguments['budget_seconds'] != task['limits']['wall_time_seconds']:
+            if (task['limits']['wall_time_seconds'] is not None and
+                    'budget_seconds' in arguments and arguments['budget_seconds'] != task['limits']['wall_time_seconds']):
                 raise ValueError('budget must match the host task limit')
         else:
             if 'spec_json' in arguments:
@@ -135,7 +136,8 @@ def api_call(root: Path, job: Path, task: dict) -> None:
                 from physics_demo.jsonio import loads
                 if loads(arguments['scene_json']) != prepared:
                     raise ValueError('simulation scene must match the last prepared scene')
-            if arguments.get('budget_seconds', prepared['budget']['wall_time_s']) != prepared['budget']['wall_time_s']:
+            if (task['limits']['wall_time_seconds'] is not None and
+                    arguments.get('budget_seconds', prepared['budget']['wall_time_s']) != prepared['budget']['wall_time_s']):
                 raise ValueError('budget must match the prepared scene')
         result = {'ok':True, 'ready_to_run':True}
     else:
@@ -150,11 +152,16 @@ def api_call(root: Path, job: Path, task: dict) -> None:
             if isinstance(scene, dict) and isinstance(scene.get('budget', {}), dict):
                 scene.setdefault('budget', {}).setdefault('validation', 'visual')
                 arguments = {**arguments, 'scene_json':json.dumps(scene, ensure_ascii=False)}
-        if operation in ('physics_prepare', 'physics_estimate'):
+        if operation in ('physics_prepare', 'physics_estimate') and task['limits']['wall_time_seconds'] is not None:
             arguments = {**arguments, 'budget_seconds':task['limits']['wall_time_seconds']}
+        elif operation in ('physics_prepare', 'physics_estimate', 'physics_simulate') and task['limits']['wall_time_seconds'] is None:
+            # The host owns this mode; a model-supplied budget must not restore
+            # a deadline after the task was accepted as unbounded.
+            arguments = {key:value for key,value in arguments.items() if key != 'budget_seconds'}
         if operation in ('physics_example', 'physics_system', 'physics_patch', 'physics_prepare'):
             (job/'work/prepared-scene.json').unlink(missing_ok=True)
-        result = call_tool(operation, arguments)
+        result = call_tool(operation, arguments,
+                           unlimited=task['limits']['wall_time_seconds'] is None)
         if operation == 'physics_prepare' and result.get('ok') and result.get('ready_to_simulate'):
             _atomic_write_json(job/'work/prepared-scene.json', {'schema_version':1,
                 'scene':json.loads(result['scene_json'])})

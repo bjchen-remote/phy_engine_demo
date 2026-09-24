@@ -102,6 +102,32 @@ class PhysicsProtocolTests(unittest.TestCase):
             capture_output=True,timeout=10)
         return registry.read_json(job/'work/toolbox-response.json')['result']
 
+    def test_host_unbounded_task_prepares_and_delivers_verified_video(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            job=Path(temporary)
+            (job/'work').mkdir(); (job/'artifacts').mkdir()
+            registry.write_json(job/'task.json', {'schema_version':1,
+                'task_id':'unbounded-check',
+                'request':{'text':'three body video','plan_required':True},
+                'limits':{'wall_time_seconds':None,'max_output_bytes':16*1024*1024,
+                          'network':False}})
+            scene=json.loads((ROOT.parent/'examples/three_body.json').read_text())
+            scene['world'].update(duration=.04,output_fps=30)
+            prepared=self.api(job,'physics_prepare',{'scene_json':json.dumps(scene),
+                                                     'budget_seconds':30})
+            self.assertTrue(prepared['ready_to_simulate'],prepared)
+            self.assertTrue(prepared['scene']['budget']['unlimited_runtime'])
+            self.assertGreater(prepared['scene']['budget']['wall_time_s'],300)
+            result=self.api(job,'physics_simulate',{'budget_seconds':30})
+            self.assertTrue(result['ready_to_run'],result)
+            completed=subprocess.run([sys.executable,str(ROOT/'physics/toolbox_adapter.py'),
+                '--phase','run','--task',str(job/'task.json')],capture_output=True,
+                text=True,timeout=30)
+            self.assertEqual(completed.returncode,0,completed.stderr)
+            manifest=registry.read_json(job/'artifacts/result-manifest.json')
+            self.assertEqual(manifest['status'],'succeeded')
+            self.assertTrue(manifest['verification']['passed'])
+
     def test_self_gravity_prepare_probe_and_help_are_discoverable(self):
         with tempfile.TemporaryDirectory() as temporary:
             job=Path(temporary);(job/'work').mkdir()

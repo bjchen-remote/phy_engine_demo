@@ -34,6 +34,10 @@ The host creates JOB/artifacts and JOB/work and writes:
  "output_dir":"artifacts","work_dir":"work"}
 ```
 
+For host-authorized runs without a wall-clock deadline, `wall_time_seconds` is
+`null`. The physics adapter carries that mode through preparation, simulation,
+rendering, and validation. Resource and output-byte limits still apply.
+
 Paths are relative to the task JSON's directory. Do not put account credentials or unrelated user
 data in the job. The host should permit reads of the package and job, writes only to the job, and no
 network. The standalone smoke executor supplies these restrictions on macOS.

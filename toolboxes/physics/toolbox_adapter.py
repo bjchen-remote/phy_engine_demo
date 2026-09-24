@@ -46,7 +46,8 @@ def _run_pcb(spec: dict, job: Path, task: dict, started: float) -> None:
             'retryable':False, 'failed_checks':[key for key, passed in checks.items() if not passed]})
         raise RuntimeError('PCB thermal verification failed')
     engine._atomic_write_json(work/'result.json', result)
-    remaining = task['limits']['wall_time_seconds'] - (time.monotonic() - started)
+    budget = task['limits']['wall_time_seconds']
+    remaining = None if budget is None else budget - (time.monotonic() - started)
     try:
         video = artifacts / 'simulation.mp4'
         media = render_pcb_video(result, spec, video,
@@ -106,7 +107,8 @@ def main() -> None:
             estimate = prepared_model['estimated_seconds']
         elif scene is not None:
             from physics_demo.runner import prepare
-            checked = prepare(scene, task['limits']['wall_time_seconds'])
+            budget = task['limits']['wall_time_seconds']
+            checked = prepare(scene, budget, unlimited=budget is None)
             if not checked.get('ready_to_simulate'):
                 raise engine.UnsupportedRequest('prepared scene failed revalidation')
             name = 'agent_authored'
@@ -115,7 +117,8 @@ def main() -> None:
         if domain != 'pcb_thermal':
             estimate = (checked["agent_report"]["estimated_wall_time_s"]["p90"]
                         if scene is not None else (25 if name.startswith("water_") else 15))
-        supported = estimate <= task["limits"]["wall_time_seconds"]
+        budget = task["limits"]["wall_time_seconds"]
+        supported = budget is None or estimate <= budget
         reason = "" if supported else "insufficient_time_budget"
     except engine.UnsupportedRequest:
         supported, estimate, reason = False, None, "unsupported_scene"
@@ -139,7 +142,8 @@ def main() -> None:
     legacy.mkdir(exist_ok=True)
     (legacy / "artifacts").mkdir(exist_ok=True)
     write(legacy / "request.json", message={"text": text}, seed=seed)
-    result = (engine.simulate_scene(scene, legacy/'artifacts') if scene is not None else
+    result = (engine.simulate_scene(scene, legacy/'artifacts',
+                                   unlimited=budget is None) if scene is not None else
               engine.main(["run_simulation.py", str(legacy / "request.json"), str(legacy / "artifacts")]))
     if result:
         summary_path = legacy/'artifacts/summary.json'
@@ -161,7 +165,7 @@ def main() -> None:
     try:
         delivery = publish_video(legacy/'artifacts', video, summary,
             task['limits']['max_output_bytes'],
-            task['limits']['wall_time_seconds'] - (time.monotonic() - started))
+            None if budget is None else budget - (time.monotonic() - started))
     except VideoEncodingError:
         write(artifacts/'result-manifest.json', status='failed', failure={
             'code':'video_delivery_budget', 'stage':'presentation', 'retryable':False,

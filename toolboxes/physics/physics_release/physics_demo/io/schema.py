@@ -380,7 +380,7 @@ def _effective_scene_choices(scene: dict[str, Any]) -> list[str]:
     return choices
 
 
-def normalize_and_validate(raw: Any) -> dict[str, Any]:
+def normalize_and_validate(raw: Any, *, allow_unlimited: bool = False) -> dict[str, Any]:
     errors: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     assumptions: list[str] = []
@@ -444,7 +444,7 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
     if not isinstance(budget, dict):
         errors.append(_issue("budget_type", "budget", "budget must be an object."))
         budget = scene["budget"] = {}
-    _unknown_fields(budget, {"wall_time_s", "quality", "backend", "validation"}, "budget", errors)
+    _unknown_fields(budget, {"wall_time_s", "quality", "backend", "validation", "unlimited_runtime"}, "budget", errors)
     _defaults(budget, {
         "wall_time_s": (55.0, "Used a 55 second wall-clock budget."),
         "quality": ("preview", "Used preview quality."),
@@ -457,7 +457,14 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("backend", "budget.backend", "backend must be auto, native, or python."))
     if "validation" in budget and budget["validation"] not in ("visual", "strict"):
         errors.append(_issue("validation_mode", "budget.validation", "validation must be visual or strict."))
-    if not (1.0 <= budget["wall_time_s"] <= MAX_WALL_TIME_S):
+    unlimited = budget.get("unlimited_runtime", False)
+    if type(unlimited) is not bool:
+        errors.append(_issue("unlimited_runtime", "budget.unlimited_runtime", "unlimited_runtime must be boolean."))
+    from ..limits import NO_DEADLINE_WALL_TIME_S
+    if unlimited is True and not allow_unlimited:
+        errors.append(_issue("unlimited_runtime_authorization", "budget.unlimited_runtime",
+                             "Only the host can authorize unlimited runtime."))
+    elif not (allow_unlimited and budget["wall_time_s"] == NO_DEADLINE_WALL_TIME_S and unlimited is True) and not (1.0 <= budget["wall_time_s"] <= MAX_WALL_TIME_S):
         errors.append(_issue("budget_range", "budget.wall_time_s", "wall_time_s must be in [1, 300]."))
 
     entities = scene.setdefault("entities", [])

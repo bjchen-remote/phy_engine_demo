@@ -145,7 +145,7 @@
   },
   {
     "name": "physics_validate",
-    "description": "Normalize and semantically validate a complete scene before estimating or simulating it. Pass the scene as a JSON string so the service can report all unit, range, geometry, and capability errors together. Use returned assumptions and warnings in the final answer; correct structured errors and retry no more than twice.",
+    "description": "Normalize and semantically validate a complete scene before estimating or simulating it. Pass the scene as a JSON string so the service can report all unit, range, geometry, and capability errors together. Use returned assumptions and warnings in the final answer; retry a structured error only after a concrete model correction, never with the unchanged failed scene.",
     "strict": true,
     "input_schema": {
       "type": "object",

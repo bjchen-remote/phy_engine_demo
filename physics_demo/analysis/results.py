@@ -312,7 +312,9 @@ def _validated_result_scene(
     scene = result.get("scene")
     if not isinstance(scene, dict):
         raise TypeError("scene must be an object")
-    report = normalize_and_validate(copy.deepcopy(scene))
+    # This is a saved result, not a request to run work. Host-authorized scenes
+    # retain their unlimited marker for exact result verification.
+    report = normalize_and_validate(copy.deepcopy(scene), allow_unlimited=True)
     if not report["valid"]:
         raise ValueError("scene is not a valid normalized simulation scene")
     normalized = report["scene"]

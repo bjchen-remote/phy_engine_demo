@@ -30,7 +30,7 @@ def _scene(arguments: dict[str, Any], field: str = "scene_json") -> Any:
         raise ValueError(f"{field} is not valid JSON: {error}") from error
 
 
-def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def call_tool(name: str, arguments: dict[str, Any], *, unlimited: bool = False) -> dict[str, Any]:
     try:
         if name == "physics_capabilities":
             result = capabilities()
@@ -77,17 +77,18 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                       "audit": mesh["metadata"],
                       "model_scope": "Agent-authored geometry; image depth and unseen surfaces are assumptions, not measured reconstruction."}
         elif name == "physics_validate":
-            result = validate(_scene(arguments))
+            result = validate(_scene(arguments), unlimited=unlimited)
         elif name == "physics_estimate":
-            result = estimate(_scene(arguments), arguments.get("budget_seconds"))
+            result = estimate(_scene(arguments), arguments.get("budget_seconds"), unlimited=unlimited)
         elif name == "physics_prepare":
-            result = prepare(_scene(arguments), arguments.get("budget_seconds"))
+            result = prepare(_scene(arguments), arguments.get("budget_seconds"), unlimited=unlimited)
         elif name == "physics_simulate":
             result = simulate(
                 _scene(arguments),
                 arguments["output_dir"],
                 arguments.get("budget_seconds"),
                 make_video=True,
+                unlimited=unlimited,
             )
         elif name == "physics_inspect":
             result = inspect(arguments["result_path"])
@@ -112,7 +113,7 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                         raise ValueError(f"value_json must be a string of at most {MAX_SCENE_JSON_BYTES} bytes")
                     converted["value"] = strict_json_loads(encoded_value)
                 operations.append(converted)
-            result = patch_scene(_scene(arguments), operations)
+            result = patch_scene(_scene(arguments), operations, unlimited=unlimited)
         else:
             result = failure(
                 'dispatch', 'unknown_tool', 'name',
@@ -129,13 +130,13 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             'arguments', 'invalid_arguments', 'arguments',
             str(error),
             retryable=True,
-            suggestion='Call physics_capabilities, correct the named argument, and retry at most twice.',
+            suggestion='Call physics_capabilities, correct the named argument, and retry only after changing it.',
         )
     except OSError as error:
         result = failure(
             'output', 'tool_io_failed', 'output_dir',
             str(error),
             retryable=True,
-            suggestion='Choose a readable/writable dedicated path and retry the same operation once.',
+            suggestion='Choose a readable/writable dedicated path before retrying the operation.',
         )
     return guide_tool_result(name, result)

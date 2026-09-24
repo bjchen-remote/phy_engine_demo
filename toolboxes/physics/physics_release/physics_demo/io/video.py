@@ -230,7 +230,7 @@ def _compile_renderer(
     sources: list[Path],
     frameworks: tuple[str, ...],
     cache_name: str,
-    timeout_seconds: float,
+    timeout_seconds: float | None,
 ) -> Path:
     prebuilt = _prebuilt_renderer(cache_name)
     if prebuilt is not None:
@@ -271,7 +271,7 @@ def _compile_renderer(
                 compile_command,
                 capture_output=True,
                 text=True,
-                timeout=max(0.5, min(20.0, timeout_seconds)),
+                timeout=None if timeout_seconds is None else max(0.5, min(20.0, timeout_seconds)),
                 check=False,
             )
         except subprocess.TimeoutExpired as error:
@@ -287,7 +287,7 @@ def _run_renderer(
     result_path: Path,
     output_path: Path,
     fps: int,
-    timeout_seconds: float,
+    timeout_seconds: float | None,
     extra_arguments: tuple[str, ...] = (),
 ) -> tuple[bool, str]:
     command = [str(renderer), str(result_path), str(output_path), str(fps), *extra_arguments]
@@ -311,9 +311,9 @@ def _validate_first_frame(
     clang: str,
     source: Path,
     output_path: Path,
-    timeout_seconds: float,
+    timeout_seconds: float | None,
 ) -> dict[str, Any]:
-    if timeout_seconds <= 0.25:
+    if timeout_seconds is not None and timeout_seconds <= 0.25:
         raise VideoEncodingError(
             "The wall-clock budget was exhausted before full-track video validation."
         )
@@ -329,14 +329,14 @@ def _validate_first_frame(
             "ImageIO",
         ),
         cache_name="decode-probe",
-        timeout_seconds=min(10.0, max(0.25, timeout_seconds * 0.5)),
+        timeout_seconds=None if timeout_seconds is None else min(10.0, max(0.25, timeout_seconds * 0.5)),
     )
     try:
         completed = subprocess.run(
             [str(probe), str(output_path)],
             capture_output=True,
             text=True,
-            timeout=max(0.25, timeout_seconds),
+            timeout=None if timeout_seconds is None else max(0.25, timeout_seconds),
             check=False,
         )
     except subprocess.TimeoutExpired as error:
@@ -401,7 +401,7 @@ def _validate_first_frame(
     return validation
 
 
-def probe_mp4(output_path: Path, timeout_seconds: float = 30.0) -> dict[str, Any]:
+def probe_mp4(output_path: Path, timeout_seconds: float | None = 30.0) -> dict[str, Any]:
     """Parse the video track and validate every compressed and decoded sample.
 
     A constrained macOS process can deny VideoToolbox's hypervisor capability
@@ -449,7 +449,7 @@ def _metadata(
     }
 
 
-def encode_mp4(result_path: Path, output_path: Path, fps: int, timeout_seconds: float = 30.0) -> dict[str, Any]:
+def encode_mp4(result_path: Path, output_path: Path, fps: int, timeout_seconds: float | None = 30.0) -> dict[str, Any]:
     started = time.monotonic()
     clang = _renderer_compiler()
     source_root = Path(__file__).parent
@@ -466,8 +466,8 @@ def encode_mp4(result_path: Path, output_path: Path, fps: int, timeout_seconds: 
     )
     for codec, encoder, source, cache_name, frameworks in encoders:
         fallback = codec == "Motion JPEG"
-        remaining = timeout_seconds - (time.monotonic() - started)
-        if remaining <= 0.5:
+        remaining = None if timeout_seconds is None else timeout_seconds - (time.monotonic() - started)
+        if remaining is not None and remaining <= 0.5:
             if not fallback:
                 continue
             detail = "; ".join(failures) or "no encoder attempt could start"
@@ -478,10 +478,10 @@ def encode_mp4(result_path: Path, output_path: Path, fps: int, timeout_seconds: 
                 sources=[source_root / source, render_core, render_header],
                 frameworks=frameworks,
                 cache_name=cache_name,
-                timeout_seconds=min(20.0, max(0.5, remaining * 0.6)),
+                timeout_seconds=None if remaining is None else min(20.0, max(0.5, remaining * 0.6)),
             )
-            remaining = timeout_seconds - (time.monotonic() - started)
-            if remaining <= 0.25:
+            remaining = None if timeout_seconds is None else timeout_seconds - (time.monotonic() - started)
+            if remaining is not None and remaining <= 0.25:
                 raise VideoEncodingError(f"The wall-clock budget was exhausted before {codec} encoding could start.")
             encoded, detail = _run_renderer(renderer, result_path, output_path, fps, remaining)
             if encoded:
@@ -492,7 +492,7 @@ def encode_mp4(result_path: Path, output_path: Path, fps: int, timeout_seconds: 
                         clang,
                         decode_probe,
                         output_path,
-                        timeout_seconds - (time.monotonic() - started),
+                        None if timeout_seconds is None else timeout_seconds - (time.monotonic() - started),
                     )
                 )
                 return _metadata(output_path, fps, codec, encoder, fallback, decode_validation)
@@ -504,7 +504,7 @@ def encode_mp4(result_path: Path, output_path: Path, fps: int, timeout_seconds: 
 
 
 def encode_bounded_mp4(result_path: Path, output_path: Path, fps: int,
-                       max_bytes: int, timeout_seconds: float = 30.0) -> dict[str, Any]:
+                       max_bytes: int, timeout_seconds: float | None = 30.0) -> dict[str, Any]:
     """Fit every saved frame into a host delivery budget, without rerunning physics."""
     if type(max_bytes) is not int or max_bytes < 1024:
         raise VideoEncodingError("Video byte budget must be an integer of at least 1024.")
@@ -515,10 +515,10 @@ def encode_bounded_mp4(result_path: Path, output_path: Path, fps: int,
     renderer = _compile_renderer(_renderer_compiler(),
         sources=[source/'video_mjpeg_renderer.m', source/'video_render_core.m', source/'video_render_core.h'],
         frameworks=("Foundation", "CoreGraphics", "ImageIO"), cache_name="renderer-mjpeg",
-        timeout_seconds=max(.001, min(20.0, timeout_seconds)))
+        timeout_seconds=None if timeout_seconds is None else max(.001, min(20.0, timeout_seconds)))
     for width in (960, 720, 480):
-        remaining = timeout_seconds - (time.monotonic() - started)
-        if remaining <= .25:
+        remaining = None if timeout_seconds is None else timeout_seconds - (time.monotonic() - started)
+        if remaining is not None and remaining <= .25:
             raise VideoEncodingError("Video compression exceeded its remaining wall-clock budget.")
         encoded, detail = _run_renderer(renderer, result_path, output_path, fps, remaining,
                                         (str(max_bytes), str(width)))
@@ -697,7 +697,7 @@ def encode_watchable_mp4(
     *,
     fps: int,
     segments: list[dict[str, float]],
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float | None = 30.0,
     max_bytes: int | None = None,
 ) -> dict[str, Any]:
     """Encode a smooth, slowed presentation while preserving the source run."""

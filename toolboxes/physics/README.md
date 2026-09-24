@@ -8,7 +8,7 @@ scene-v1、创建系统/网格、设置液体、组合约束、声明观测量�
 `modeling.py` 管理结构化调用和当前任务的规范化模型；`toolbox_adapter.py` 实现 api/probe/run；
 `run_simulation.py` 管理验证与视频，并保留不使用 Agent 的水滴/双摆/三体快速示例入口。
 Agent 任务必须先 prepare，通过前不允许退回固定示例。保存的场景决定实际运行参数。
-模型不执行用户代码，不能指定主机输出路径。校验最多修正两次，不能无限试错或捏造成功。
+模型不执行用户代码，不能指定主机输出路径。结构化错误可在每次有依据地修改模型后继续修正；不得原样重试失败模型或捏造成功。
 
 ## PCB 热仿真
 
@@ -31,7 +31,7 @@ Agent 任务必须先 prepare，通过前不允许退回固定示例。保存的
 
 续改通过 `context` 获取宿主提供的上一轮已验证模型；该数据只在当前任务内，不访问聊天历史。
 延长物理时长时保持初态，并同步延长持续至上一轮终点的力场，避免重力提前停止。
-一分钟是通常目标；预算可显式设置为 1–300 秒。实际预算和超时提醒由宿主统一管理。
+一分钟是通常响应目标。独立调用可显式设置 1–300 秒预算；本机 OneBot 宿主不设固定建模、求解或视频超时，仍执行资源、数值和投递校验。`budget.unlimited_runtime` 只能由宿主授权，场景输入不能自行启用。
 
 ## Visual and strict acceptance
 
@@ -40,7 +40,7 @@ The standalone toolbox defaults to visual; omitted fields in the raw engine API 
 `quality_gate.passed` describes delivery; `numerical_passed` describes the original numerical checks.
 Visual mode moves only listed precision checks (energy drift, fine constraint residuals, volume drift, water density and iteration budget) into `precision_warnings`.
 The diagnostic values and original check booleans remain unchanged. Query answers are unavailable when numerical checks fail.
-Complete duration, finite states, valid geometry/contact, consistent diagnostics, media integrity and the execution deadline remain mandatory.
+Complete duration, finite states, valid geometry/contact, consistent diagnostics and media integrity remain mandatory. Finite-budget callers must also meet their execution deadline.
 Do not retry a passed visual video solely to remove precision warnings; disclose the approximation when explaining results.
 
 Native point-mass gravity now subcycles velocity Verlet using the softened pair free-fall and crossing times.

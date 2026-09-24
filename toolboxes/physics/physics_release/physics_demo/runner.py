@@ -68,8 +68,8 @@ def load_scene(path: str | Path) -> dict[str, Any]:
     return value
 
 
-def validate(scene: Any) -> dict[str, Any]:
-    report = normalize_and_validate(scene)
+def validate(scene: Any, *, unlimited: bool = False) -> dict[str, Any]:
+    report = normalize_and_validate(scene, allow_unlimited=unlimited)
     result = {"ok": report["valid"], **report}
     if not report["valid"]:
         result["stage"] = "validate"
@@ -87,15 +87,20 @@ def _apply_budget_override(scene: dict[str, Any], budget_seconds: float | None) 
     return None
 
 
-def _validated_scene(scene: Any, budget_seconds: float | None) -> dict[str, Any]:
-    report = validate(scene)
+def _validated_scene(scene: Any, budget_seconds: float | None, unlimited: bool = False) -> dict[str, Any]:
+    if unlimited and isinstance(scene, dict):
+        scene = copy.deepcopy(scene)
+        from .limits import NO_DEADLINE_WALL_TIME_S
+        scene.setdefault("budget", {})["wall_time_s"] = NO_DEADLINE_WALL_TIME_S
+        scene["budget"]["unlimited_runtime"] = True
+    report = validate(scene, unlimited=unlimited)
     if not report["ok"] or budget_seconds is None:
         return report
     error = _apply_budget_override(report["scene"], budget_seconds)
     if error:
         return {"ok": False, "stage": "arguments", "errors": [error]}
     # Recompute assumptions only when the override changed the scene.
-    return validate(report["scene"])
+    return validate(report["scene"], unlimited=unlimited)
 
 
 def _plan_constraint_error(plan: dict[str, Any]) -> dict[str, Any] | None:
@@ -148,8 +153,8 @@ def _plan_constraint_error(plan: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def estimate(scene: Any, budget_seconds: float | None = None) -> dict[str, Any]:
-    report = _validated_scene(scene, budget_seconds)
+def estimate(scene: Any, budget_seconds: float | None = None, *, unlimited: bool = False) -> dict[str, Any]:
+    report = _validated_scene(scene, budget_seconds, unlimited)
     if not report["ok"]:
         return report
     plan = make_plan(report["scene"])
@@ -160,9 +165,9 @@ def estimate(scene: Any, budget_seconds: float | None = None) -> dict[str, Any]:
     return {**result, "warnings": report["warnings"], "assumptions": report["assumptions"]}
 
 
-def prepare(scene: Any, budget_seconds: float | None = None) -> dict[str, Any]:
+def prepare(scene: Any, budget_seconds: float | None = None, *, unlimited: bool = False) -> dict[str, Any]:
     """Validate and plan once, returning the exact runnable scene."""
-    report = _validated_scene(scene, budget_seconds)
+    report = _validated_scene(scene, budget_seconds, unlimited)
     if not report["ok"]:
         return {**report, "ready_to_simulate": False}
     normalized = report["scene"]
@@ -193,9 +198,10 @@ def simulate(
     output_dir: str | Path,
     budget_seconds: float | None = None,
     make_video: bool = True,
+    *, unlimited: bool = False,
 ) -> dict[str, Any]:
     started = time.monotonic()
-    report = _validated_scene(scene, budget_seconds)
+    report = _validated_scene(scene, budget_seconds, unlimited)
     if not report["ok"]:
         return report
     normalized = report["scene"]
@@ -351,8 +357,8 @@ def simulate(
         if make_video and ok:
             video_path = output / "simulation.mp4"
             try:
-                remaining = wall_budget - (time.monotonic() - started)
-                if remaining <= 0.5:
+                remaining = (None if unlimited else wall_budget - (time.monotonic() - started))
+                if remaining is not None and remaining <= 0.5:
                     raise VideoEncodingError("The run used its wall-clock budget before the MP4 stage.")
                 video = encode_mp4(
                     result_path,
@@ -561,7 +567,7 @@ def query(result_path: str | Path, query_id: str | None = None) -> dict[str, Any
     return response
 
 
-def patch_scene(scene: Any, operations: Any) -> dict[str, Any]:
+def patch_scene(scene: Any, operations: Any, *, unlimited: bool = False) -> dict[str, Any]:
     if not isinstance(scene, dict):
         return failure(
             'patch', 'scene_type', '$',
@@ -637,7 +643,7 @@ def patch_scene(scene: Any, operations: Any) -> dict[str, Any]:
             retryable=True,
             suggestion='Read the normalized scene and retry with a valid JSON Pointer.',
         )
-    report = normalize_and_validate(candidate)
+    report = normalize_and_validate(candidate, allow_unlimited=unlimited)
     if report["valid"]:
         return {"ok": True, "scene": candidate,
                 "scene_json": json.dumps(candidate, separators=(",", ":"), ensure_ascii=False),

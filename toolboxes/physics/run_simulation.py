@@ -164,7 +164,8 @@ def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
 
 
 def _publish_watchable_video(
-    artifacts: Path, summary: Dict[str, Any], duration: float
+    artifacts: Path, summary: Dict[str, Any], duration: float,
+    *, unlimited: bool = False,
 ) -> Dict[str, Any]:
     from physics_demo.analysis.results import _summary
     from physics_demo.io.video import encode_watchable_mp4
@@ -177,7 +178,7 @@ def _publish_watchable_video(
             temporary_video,
             fps=30,
             segments=_watchable_segments(duration),
-            timeout_seconds=30.0,
+            timeout_seconds=None if unlimited else 30.0,
         )
         real_time_video = artifacts / "simulation-realtime.mp4"
         if real_time_video.exists():
@@ -241,10 +242,11 @@ def main(argv: list[str]) -> int:
     return simulate_scene(scene, artifacts, route_name)
 
 
-def simulate_scene(scene: dict, artifacts: Path, route_name: str = "agent_authored") -> int:
+def simulate_scene(scene: dict, artifacts: Path, route_name: str = "agent_authored",
+                   *, unlimited: bool = False) -> int:
     from physics_demo.runner import simulate
 
-    summary = simulate(scene, artifacts, make_video=True)
+    summary = simulate(scene, artifacts, make_video=True, unlimited=unlimited)
     video = artifacts / "simulation.mp4"
     if not summary.get("ok") or not summary.get("quality_gate", {}).get("passed"):
         print(json.dumps({"ok": False, "route": route_name, "summary": summary}, ensure_ascii=False))
@@ -254,7 +256,7 @@ def simulate_scene(scene: dict, artifacts: Path, route_name: str = "agent_author
     presentation = None
     if _needs_watchable_video(route_name, scene):
         metadata = _publish_watchable_video(
-            artifacts, summary, float(scene["world"]["duration"])
+            artifacts, summary, float(scene["world"]["duration"]), unlimited=unlimited
         )
         presentation = metadata["presentation"]
     print(

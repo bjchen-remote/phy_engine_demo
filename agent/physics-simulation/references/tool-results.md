@@ -73,7 +73,7 @@ Video `duration_s` is encoded playback duration, `physical_duration_s` is the si
 
 ## Error recovery
 
-Apply an unambiguous structured correction at most twice and re-prepare after any scene change. Do not retry unsupported requests unchanged, fabricate success, or remove unrelated output files. Preserve errors/plan if failure occurred before result creation.
+Apply an unambiguous structured correction while each correction makes a concrete model change, and re-prepare after any scene change. Do not retry unsupported requests unchanged, fabricate success, or remove unrelated output files. Preserve errors/plan if failure occurred before result creation.
 
 | Signal | Action |
 |---|---|

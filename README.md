@@ -6,7 +6,7 @@ Agent Physics is a lightweight simulator built for AI agents. An agent describes
 
 The project focuses on **composable scenes, fast visual feedback, and reproducible experiments**. Python provides the interfaces and orchestration; C11 powers the numerical kernels. A standalone toolbox connects the simulator to different agents and applications.
 
-[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [PCB thermal design](docs/pcb-thermal-design.md) · [Toolbox 1.4.0 release notes](docs/release-1.4.0.md)
+[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [PCB thermal design](docs/pcb-thermal-design.md) · [Toolbox 1.4.1 release notes](docs/release-1.4.1.md)
 
 ## What it can simulate
 
@@ -113,7 +113,7 @@ python3 -m unittest discover -s toolboxes/tests -v
 python3 toolboxes/build_physics.py --check
 ```
 
-The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares version **1.4.0**. The [1.4.0 release notes](docs/release-1.4.0.md) contain current verification results; older notes remain historical records. The Python distribution in `pyproject.toml` has its own version. Run the commands above or check the [CI workflow](.github/workflows/physics-quality.yml) for validation of the current source; test counts change as coverage grows. Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
+The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares version **1.4.1**. The [1.4.1 release notes](docs/release-1.4.1.md) contain current verification results; older notes remain historical records. The Python distribution in `pyproject.toml` has its own version. Run the commands above or check the [CI workflow](.github/workflows/physics-quality.yml) for validation of the current source; test counts change as coverage grows. Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
 
 ## License
 

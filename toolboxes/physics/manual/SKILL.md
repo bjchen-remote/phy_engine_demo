@@ -18,7 +18,7 @@ For PCB board temperature and prescribed component dissipation, use the separate
 5. Require `status=completed`, `ok=true` and `quality_gate.passed=true`; read [tool-results](references/tool-results.md) for gates and failure recovery. A successful simulate response is already inspected. Use `physics_inspect` for saved-run recovery or rechecking.
 6. View the video at initial, impact and final states. For numerical questions, call `physics_query` with a declared ID. Report its status, definition, unit, observation window, model scope and event-time bracket alongside the number.
 
-For named-system parameter edits, rebuild with `physics_system` and repeat prepare/simulate. For other follow-up scene edits, patch the last normalized scene and repeat prepare/simulate. Correct structured retryable errors at most twice; unsupported requests and unchanged failed plans are not retry candidates. If a run failed before creating results, preserve the error/plan rather than claiming inspect succeeded.
+For named-system parameter edits, rebuild with `physics_system` and repeat prepare/simulate. For other follow-up scene edits, patch the last normalized scene and repeat prepare/simulate. Correct structured retryable errors while each correction makes a concrete model change; unsupported requests and unchanged failed plans are not retry candidates. If a run failed before creating results, preserve the error/plan rather than claiming inspect succeeded.
 
 ## Decisions that change the result
 

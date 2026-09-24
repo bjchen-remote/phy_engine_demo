@@ -236,8 +236,8 @@ def _ffmpeg_executable() -> str:
 
 
 def _encode_mp4(raw_frames: Path, destination: Path, width: int, height: int,
-                fps: int, quality: int, timeout: float) -> None:
-    if timeout <= 0:
+                fps: int, quality: int, timeout: float | None) -> None:
+    if timeout is not None and timeout <= 0:
         raise PcbVideoError("PCB video rendering exceeded its deadline")
     command = [
         _ffmpeg_executable(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
@@ -258,7 +258,7 @@ def _encode_mp4(raw_frames: Path, destination: Path, width: int, height: int,
                             + completed.stderr.strip()[-400:])
 
 
-def _decode_probe(video: Path, timeout: float) -> dict:
+def _decode_probe(video: Path, timeout: float | None) -> dict:
     # ffmpeg's software decoder checks every frame; ffprobe supplies the
     # decoded frame count and stream metadata. The AVFoundation probe can fail
     # in restricted hosts that do not expose a hardware decoder.
@@ -269,13 +269,13 @@ def _decode_probe(video: Path, timeout: float) -> dict:
             [ffmpeg, "-hide_banner", "-loglevel", "error", "-xerror", "-i",
              str(video), "-f", "null", "-"],
             input='', stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, timeout=max(0.1, timeout * 0.5), check=False)
+            text=True, timeout=None if timeout is None else max(0.1, timeout * 0.5), check=False)
         metadata = subprocess.run(
             [ffprobe, "-v", "error", "-select_streams", "v:0", "-count_frames",
              "-show_entries", "stream=codec_name,width,height,duration,nb_read_frames",
              "-of", "json", str(video)],
             input='', stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, timeout=max(0.1, timeout * 0.5), check=False)
+            text=True, timeout=None if timeout is None else max(0.1, timeout * 0.5), check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise PcbVideoError("video decode validation failed") from exc
     if decoded.returncode or metadata.returncode:
@@ -293,7 +293,7 @@ def _decode_probe(video: Path, timeout: float) -> dict:
 
 
 def render_pcb_video(result: dict, spec: dict, destination: Path, *,
-                     max_bytes: int, timeout_seconds: float) -> dict:
+                     max_bytes: int, timeout_seconds: float | None) -> dict:
     """Render, size-check, and fully decode a PCB thermal video.
 
     Rows in ``temperature_c`` and ``power_w`` increase from the board's bottom
@@ -302,7 +302,7 @@ def render_pcb_video(result: dict, spec: dict, destination: Path, *,
     """
     if type(max_bytes) is not int or max_bytes < 1024:
         raise PcbVideoError("invalid video byte budget")
-    if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+    if timeout_seconds is not None and (type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0):
         raise PcbVideoError("invalid video deadline")
     if not isinstance(spec, dict) or not isinstance(result, dict):
         raise PcbVideoError("invalid PCB video input")
@@ -325,7 +325,7 @@ def render_pcb_video(result: dict, spec: dict, destination: Path, *,
             raw_frames = temporary / "frames.rgb"
             with raw_frames.open("wb") as handle:
                 for index in range(frame_count):
-                    if time.monotonic() - started >= timeout_seconds:
+                    if timeout_seconds is not None and time.monotonic() - started >= timeout_seconds:
                         raise PcbVideoError("PCB video rendering exceeded its deadline")
                     stamp = (start_time + (end_time - start_time) * index / (frame_count - 1)
                              if len(snapshots) > 1 else start_time)
@@ -336,17 +336,17 @@ def render_pcb_video(result: dict, spec: dict, destination: Path, *,
             candidate = temporary / "simulation.mp4"
             for quality in (20, 28, 36):
                 _encode_mp4(raw_frames, candidate, width, height, fps, quality,
-                            timeout_seconds - (time.monotonic() - started))
+                            None if timeout_seconds is None else timeout_seconds - (time.monotonic() - started))
                 if candidate.stat().st_size <= max_bytes:
                     break
             else:
                 raise PcbVideoError("PCB video exceeds the host byte budget")
-            probe = _decode_probe(candidate, timeout_seconds - (time.monotonic() - started))
+            probe = _decode_probe(candidate, None if timeout_seconds is None else timeout_seconds - (time.monotonic() - started))
             if (probe["width"], probe["height"], probe["sample_count"]) != (width, height, frame_count):
                 raise PcbVideoError("decoded PCB video disagrees with its frames")
             if abs(probe["duration_s"] - frame_count / fps) > 0.01:
                 raise PcbVideoError("decoded PCB video duration is inconsistent")
-            if time.monotonic() - started > timeout_seconds:
+            if timeout_seconds is not None and time.monotonic() - started > timeout_seconds:
                 raise PcbVideoError("PCB video rendering exceeded its deadline")
             os.replace(candidate, destination)
             return {"decode_verified": True, "frame_count": frame_count,

@@ -8,6 +8,9 @@ from __future__ import annotations
 
 
 MAX_WALL_TIME_S = 300
+# A finite representation of an unbounded runtime for the native C ABI. It is
+# used only for host-authorized tasks; the ordinary scene budget stays at 300.
+NO_DEADLINE_WALL_TIME_S = 1_000_000_000_000.0
 MAX_PHYSICAL_DURATION_S = 60.0
 
 
