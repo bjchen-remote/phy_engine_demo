@@ -19,7 +19,7 @@ from registry import manifest, publish, read_json, sha256, verify, write_json
 def profile(package: Path, job: Path) -> str:
     def literal(path):
         return str(Path(path).resolve()).replace("\\", "\\\\").replace('"', '\\"')
-    roots = ["/System", "/usr", "/opt/homebrew", "/Library/Developer/CommandLineTools", "/private/etc",
+    roots = ["/System", "/usr", "/Applications", "/opt/homebrew", "/Library/Developer", "/private/etc",
              "/private/var/select", "/var/select", "/dev", package, job]
     parents = ["/", "/Library", "/Library/Developer", "/private", "/private/var", "/var"]
     reads = " ".join(f'(subpath "{literal(path)}")' for path in roots)
