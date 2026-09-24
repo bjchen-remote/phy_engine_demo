@@ -173,35 +173,13 @@ def route(text: str, *, seed: int = 0) -> Tuple[str, Dict[str, Any]]:
 
 
 def _watchable_segments(duration: float) -> list[dict[str, float]]:
-    """Slow a short physical impact for inspection without changing its states."""
-    first = duration * 0.25
-    second = duration * 0.50
+    """Play the complete physical trajectory at one steady slow-motion rate."""
     return [
-        {"physical_start_s": 0.0, "physical_end_s": 0.0, "playback_duration_s": 0.5},
-        {"physical_start_s": 0.0, "physical_end_s": first, "playback_duration_s": 1.5},
-        {"physical_start_s": first, "physical_end_s": second, "playback_duration_s": 2.2},
-        {"physical_start_s": second, "physical_end_s": duration, "playback_duration_s": 1.8},
-        {"physical_start_s": duration, "physical_end_s": duration, "playback_duration_s": 0.8},
-    ]
-
-
-def _impact_segments(duration: float) -> list[dict[str, float]]:
-    """Give the recorded impact most of the playback time, without idle holds."""
-    impact_start = duration * 0.5
-    return [
-        {"physical_start_s": 0.0, "physical_end_s": impact_start, "playback_duration_s": 0.7},
-        {"physical_start_s": impact_start, "physical_end_s": duration, "playback_duration_s": 3.3},
-    ]
-
-
-def _fine_impact_segments(duration: float) -> list[dict[str, float]]:
-    """Show the 3 mm drop's short impact without extending its settled tail."""
-    approach = min(0.05, duration * 0.25)
-    active_end = min(0.15, duration * 0.8)
-    return [
-        {"physical_start_s": 0.0, "physical_end_s": approach, "playback_duration_s": 0.7},
-        {"physical_start_s": approach, "physical_end_s": active_end, "playback_duration_s": 2.7},
-        {"physical_start_s": active_end, "physical_end_s": duration, "playback_duration_s": 0.6},
+        {
+            "physical_start_s": 0.0,
+            "physical_end_s": duration,
+            "playback_duration_s": max(4.0, min(12.0, 8.0 * duration)),
+        },
     ]
 
 
@@ -258,23 +236,6 @@ def _impact_time(scene: dict) -> float | None:
     return None
 
 
-def _event_impact_segments(scene: dict) -> list[dict[str, float]]:
-    """Spend playback time around contact while retaining the full trajectory."""
-    duration = float(scene["world"]["duration"])
-    contact = _impact_time(scene)
-    if contact is None or contact >= duration:
-        return _watchable_segments(duration)
-    start = max(0.0, contact - min(0.08, 0.12 * duration))
-    end = min(duration, contact + min(0.25, 0.40 * duration))
-    if start <= 0 or end >= duration:
-        return _impact_segments(duration)
-    return [
-        {"physical_start_s": 0.0, "physical_end_s": start, "playback_duration_s": 0.7},
-        {"physical_start_s": start, "physical_end_s": end, "playback_duration_s": 2.7},
-        {"physical_start_s": end, "physical_end_s": duration, "playback_duration_s": 0.6},
-    ]
-
-
 def _short_water_impact(scene: dict) -> bool:
     """Recognize a prepared drop impact without relying on its generated name."""
     world = scene.get("world", {})
@@ -325,19 +286,19 @@ def _water_impact_display(scene: dict) -> tuple[str, float, float | None, list[d
     radius = drops[0].get("shape", {}).get("radius", 0) if drops else 0
     impact = bool(drops) and _impact_time(scene) is not None
     if impact and water_only and meshes and coupled:
-        return "mesh_hybrid", 1.6, None, _event_impact_segments(scene)
+        return "mesh_hybrid", 1.6, None, _watchable_segments(duration)
     uncoupled = (not meshes and not coupled
                  and not any(entity.get("type") == "rigid" and entity.get("mass") != 0
                              for entity in scene.get("entities", []))
                  and not scene.get("connections"))
     if impact and water_only and uncoupled:
         if radius < 0.02:
-            return "legacy_v2", 1.5 if film else 1.0, 0.99 if film else None, _fine_impact_segments(duration)
+            return "legacy_v2", 1.5 if film else 1.0, 0.99 if film else None, _watchable_segments(duration)
         # The collision walls may be metres away to avoid false rebounds.
         # Frame the impact itself, while allowing distant late beads to leave
         # the camera just as they would in a fixed physical camera.
-        return "legacy_v2", 1.7 if len(drops) == 1 else 1.0, None, _event_impact_segments(scene)
-    return "continuous", 1.0, None, _event_impact_segments(scene)
+        return "legacy_v2", 1.7 if len(drops) == 1 else 1.0, None, _watchable_segments(duration)
+    return "continuous", 1.0, None, _watchable_segments(duration)
 
 
 def _needs_watchable_video(scene: dict, route_name: str, request_text: str) -> bool:
@@ -380,7 +341,7 @@ def _publish_watchable_video(
             temporary_video,
             fps=30,
             segments=segments or _watchable_segments(duration),
-            timeout_seconds=30.0,
+            timeout_seconds=60.0,
             camera_zoom=camera_zoom,
             camera_focus_quantile=camera_focus_quantile,
             water_renderer=water_renderer,

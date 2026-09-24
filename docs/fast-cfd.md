@@ -70,12 +70,13 @@ Water opacity is view-dependent for readability, but the renderer does not
 claim refraction or a second air phase.
 
 Very short impacts also need a presentation timescale. The benchmark's 0.2 s
-trajectory remains the auditable solver result. `encode_watchable_mp4` can
-create a separate, smooth display-only retiming with piecewise physical-time
-segments and endpoint holds. It linearly interpolates recorded state, does not
-write into the solver result, and reports physical duration, playback duration
-and their ratio. That millimetre benchmark showcase uses 204 frames at 30 fps:
-6.8 s of playback for 0.2 s of physics, with extra time around impact and recoil.
+trajectory remains the auditable solver result. `encode_watchable_mp4` creates
+a separate display-only retiming by interpolating recorded state, without
+changing the solver result. A historical millimetre benchmark showcase used
+204 frames at 30 fps: 6.8 s of playback for 0.2 s of physics, with different
+speeds around impact and recoil. The current QQ release instead uses one
+constant slow-motion rate for the complete trajectory and reports physical
+duration, playback duration and their ratio.
 
 ## What was taken from the IPM reference
 

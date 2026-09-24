@@ -9,6 +9,7 @@ from pathlib import Path
 import unittest
 
 from physics_demo.catalog import example
+from physics_demo.io.video import _retime_result_document
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,14 @@ def scene(name: str) -> dict:
 
 
 class WaterImpactPresentationTests(unittest.TestCase):
+    def assert_uniform_timing(self, model: dict, segments: list[dict[str, float]]) -> None:
+        duration = model["world"]["duration"]
+        self.assertEqual(segments, [{
+            "physical_start_s": 0.0,
+            "physical_end_s": duration,
+            "playback_duration_s": max(4.0, min(12.0, 8.0 * duration)),
+        }])
+
     def test_retired_sphere_profiles_are_not_catalog_material(self):
         retired = {"droplet-on-sphere", "high-detail-droplet-on-sphere"}
         for name in ("droplet_sphere", "high_detail_droplet_sphere"):
@@ -51,21 +60,47 @@ class WaterImpactPresentationTests(unittest.TestCase):
         self.assertEqual(renderer, "legacy_v2")
         self.assertEqual(zoom, 1.7)
         self.assertIsNone(focus)
-        self.assertLess(segments[0]["physical_end_s"], 0.5)
-        self.assertGreater(segments[1]["physical_end_s"], 0.5)
-        self.assertEqual(segments[-1]["physical_end_s"], 1.45)
+        self.assert_uniform_timing(authored, segments)
+        self.assertEqual(segments[0]["playback_duration_s"], 11.6)
         self.assertEqual(authored, original)
+
+    def test_physical_time_and_linear_motion_advance_steadily_through_contact(self):
+        dry = scene("droplet_ground_dry.json")
+        authored = scene("droplet_ground_splash.json")
+        authored["world"]["duration"] = 1.45
+        for model in (dry, authored):
+            with self.subTest(duration=model["world"]["duration"]):
+                duration = model["world"]["duration"]
+                segments = release._water_impact_display(model)[3]
+                source = {"trajectory": {"frames": [
+                    {"t": t, "p": [[t, 0.0, 0.0]]}
+                    for t in (0.0, duration / 2.0, duration)
+                ]}}
+                retimed, _ = _retime_result_document(source, fps=30, segments=segments)
+                frames = retimed["trajectory"]["frames"]
+                times = [frame["t"] for frame in frames]
+                positions = [frame["p"][0][0] for frame in frames]
+                time_steps = [right - left for left, right in zip(times, times[1:])]
+                position_steps = [right - left for left, right in zip(positions, positions[1:])]
+                self.assertGreater(min(time_steps), 0)
+                self.assertLess(max(time_steps) - min(time_steps), 1.0e-10)
+                self.assertLess(max(position_steps) - min(position_steps), 1.0e-10)
+                self.assertAlmostEqual(times[-1], duration)
+                self.assertAlmostEqual(positions[-1], duration)
 
     def test_small_dry_drop_keeps_dry_beads_and_wet_film_is_explicit(self):
         dry = scene("droplet_ground_dry.json")
-        renderer, zoom, focus, _ = release._water_impact_display(dry)
+        renderer, zoom, focus, segments = release._water_impact_display(dry)
         self.assertEqual((renderer, zoom, focus), ("legacy_v2", 1.0, None))
         self.assertEqual(len(dry["entities"]), 1)
+        self.assert_uniform_timing(dry, segments)
+        self.assertEqual(segments[0]["playback_duration_s"], 4.0)
 
         wet = scene("droplet_ground_micro_wet.json")
-        renderer, zoom, focus, _ = release._water_impact_display(wet)
+        renderer, zoom, focus, segments = release._water_impact_display(wet)
         self.assertEqual((renderer, zoom, focus), ("legacy_v2", 1.5, 0.99))
         self.assertTrue(any(entity["id"] == "film" for entity in wet["entities"]))
+        self.assert_uniform_timing(wet, segments)
 
     def test_authored_coupled_mesh_drop_uses_occluding_hybrid(self):
         cone = scene("droplet_cone.json")
@@ -73,24 +108,27 @@ class WaterImpactPresentationTests(unittest.TestCase):
         renderer, zoom, focus, segments = release._water_impact_display(cone)
         self.assertEqual((renderer, zoom, focus), ("mesh_hybrid", 1.6, None))
         self.assertLess(release._impact_time(cone), 0.4)
-        self.assertLess(segments[0]["physical_end_s"], 0.4)
-        self.assertEqual(segments[-1]["physical_end_s"], cone["world"]["duration"])
+        self.assert_uniform_timing(cone, segments)
 
     def test_static_sphere_impact_uses_beads_and_its_earlier_contact(self):
         sphere = json.loads((ROOT / "examples" / "droplet_sphere.json").read_text())
         renderer, zoom, focus, segments = release._water_impact_display(sphere)
         self.assertEqual((renderer, zoom, focus), ("legacy_v2", 1.7, None))
         self.assertLess(release._impact_time(sphere), 0.4)
-        self.assertLess(segments[0]["physical_end_s"], 0.4)
+        self.assert_uniform_timing(sphere, segments)
 
         moving_sphere = copy.deepcopy(sphere)
         moving_sphere["entities"][1]["mass"] = 1.0
-        self.assertEqual(release._water_impact_display(moving_sphere)[0], "continuous")
+        renderer, _, _, segments = release._water_impact_display(moving_sphere)
+        self.assertEqual(renderer, "continuous")
+        self.assert_uniform_timing(moving_sphere, segments)
 
     def test_unrelated_water_scene_keeps_its_renderer(self):
         blob = json.loads((ROOT / "examples" / "water_blob.json").read_text())
         self.assertIsNone(release._impact_time(blob))
-        self.assertEqual(release._water_impact_display(blob)[0], "continuous")
+        renderer, _, _, segments = release._water_impact_display(blob)
+        self.assertEqual(renderer, "continuous")
+        self.assert_uniform_timing(blob, segments)
 
 
 if __name__ == "__main__":
