@@ -36,6 +36,8 @@ jobs:
       - name: Install PCB video encoder
         run: brew install ffmpeg
       - name: Run engine regressions
+        env:
+          PHYSICS_CI_RUNNER: '1'
         run: python -m unittest discover -s tests -q
       - name: Run toolbox regressions, including sandbox video acceptance
         run: python -m unittest discover -s toolboxes/tests -q

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -1233,10 +1234,13 @@ class SolverTests(unittest.TestCase):
 
     def test_particle_scenes_complete_under_budget_without_video(self):
         names = ["droplet_ground.json", "droplet_pool.json", "droplet_sphere.json", "water_blob.json", "sandcastle_wash.json"]
+        # The 30-second threshold is calibrated on the target M4 host. Hosted
+        # CI runners validate completion with a wider resource envelope.
+        budget = 90 if os.environ.get("PHYSICS_CI_RUNNER") == "1" else 30
         for name in names:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
                 started = time.monotonic()
-                result = simulate(load_scene(EXAMPLES / name), directory, 30, make_video=False)
+                result = simulate(load_scene(EXAMPLES / name), directory, budget, make_video=False)
                 elapsed = time.monotonic() - started
                 self.assertTrue(result["ok"], result)
                 self.assertTrue(result["completed"])
@@ -1244,7 +1248,7 @@ class SolverTests(unittest.TestCase):
                 if name == "droplet_ground.json":
                     self.assertGreater(result["diagnostics"]["minimum_water_separation_ratio"], 0.65)
                     self.assertLess(result["diagnostics"]["close_water_particle_fraction"], 0.02)
-                self.assertLess(elapsed, 30)
+                self.assertLess(elapsed, budget)
 
     def test_new_field_and_capsule_scenes_complete_under_budget(self):
         names = ["geyser.json", "sand_blast.json", "whirlpool.json", "water_obstacle_course.json", "zero_g_droplet_collision.json"]
