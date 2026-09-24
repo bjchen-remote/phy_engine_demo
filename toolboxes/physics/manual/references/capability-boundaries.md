@@ -10,7 +10,7 @@ Input is one finite scene-v1 JSON object. Present invalid fields never become de
 |---|---|
 | Input scene | 1 MB, 20,000 values (mesh scenes 160,000), depth 32 |
 | Entities / point masses / colliders / fields | 128 / 64 / 64 / 8; nonempty unique target IDs |
-| Physical duration / macro dt | `(0,30]` s / `[0.0001,0.05]` s |
+| Physical duration / macro dt | `(0,60]` s / `[0.0001,0.05]` s |
 | Output FPS / per-run wall budget | Integer 1–60 / 1–300 s |
 | Particle spacing | 0.0001–0.5 m; sub-millimetre values require physically small bounds and a bounded capillary timestep |
 | Coordinate magnitude / world axis span / shape extent | 10,000 / 1,000 / 1,000 m |

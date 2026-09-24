@@ -19,7 +19,7 @@ from registry import manifest, publish, read_json, sha256, verify, write_json
 def profile(package: Path, job: Path) -> str:
     def literal(path):
         return str(Path(path).resolve()).replace("\\", "\\\\").replace('"', '\\"')
-    roots = ["/System", "/usr", "/Library/Developer/CommandLineTools", "/private/etc",
+    roots = ["/System", "/usr", "/opt/homebrew", "/Library/Developer/CommandLineTools", "/private/etc",
              "/private/var/select", "/var/select", "/dev", package, job]
     parents = ["/", "/Library", "/Library/Developer", "/private", "/private/var", "/var"]
     reads = " ".join(f'(subpath "{literal(path)}")' for path in roots)
@@ -35,7 +35,7 @@ def execute(package: Path, job: Path, phase: str, timeout: int) -> None:
     command = ["/usr/bin/sandbox-exec", "-p", profile(package, job), "/usr/bin/python3",
                str(package / manifest(package)["entrypoint"]), "--phase", phase,
                "--task", str(job / "task.json")]
-    environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "TMPDIR": str(job / "work/tmp"),
+    environment = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin", "TMPDIR": str(job / "work/tmp"),
                    "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": "0", "LANG": "en_US.UTF-8"}
     process = subprocess.Popen(command, cwd=job / "work", env=environment,
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

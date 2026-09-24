@@ -58,7 +58,7 @@ Measurements use the complete float64 solver state at t=0 and each finished macr
 | `rest_length` | `[1e-6,1000]` m |
 | `stiffness` / `damping` | `[1e-9,1e7]` N/m / `[0,1e5]` N·s/m |
 | Requested substeps / iterations | Integers `[1,64]` each |
-| Duration / macro dt | `[1e-4,30]` s / `[1e-4,0.05]` s |
+| Duration / macro dt | `[1e-4,60]` s / `[1e-4,0.05]` s |
 | Macro steps / planned solver work | 250,000 / 100,000,000 work units |
 
 `connection_settings` is valid only with connections. Quality defaults are preview `(2 substeps,8 iterations)`, balanced `(4,16)` and high `(8,32)`. Planning increases substeps as needed for a conservative network frequency bound `Omega`, targeting `h*Omega <= 0.05`. A damping bound `Gamma = 2*max_i(sum incident c / m_i)` over mobile nodes also requires `h*Gamma <= 0.25` as a time-accuracy guard; exact pair damping alone does not resolve rapidly damped coupled motion. Rods/ropes require at least eight. The effective count is at least the requested count. A requirement beyond 64 is rejected instead of silently exceeding the cap. Read the returned connection plan and adjustments rather than assuming the requested count was used.

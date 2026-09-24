@@ -12,8 +12,7 @@ build/
 dist/
 .DS_Store
 
-# Messaging hosts and private runtime data are not part of this project
-qq-simulator*/
+# Private runtime data
 runtime*/
 .env
 .env.*

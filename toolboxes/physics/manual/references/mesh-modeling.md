@@ -91,7 +91,7 @@ Without `coupling` or `rigid_body`, mesh scenes remain standalone: only mesh ent
 | Mesh scene JSON traversal | 160,000 values, depth 32; tool JSON string still ≤ 1 MB |
 | Video handoff | 600,000 vertex-frame samples; all mesh vertices retained |
 | Solver settings | `mesh_settings.substeps` and `.iterations`, integers 1–32 |
-| Physical timeline / work | duration 0.0001–30 s; at most 250,000 macro steps and 2 billion planned constraint work units |
+| Physical timeline / work | duration 0.0001–60 s; at most 250,000 macro steps and 2 billion planned constraint work units |
 | Default substeps / iterations | preview 4 / 6; balanced 8 / 8; high 12 / 10 |
 
 The geometry audit also bounds intersection work; complex folded geometry may be rejected below nominal vertex limits. `prepare` reports mesh counts, work, memory, output size and a provisional p50/p90 estimate. It never silently decimates topology. Mesh estimates require calibration on the target machine; report actual runtime and keep the normal 60 s ceiling. More triangles, contact candidates, substeps, iterations or video frames increase cost.

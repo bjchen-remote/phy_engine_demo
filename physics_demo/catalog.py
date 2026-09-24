@@ -16,6 +16,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         "file": "self_gravitating_liquid.json",
         "use_for": ["mutually attracting liquid blobs", "liquid merger with self-gravity"],
         "limitations": "Incompressible visual particles with one reference density and explicit scaled G; not stellar gas or point-mass/particle exchange.",
+        "mechanism_boundary": {
+            "modeled": ["particle_self_gravity", "single_pressure_phase"],
+            "unavailable": ["particle_point_mass_gravity_exchange", "compressible_gas"],
+        },
         "common_patches": ["/interactions/gravity_G", "/interactions/softening", "/interactions/gravity_theta", "/interactions/particle_gravity_density", "/world/duration"],
     },
     "three_body_queries": {
@@ -61,6 +65,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "Preset coefficients and appearance are visual models; density, temperature, phase change, adhesion, non-Newtonian rheology, and immiscibility are absent.",
         "physics_boundary": "Use this to compare supported visual behavior and rendering, not real material properties or process safety.",
+        "mechanism_boundary": {
+            "modeled": ["single_pressure_phase", "visual_liquid_presets"],
+            "unavailable": ["density_contrast", "phase_change", "non_newtonian_rheology"],
+        },
         "common_patches": [
             "/entities/@water-drop/shape/center/1",
             "/entities/@honey-drop/shape/center/1",
@@ -102,6 +110,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         "file": "geyser.json",
         "use_for": ["timed upward water jet", "prescribed geyser"],
         "limitations": "The upward push is a prescribed field, not a resolved pump.",
+        "mechanism_boundary": {
+            "modeled": ["finite_initial_liquid", "timed_prescribed_force"],
+            "unavailable": ["continuous_inflow", "resolved_pump", "discharge_rate"],
+        },
         "common_patches": ["/force_fields/@upward-burst/acceleration/1", "/force_fields/@upward-burst/end_time"],
     },
     "sand_blast": {
@@ -151,6 +163,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No continuous emitter, moving bottle, glass optics, bubbles, foam, or air phase.",
         "physics_boundary": "Use as a visual pour and containment shot, not a fill-rate or slosh-load measurement.",
+        "mechanism_boundary": {
+            "modeled": ["finite_initial_liquid", "static_container"],
+            "unavailable": ["continuous_inflow", "moving_bottle", "fill_rate", "gas_phase"],
+        },
         "reference_prepare": {"budget_s": 55, "particles": 1152, "p50_s": 7.618, "p90_s": 15.205},
         "common_patches": [
             "/entities/@product-liquid/velocity",
@@ -171,6 +187,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No pump, continuous jet, nozzle pressure, atomized mist, or moving sculpture.",
         "physics_boundary": "The ring contact and ballistic arc are visual; the prescribed lift cannot estimate pump power.",
+        "mechanism_boundary": {
+            "modeled": ["finite_initial_liquid", "timed_prescribed_force", "static_hoop"],
+            "unavailable": ["continuous_inflow", "nozzle_pressure", "pump_power"],
+        },
         "reference_prepare": {"budget_s": 55, "particles": 1331, "p50_s": 10.067, "p90_s": 19.364},
         "common_patches": [
             "/force_fields/@fountain-pulse/acceleration/1",
@@ -191,6 +211,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No free-surface calibration, turbulence model, scour, debris, structural response, or continuous inflow.",
         "physics_boundary": "Suitable for flow-path communication only; do not infer loads, discharge, flood level, or safety margins.",
+        "mechanism_boundary": {
+            "modeled": ["finite_initial_liquid", "static_piers", "timed_prescribed_force"],
+            "unavailable": ["continuous_inflow", "discharge_rate", "structural_load", "scour"],
+        },
         "reference_prepare": {"budget_s": 55, "particles": 4480, "p50_s": 24.509, "p90_s": 43.849},
         "common_patches": [
             "/entities/@flood-water/velocity/0",
@@ -211,6 +235,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "Wet-sand weakening and drag are qualitative; there is no sediment transport, surf, or calibrated soil law.",
         "physics_boundary": "Use for a destruction beat and relative visual tuning, not erosion rates or coastal design.",
+        "mechanism_boundary": {
+            "modeled": ["finite_initial_liquid", "qualitative_wetting_drag"],
+            "unavailable": ["calibrated_erosion", "sediment_transport", "soil_strength"],
+        },
         "reference_prepare": {"budget_s": 55, "particles": 4549, "p50_s": 21.121, "p90_s": 38.078},
         "common_patches": [
             "/entities/@wave/velocity/0",
@@ -271,6 +299,10 @@ EXAMPLE_CATALOG: dict[str, dict[str, Any]] = {
         ],
         "limitations": "No rotating tyres, moving vehicle, aerodynamics, spray droplets below particle scale, or structural coupling.",
         "physics_boundary": "Use only for visual flow paths and shot design; do not infer wading depth, ingress, drag, or safety.",
+        "mechanism_boundary": {
+            "modeled": ["moving_finite_liquid", "static_vehicle_proxy"],
+            "unavailable": ["moving_vehicle", "wheel_rotation", "water_ingress", "vehicle_drag"],
+        },
         "reference_prepare": {"budget_s": 55, "particles": 3645, "p50_s": 14.112, "p90_s": 26.205},
         "common_patches": [
             "/entities/@road-water/velocity/0",
@@ -472,7 +504,7 @@ def example(name: str) -> dict[str, Any]:
     scene = strict_json_loads(path.read_text(encoding="utf-8"))
     customer_metadata = {
         key: item[key]
-        for key in ("customer_prompts", "inherited_assumptions", "physics_boundary", "reference_prepare")
+        for key in ("customer_prompts", "inherited_assumptions", "physics_boundary", "reference_prepare", "mechanism_boundary")
         if key in item
     }
     return guided({
@@ -486,7 +518,7 @@ def example(name: str) -> dict[str, Any]:
         "scene": scene,
         "scene_json": json.dumps(scene, separators=(",", ":"), ensure_ascii=False),
     }, "example_loaded", choose_action(
-        "Compare every explicit user value with the example.",
+        "Compare every explicit user value and requested mechanism with the example. Check mechanism_boundary before treating an example as a match.",
         [
             tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, lava, or molten lead."),
             tool_action("physics_patch", "Patch all explicit differences atomically.", when="The prompt changes any example value."),

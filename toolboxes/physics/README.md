@@ -10,6 +10,21 @@ scene-v1、创建系统/网格、设置液体、组合约束、声明观测量�
 Agent 任务必须先 prepare，通过前不允许退回固定示例。保存的场景决定实际运行参数。
 模型不执行用户代码，不能指定主机输出路径。校验最多修正两次，不能无限试错或捏造成功。
 
+## PCB 热仿真
+
+首版 PCB 领域在同一活动包内提供 `pcb_example`、`pcb_validate`、`pcb_prepare`、
+`pcb_inspect`、`pcb_query`。`pcb_prepare` 保存带 `domain=pcb_thermal` 的已准备模型；
+宿主继续用现有 `physics_simulate` 操作启动，适配器按领域分流到独立的
+`pcb_thermal.py` 和 `pcb_video.py`，不进入机械求解内核。
+
+输入是等效二维薄板、上下表面对流和元件矩形功耗，支持稳态与瞬态。输出包括
+温度与功耗双面板视频、最高/平均温度、功率和能量平衡。实例见
+[`pcb_thermal_demo.json`](pcb_thermal_demo.json)，
+模型假设和验收见 [设计文档](../../docs/pcb-thermal-design.md)。功耗必须由用户提供；
+实际板材参数需校准，不解析走线、过孔、封装内部和电路电流。
+视频编码额外要求本机存在 `ffmpeg` 与 `ffprobe`；适配器在成功前执行完整解码和
+大小校验。`toolboxes/tests/test_pcb_integration.py` 在宿主同款 macOS sandbox 中验收完整链路。
+
 构建：在 demo 目录执行 `python3 toolboxes/build_physics.py`，随后 `--check`。
 构建包包含原有按需物理手册、样例、预编译求解器及视频工具；无凭据、账号数据或 QQ 依赖。
 通过 registry 发布新版本；运行中的任务继续使用原先固定版本。

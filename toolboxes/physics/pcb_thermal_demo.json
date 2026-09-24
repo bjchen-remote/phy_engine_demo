@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "title": "illustrative-two-component-board",
+  "board": {
+    "width_m": 0.1,
+    "height_m": 0.08,
+    "thickness_m": 0.0016,
+    "thermal_conductivity_x_w_mk": 12.0,
+    "thermal_conductivity_y_w_mk": 8.0,
+    "density_kg_m3": 1900.0,
+    "specific_heat_j_kgk": 1100.0,
+    "convection_top_w_m2k": 8.0,
+    "convection_bottom_w_m2k": 8.0,
+    "ambient_c": 25.0
+  },
+  "grid": {"nx": 48, "ny": 40},
+  "components": [
+    {"id": "processor", "x_m": 0.025, "y_m": 0.027, "width_m": 0.012, "height_m": 0.012, "power_w": 2.5},
+    {"id": "regulator", "x_m": 0.072, "y_m": 0.048, "width_m": 0.008, "height_m": 0.01, "power_w": 0.8}
+  ],
+  "mode": "transient",
+  "transient": {"duration_s": 120.0, "time_step_s": 2.0, "initial_c": 25.0}
+}

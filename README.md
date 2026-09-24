@@ -6,7 +6,7 @@ Agent Physics is a lightweight simulator built for AI agents. An agent describes
 
 The project focuses on **composable scenes, fast visual feedback, and reproducible experiments**. Python provides the interfaces and orchestration; C11 powers the numerical kernels. A standalone toolbox connects the simulator to different agents and applications.
 
-[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [Release notes](docs/release-1.2.4.md)
+[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [PCB thermal design](docs/pcb-thermal-design.md) · [Toolbox 1.4.0 release notes](docs/release-1.4.0.md)
 
 ## What it can simulate
 
@@ -19,6 +19,7 @@ The project focuses on **composable scenes, fast visual feedback, and reproducib
 | Meshes and soft bodies | Triangle-mesh construction, soft-body collisions, cloth draping, and insertion scenes |
 | Coupled scenes | Supported contact and two-way reactions between liquids, soft meshes, springs, and rigid bodies |
 | Quantitative experiments | Threshold times, distances, velocities, energies, and time-series queries |
+| PCB thermal maps (toolbox) | Prescribed component powers, board heat spreading, top/bottom convection, steady or transient temperature maps |
 
 With an agent connected, requests can look like this:
 
@@ -28,7 +29,7 @@ With an agent connected, requests can look like this:
 >
 > “Simulate two sliders separating and record when their gap first reaches a specified distance.”
 
-The external agent turns these requests into scene configurations. Examples are starting points; the API also supports building scenes from entities, constraints, force fields, and meshes.
+The external agent turns mechanical requests into scene configurations. Examples are starting points; the API also supports building scenes from entities, constraints, force fields, and meshes. PCB requests use a separate [thermal model](docs/pcb-thermal-design.md) within the same toolbox.
 
 ## From prompt to result
 
@@ -42,7 +43,7 @@ The `visual` validation mode serves ordinary video requests; `strict` serves qua
 
 ## Quick start
 
-The complete video workflow currently targets **macOS** and requires **Python 3.9+** and **Xcode Command Line Tools**. Ordinary runs need no third-party Python packages or model API key. Native code is compiled on first use and cached for subsequent runs. The prebuilt toolbox targets Apple Silicon.
+The complete video workflow currently targets **macOS** and requires **Python 3.9+** and **Xcode Command Line Tools**. Mechanical runs need no third-party Python packages or model API key. The PCB thermal video path additionally requires `ffmpeg` on the host. Native code is compiled on first use and cached for subsequent runs. The prebuilt toolbox targets Apple Silicon.
 
 ```sh
 git clone https://github.com/bjchen-remote/phy_engine_demo.git
@@ -68,6 +69,7 @@ Twelve physics tools, scene schemas, and a topic-based Skill give agents access 
 
 - **Direct engine integration:** register the [tool definitions](agent/tools.json), supply the [Skill](agent/physics-simulation/SKILL.md), and call the engine through its CLI or Python API.
 - **Standalone module integration:** use the [physics toolbox](toolboxes/physics/README.md) and [task protocol](toolboxes/PROTOCOL.md). The host supplies a task directory and resource limits.
+- **PCB thermal integration:** the same active toolbox exposes `pcb_example`, `pcb_validate`, `pcb_prepare`, `pcb_inspect`, and `pcb_query`. It keeps the mechanical `scene-v1` solver unchanged and uses the [PCB workflow](agent/physics-simulation/references/pcb-thermal.md).
 
 Example tool call:
 
@@ -111,7 +113,7 @@ python3 -m unittest discover -s toolboxes/tests -v
 python3 toolboxes/build_physics.py --check
 ```
 
-The current toolbox version is **1.2.4**. The published version passed 389 engine tests and 13 module tests; details are in the [release notes](docs/release-1.2.4.md). Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
+The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares version **1.4.0**. The [1.4.0 release notes](docs/release-1.4.0.md) contain current verification results; older notes remain historical records. The Python distribution in `pyproject.toml` has its own version. Run the commands above or check the [CI workflow](.github/workflows/physics-quality.yml) for validation of the current source; test counts change as coverage grows. Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
 
 ## License
 

@@ -15,6 +15,7 @@ from physics_demo.limits import (
     MAX_COLLIDERS,
     MAX_ENTITIES,
     MAX_FRAME_PARTICLE_SAMPLES,
+    MAX_PHYSICAL_DURATION_S,
     MAX_FORCE_FIELDS,
     MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
     MAX_PARTICLE_SPACING,
@@ -114,9 +115,18 @@ CAPABILITIES: dict[str, Any] = {
             "accuracy": "visual proxy; not a geotechnical constitutive model",
         },
         "rigid": {
-            "algorithm": "semi-implicit translation plus positional contacts",
+            "entity_type": "rigid",
+            "algorithm": "Python-reference semi-implicit translation and positional contacts; native particle runs use static rigid geometry",
             "use_for": ["static spheres and boxes", "Python-reference dynamic spheres"],
-            "accuracy": "native runs accept static rigid geometry; no rotational rigid-body solver",
+            "accuracy": "The legacy rigid entity has no rotational solver. Use rigid_body on the coupled backend for quaternion rotation and supported two-way contacts.",
+        },
+        "rigid_body": {
+            "entity_type": "rigid_body",
+            "route": "coupled",
+            "algorithm": "Shared-clock C11 rigid translation and quaternion rotation with finite-mass contact reactions",
+            "use_for": ["torque-free tumble", "gyroscope precession", "rigid-spring pendulum", "supported mixed contact"],
+            "limits": COUPLED_CAPABILITIES["limits"],
+            "scope": COUPLED_CAPABILITIES["scope"],
         },
         "force_field": {
             "algorithm": "targeted analytic acceleration evaluated in the native C11 hot loop",
@@ -151,7 +161,7 @@ CAPABILITIES: dict[str, Any] = {
         "max_force_fields": MAX_FORCE_FIELDS,
         "max_initial_particle_volume_overlap": MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
         "max_frame_particle_samples": MAX_FRAME_PARTICLE_SAMPLES,
-        "max_physical_duration_s": 30,
+        "max_physical_duration_s": MAX_PHYSICAL_DURATION_S,
         "max_wall_time_s": MAX_WALL_TIME_S,
     },
     "unsupported": [
@@ -413,8 +423,8 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         bounds = world["bounds"] = {"min": [-3.0, 0.0, -3.0], "max": [3.0, 5.0, 3.0]}
     _unknown_fields(bounds, {"min", "max"}, "world.bounds", errors)
     _normalize_fields(bounds, {"min": [-3.0, 0.0, -3.0], "max": [3.0, 5.0, 3.0]}, "world.bounds", errors)
-    if not (0.0 < world["duration"] <= 30.0):
-        errors.append(_issue("duration_range", "world.duration", "duration must be in (0, 30] seconds.", "Use 2.0 for a short demo."))
+    if not (0.0 < world["duration"] <= MAX_PHYSICAL_DURATION_S):
+        errors.append(_issue("duration_range", "world.duration", f"duration must be in (0, {MAX_PHYSICAL_DURATION_S:g}] seconds.", "Use 2.0 for a short demo."))
     if not (1e-4 <= world["dt"] <= 0.05):
         errors.append(_issue("dt_range", "world.dt", "dt must be between 0.0001 and 0.05 seconds.", "Use 0.011111 for particle scenes."))
     if not (1.0 <= world["output_fps"] <= 60.0):
@@ -564,6 +574,12 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
 
     if point_masses > 64:
         errors.append(_issue("body_limit", "entities", "At most 64 point masses are supported."))
+    if point_masses and not coupled_enabled(scene) and any(world["gravity"]):
+        warnings.append(_issue(
+            "point_mass_world_gravity_ignored", "world.gravity",
+            "world.gravity does not accelerate point_mass entities on non-coupled routes.",
+            "Use a targeted uniform force field to accelerate those point masses.",
+        ))
     native_only_preset = any(
         LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         if isinstance(entity, dict) and entity.get("type") == "fluid"

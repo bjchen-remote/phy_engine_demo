@@ -8,6 +8,7 @@ from __future__ import annotations
 
 
 MAX_WALL_TIME_S = 300
+MAX_PHYSICAL_DURATION_S = 60.0
 
 
 QUALITY_LIMITS = {

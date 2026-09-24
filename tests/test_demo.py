@@ -266,8 +266,8 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(interaction_properties["water_sand_drag"]["maximum"], 10)
         self.assertEqual(interaction_properties["wetting_rate"]["maximum"], 100)
         for field_schema in definitions["force_field"]["oneOf"]:
-            self.assertEqual(field_schema["properties"]["start_time"]["maximum"], 30)
-            self.assertEqual(field_schema["properties"]["end_time"]["maximum"], 30)
+            self.assertEqual(field_schema["properties"]["start_time"]["maximum"], 60)
+            self.assertEqual(field_schema["properties"]["end_time"]["maximum"], 60)
 
     def test_runtime_rejects_values_above_published_scalar_limits(self):
         cases = (
@@ -283,8 +283,8 @@ class ContractTests(unittest.TestCase):
             ("velocity_range", "three_body.json", lambda scene: scene["entities"][0].__setitem__("velocity", [501, 0, 0])),
             ("gravity_range", "three_body.json", lambda scene: scene["world"].__setitem__("gravity", [251, 0, 0])),
             ("force_acceleration", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("acceleration", [251, 0, 0])),
-            ("force_time_window", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("start_time", 31)),
-            ("force_time_window", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("end_time", 31)),
+            ("force_time_window", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("start_time", 61)),
+            ("force_time_window", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("end_time", 61)),
             (
                 "body_limit",
                 "three_body.json",
@@ -324,8 +324,8 @@ class ContractTests(unittest.TestCase):
             ("size", "product_pour_tumbler.json", lambda scene: scene["entities"][0]["shape"].__setitem__("size", [1001, 1, 1])),
             ("mass", "three_body.json", lambda scene: scene["entities"][0].__setitem__("mass", 1_000_000_000_001)),
             ("id", "droplet_ground.json", lambda scene: scene["entities"][0].__setitem__("id", "x" * 129)),
-            ("start_time", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("start_time", 31)),
-            ("end_time", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("end_time", 31)),
+            ("start_time", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("start_time", 61)),
+            ("end_time", "geyser.json", lambda scene: scene["force_fields"][0].__setitem__("end_time", 61)),
             (
                 "point_mass_count",
                 "three_body.json",
@@ -675,6 +675,17 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(plan["timing_estimate"]["hard_limit_s"], 60)
         self.assertIn("fits_budget", plan["timing_estimate"])
         self.assertGreater(plan["estimated_peak_memory_mb"], 0)
+
+    def test_sixty_second_scene_is_planned_without_relaxing_work_guards(self):
+        scene = load_scene(EXAMPLES / "three_body.json")
+        scene["world"].update(duration=60.0, dt=0.05, output_fps=30)
+        scene["budget"]["wall_time_s"] = 300
+        prepared = call_tool("physics_prepare", {"scene_json": json.dumps(scene)})
+        self.assertTrue(prepared["ready_to_simulate"], prepared)
+        self.assertEqual(prepared["plan"]["timing_estimate"]["physical_duration_s"], 60.0)
+        scene["world"]["duration"] = 60.01
+        invalid = call_tool("physics_prepare", {"scene_json": json.dumps(scene)})
+        self.assertFalse(invalid["ready_to_simulate"])
 
     def test_planner_rejects_bounds_smaller_than_coarsened_particle(self):
         scene = load_scene(EXAMPLES / "droplet_ground.json")
