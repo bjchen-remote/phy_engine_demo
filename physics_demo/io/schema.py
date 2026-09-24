@@ -417,10 +417,10 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("duration_range", "world.duration", "duration must be in (0, 30] seconds.", "Use 2.0 for a short demo."))
     if not (1e-4 <= world["dt"] <= 0.05):
         errors.append(_issue("dt_range", "world.dt", "dt must be between 0.0001 and 0.05 seconds.", "Use 0.011111 for particle scenes."))
-    if not (1.0 <= world["output_fps"] <= 60.0):
-        errors.append(_issue("fps_range", "world.output_fps", "output_fps must be in [1, 60]."))
+    if not (1.0 <= world["output_fps"] <= 120.0):
+        errors.append(_issue("fps_range", "world.output_fps", "output_fps must be in [1, 120]."))
     elif not world["output_fps"].is_integer():
-        errors.append(_issue("fps_integer", "world.output_fps", "output_fps must be an integer value from 1 to 60."))
+        errors.append(_issue("fps_integer", "world.output_fps", "output_fps must be an integer value from 1 to 120."))
     if any(bounds["min"][axis] >= bounds["max"][axis] for axis in range(3)):
         errors.append(_issue("bounds_order", "world.bounds", "Every bounds.min component must be below bounds.max."))
     if any(abs(value) > MAX_ABS_COORDINATE for value in bounds["min"] + bounds["max"]):
@@ -564,6 +564,12 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
 
     if point_masses > 64:
         errors.append(_issue("body_limit", "entities", "At most 64 point masses are supported."))
+    if point_masses and not coupled_enabled(scene) and any(world["gravity"]):
+        warnings.append(_issue(
+            "point_mass_world_gravity_ignored", "world.gravity",
+            "world.gravity does not accelerate point_mass entities on non-coupled routes.",
+            "Use a targeted uniform force field to accelerate those point masses.",
+        ))
     native_only_preset = any(
         LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         if isinstance(entity, dict) and entity.get("type") == "fluid"

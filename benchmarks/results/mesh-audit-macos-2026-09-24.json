@@ -1,0 +1,111 @@
+{
+  "description": "Python mesh exact-intersection cache on the same macOS host",
+  "scope": "Only _intersection_pair is timed; import and procedural geometry generation are outside timing. Each module was warmed up before 8 alternating repetitions. audit_mesh content cache is not called or used.",
+  "host": "macOS-26.5.1-arm64-arm-64bit",
+  "python": "3.9.6",
+  "baseline": "physics_demo/core/meshes.py from codex/engine-optimization at 504a5b2",
+  "baseline_source_sha256": "6cadf3619a62a7c41496ec9102f2dc541394ee12bc6b3abaf03bb2d91861bcf7",
+  "candidate": "physics_demo/core/meshes.py with lazy per-triangle geometry cache",
+  "candidate_source_sha256": "e590aaa2c440f309b6994b5b2f0bd85462ee6312951051a4f7f3c1b0198bd152",
+  "cases": [
+    {
+      "name": "ellipsoid-24x12",
+      "vertices": 266,
+      "triangles": 528,
+      "counters": {
+        "node_tests": 3138,
+        "candidate_pairs": 11377,
+        "exact_tests": 4000
+      },
+      "before_seconds": [
+        0.164488666,
+        0.1597714160000001,
+        0.17526850000000005,
+        0.16823837500000005,
+        0.159005917,
+        0.15472879200000023,
+        0.160894125,
+        0.16384020799999988
+      ],
+      "after_seconds": [
+        0.12917625,
+        0.1387602910000001,
+        0.17499933299999992,
+        0.131750708,
+        0.12232966600000017,
+        0.1266824999999998,
+        0.12345300000000003,
+        0.126687
+      ],
+      "before_median_s": 0.16236716649999994,
+      "after_median_s": 0.127931625,
+      "speedup": 1.2691714538918735
+    },
+    {
+      "name": "ellipsoid-48x24",
+      "vertices": 1106,
+      "triangles": 2208,
+      "counters": {
+        "node_tests": 14804,
+        "candidate_pairs": 40199,
+        "exact_tests": 17200
+      },
+      "before_seconds": [
+        0.6748532089999992,
+        0.6835497079999993,
+        0.6869682079999997,
+        0.7182985000000013,
+        0.6902460829999999,
+        0.6675514170000003,
+        0.6831032090000004,
+        0.6967890409999988
+      ],
+      "after_seconds": [
+        0.5370147080000001,
+        0.5508198750000002,
+        0.5586072919999996,
+        0.5654739170000003,
+        0.5894879579999994,
+        0.5832160000000002,
+        0.5436764580000002,
+        0.5476992080000009
+      ],
+      "before_median_s": 0.6852589579999995,
+      "after_median_s": 0.5547135834999999,
+      "speedup": 1.2353383410521794
+    },
+    {
+      "name": "cloth-24",
+      "vertices": 625,
+      "triangles": 1152,
+      "counters": {
+        "node_tests": 6854,
+        "candidate_pairs": 17048,
+        "exact_tests": 9224
+      },
+      "before_seconds": [
+        1.063409374999999,
+        1.0893574159999986,
+        1.0662424170000016,
+        1.0609155000000001,
+        1.0605685000000022,
+        1.0364776669999998,
+        1.067771417000003,
+        1.046997791999999
+      ],
+      "after_seconds": [
+        0.8505367079999999,
+        0.8637619169999979,
+        0.915534000000001,
+        0.8791302499999993,
+        0.8574812920000028,
+        0.8774816250000015,
+        0.842222458000002,
+        0.8831777500000015
+      ],
+      "before_median_s": 1.0621624374999996,
+      "after_median_s": 0.8706217709999997,
+      "speedup": 1.22000445300144
+    }
+  ]
+}

@@ -6,6 +6,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -147,6 +150,14 @@ class PhysicsProtocolTests(unittest.TestCase):
         for text in ("快速模拟一滴水落到地面", "高清模拟水滴落到地板", "双摆运动", "展示三体轨道视频", "生成三体相互引力视频，使用随机初值"):
             self.assertTrue(self.probe(text)["supported"])
 
+    def test_cone_probe_uses_scene_runtime_estimate(self):
+        short = self.probe("一滴水落到圆锥上", 30)
+        sufficient = self.probe("一滴水落到圆锥上", 180)
+        self.assertFalse(short["supported"])
+        self.assertEqual(short["reason"], "insufficient_time_budget")
+        self.assertTrue(sufficient["supported"])
+        self.assertGreater(sufficient["estimated_seconds"], 30)
+
     def test_random_three_body_is_reproducible_and_preserves_zero_bulk_motion(self):
         sys.path.insert(0, str(ROOT/'physics'))
         import run_simulation
@@ -156,6 +167,52 @@ class PhysicsProtocolTests(unittest.TestCase):
         for field in ('position', 'velocity'):
             for axis in range(3):
                 self.assertAlmostEqual(sum(b[field][axis] for b in first['entities']), 0)
+
+    def test_prepared_short_water_impact_gets_watchable_video(self):
+        sys.path.insert(0, str(ROOT/'physics'))
+        import run_simulation
+        scene=json.loads((ROOT.parent/'examples/droplet_ground.json').read_text())
+        default_name, default_scene=run_simulation.route('一滴水落到地面并飞溅')
+        fast_name, fast_scene=run_simulation.route('快速预览一滴水落到地面')
+        dry_name, dry_scene=run_simulation.route('一滴水落到干燥地面')
+        micro_name, micro_scene=run_simulation.route('细水珠落到地面飞溅')
+        cone_name, cone_scene=run_simulation.route('一滴水落到圆锥上')
+        self.assertEqual(default_name,'water_droplet_ground_balanced')
+        self.assertEqual(fast_name,'water_droplet_ground_fast')
+        self.assertEqual(dry_name,'water_droplet_ground_dry')
+        self.assertEqual(micro_name,'water_droplet_ground_micro_wet')
+        self.assertEqual(cone_name,'water_droplet_cone')
+        self.assertEqual(default_scene['world']['duration'],.8)
+        self.assertEqual(fast_scene['world']['duration'],.8)
+        self.assertEqual(default_scene['world']['output_fps'],60)
+        self.assertEqual(dry_scene['world']['output_fps'],120)
+        self.assertEqual(micro_scene['world']['output_fps'],120)
+        self.assertEqual(dry_scene['world']['duration'],.3)
+        self.assertEqual(len(default_scene['entities']),1)
+        self.assertEqual(len(dry_scene['entities']),1)
+        self.assertEqual(default_scene['entities'][0]['shape']['radius'],.32)
+        self.assertEqual(dry_scene['entities'][0]['shape']['radius'],.003)
+        self.assertEqual(len(micro_scene['entities']),2)
+        self.assertEqual(cone_scene['entities'][1]['color'],[.79,.49,.24])
+        with tempfile.TemporaryDirectory() as temporary:
+            artifacts=Path(temporary)
+            def simulated(_scene, path, *, make_video):
+                self.assertTrue(make_video)
+                (path/'simulation.mp4').write_bytes(b'video')
+                return {'ok':True,'quality_gate':{'passed':True}}
+            with patch('physics_demo.runner.simulate',side_effect=simulated), \
+                 patch.object(run_simulation,'_publish_watchable_video',
+                              return_value={'presentation':{'playback_duration_s':6.8}}) as publish, \
+                 redirect_stdout(StringIO()):
+                self.assertEqual(run_simulation.simulate_scene(scene,artifacts,
+                    request_text='一滴水落到地面'),0)
+                publish.assert_called_once()
+                publish.reset_mock()
+                self.assertEqual(run_simulation.simulate_scene(scene,artifacts,
+                    request_text='一滴水落到地面，原速播放'),0)
+                publish.assert_not_called()
+        self.assertFalse(run_simulation._short_water_impact(
+            json.loads((ROOT.parent/'examples/three_body.json').read_text())))
 
     def test_unsupported_commands_and_insufficient_budget(self):
         self.assertFalse(self.probe("执行任意外部程序")['supported'])

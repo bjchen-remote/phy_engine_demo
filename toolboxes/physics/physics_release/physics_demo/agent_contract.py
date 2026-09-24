@@ -100,14 +100,14 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     if tool == "physics_capabilities":
         return guided(payload, "capabilities_ready", choose_action(
-            "Obtain or author a complete scene_json first. Resolve a named liquid only after the target fluid entity ID is known.",
+            "Obtain or author a complete scene_json first. Preserve an example's explicit fluid properties when its preset already matches the requested material; resolve a liquid preset only when creating or changing that material.",
             [
                 tool_action("physics_system", "Build a pendulum, double pendulum or ballistic liquid burst from physical parameters."),
                 tool_action("physics_example", "Load the closest supported starting scene."),
                 tool_action(
                     "physics_liquid",
                     "Resolve a named liquid after obtaining the complete scene that will receive its patch operations.",
-                    when="A complete scene_json already exists and the target fluid entity ID is known.",
+                    when="A fluid material is new or changing, the complete scene_json exists, and the target fluid entity ID is known.",
                     preconditions=[
                         "Do not call this as a scene-construction step.",
                         "The scene contains the target fluid entity ID.",
@@ -122,7 +122,7 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
         ))
     if tool == "physics_liquid":
         return guided(payload, "liquid_preset_ready", choose_action(
-            "This result contains patch operations, not scene_json. If no complete scene exists, first load one with physics_example, build an applicable named system with physics_system, or author scene-v1; then call physics_liquid again with a fluid ID from that scene. Choose physics_patch only while holding that complete scene_json.",
+            "This result contains generic material patch operations, not scene_json. Applying them replaces explicit properties. If an example already has the requested preset and explicit properties, preserve the example instead. Otherwise obtain a complete scene before using physics_patch.",
             [
                 tool_action(
                     "physics_patch",
@@ -147,9 +147,9 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
         ))
     if tool == "physics_example":
         return guided(payload, "example_loaded", choose_action(
-            "Compare every explicit user value with the example.",
+            "Compare every explicit user value with the example. If its fluid already uses the requested preset and has explicit properties, preserve those values; applying physics_liquid would replace them with generic defaults.",
             [
-                tool_action("physics_liquid", "Resolve the requested named liquid for a fluid entity in this scene before patching it.", when="The prompt names water, honey, glue, lava, or molten lead."),
+                tool_action("physics_liquid", "Resolve a new or changed fluid material before patching it.", when="The requested material differs from the example's fluid preset, or a newly created fluid has no material properties."),
                 tool_action("physics_patch", "Patch all explicit differences atomically.", when="The prompt changes any example value."),
                 tool_action("physics_prepare", "Validate and plan the unchanged example.", when="The example already matches the prompt."),
             ],
@@ -163,16 +163,16 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     if tool == "physics_patch":
         return guided(payload, "scene_patched", tool_action("physics_prepare", "Validate, normalize, and plan the patched scene."))
     if tool == "physics_validate":
-        return guided(payload, "scene_valid", tool_action("physics_estimate", "Estimate cost for this exact normalized scene."))
+        return guided(payload, "scene_valid", tool_action("physics_prepare", "Prepare this exact normalized scene so the host saves it before execution."))
     if tool == "physics_estimate":
         fits = bool(payload.get("plan", {}).get("timing_estimate", {}).get("fits_budget"))
         if fits:
-            return guided(payload, "ready_to_simulate", tool_action("physics_simulate", "Run the exact scene after reporting its physical duration and p50–p90 estimate."))
+            return guided(payload, "estimate_fits", tool_action("physics_prepare", "Prepare this exact scene; an estimate alone does not save a runnable model in the toolbox host."))
         return guided(payload, "over_budget", tool_action("physics_patch", "Propose and apply an allowed simplification; do not silently alter an explicit requirement."))
     if tool == "physics_prepare":
         return guided(payload, "ready_to_simulate", tool_action(
             "physics_simulate",
-            "Use returned scene_json unchanged and a new dedicated output directory.",
+            "Use returned scene_json unchanged. Direct API callers provide a dedicated output directory; the toolbox host assigns output directory and budget.",
             preconditions=[
                 "Every accepted explicit user requirement is represented in the prepared scene.",
                 "No requested feature was omitted or replaced without prior authorization.",

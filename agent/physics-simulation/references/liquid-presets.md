@@ -1,6 +1,6 @@
 # Liquid presets and continuous-surface rendering
 
-First load, build, or author the complete scene and identify its target fluid entity ID. Then use `physics_liquid` whenever the user names water, honey, glue, lava, or molten lead, and apply the returned `patch_arguments.operations` to that scene with `physics_patch`. The liquid response contains no `scene_json`; if no scene exists yet, obtain one and call `physics_liquid` again before patching. Do not guess coefficients.
+First load, build, or author the complete scene and identify its target fluid entity ID. Use `physics_liquid` when adding a named liquid or changing an entity to water, honey, glue, lava, or molten lead, and apply its `patch_arguments.operations` with `physics_patch`. If an example already has the requested preset and explicit `properties`, preserve those properties: reapplying the generic preset would erase deliberate visual controls. Keep the explicit water material in the `droplet_ground`, `droplet_ground_micro_wet`, `droplet_ground_splash` and `droplet_cone` examples unless the user asks for a material change. The liquid response contains no `scene_json`; if no scene exists yet, obtain one and call `physics_liquid` again before patching. Do not guess coefficients.
 
 | User wording | Canonical preset | Default model controls | Appearance |
 |---|---|---|---|

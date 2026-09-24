@@ -47,6 +47,8 @@ class VideoDeliveryTests(unittest.TestCase):
             result=publish_video(self.source,path,self.summary,2_000_000,30)
             self.assertFalse(result['compressed'])
             self.assertEqual(path.read_bytes(),(self.source/'simulation.mp4').read_bytes())
+            self.assertEqual(result['duration_s'],self.metadata['duration_s'])
+            self.assertEqual(result['physical_duration_s'],self.metadata['duration_s'])
 
     def test_impossible_budget_never_publishes_partial_video(self):
         with tempfile.TemporaryDirectory() as folder:

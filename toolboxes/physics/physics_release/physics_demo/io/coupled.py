@@ -242,6 +242,7 @@ def make_plan(
     if plan["planned_particles"]:
         features.append(plan["effective_spacing"])
     features += [e["mesh"]["metadata"]["min_edge"] for e in meshes]
+    features += [e["thickness"] for e in meshes]
     features += [e["collision_radius"] for e in entities if e["type"]=="point_mass" and e["collision_radius"]>0]
     features += [link["solid"]["radius"] for link in scene["connections"] if "solid" in link]
     initial_speed = max(math.hypot(*e["velocity"]) for e in entities)

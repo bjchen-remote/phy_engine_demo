@@ -17,7 +17,10 @@ from typing import Any
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PACKAGE = SOURCE_ROOT / "physics_demo"
-CANONICAL_SCENE = SOURCE_ROOT / "examples" / "droplet_ground.json"
+CANONICAL_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_splash.json"
+DRY_SCENE = SOURCE_ROOT / "examples" / "droplet_ground.json"
+MICRO_WET_SCENE = SOURCE_ROOT / "examples" / "droplet_ground_micro_wet.json"
+CONE_SCENE = SOURCE_ROOT / "examples" / "droplet_cone.json"
 RELEASE_ROOT = Path(__file__).resolve().parent / "physics"
 RELEASE_PACKAGE = RELEASE_ROOT / "physics_release" / "physics_demo"
 RELEASE_SCENES = RELEASE_ROOT / "physics_release" / "scenes"
@@ -32,19 +35,19 @@ PREBUILT_NAMES = (
 )
 PROFILES = {
     "droplet_ground.json": {
-        "name": "qq-water-droplet-ground-balanced",
-        "spacing": 0.0004,
-        "duration": 0.20,
+        "name": "qq-large-water-droplet-ground-balanced",
+        "spacing": 0.04,
+        "duration": 0.8,
     },
     "droplet_ground_fast.json": {
-        "name": "qq-water-droplet-ground-fast",
-        "spacing": 0.0005,
-        "duration": 0.20,
+        "name": "qq-large-water-droplet-ground-fast",
+        "spacing": 0.05,
+        "duration": 0.8,
     },
     "droplet_ground_rapid.json": {
-        "name": "qq-water-droplet-ground-rapid",
-        "spacing": 0.0006,
-        "duration": 0.15,
+        "name": "qq-large-water-droplet-ground-rapid",
+        "spacing": 0.06,
+        "duration": 0.8,
     },
 }
 
@@ -119,6 +122,15 @@ def _scene_documents() -> dict[str, dict[str, Any]]:
         )
         scene["entities"][0]["spacing"] = profile["spacing"]
         scenes[filename] = scene
+    dry = json.loads(DRY_SCENE.read_text(encoding="utf-8"))
+    dry['budget'].update(backend='native', wall_time_s=30)
+    scenes['droplet_ground_dry.json'] = dry
+    micro_wet = json.loads(MICRO_WET_SCENE.read_text(encoding="utf-8"))
+    micro_wet['budget'].update(backend='native', wall_time_s=30)
+    scenes['droplet_ground_micro_wet.json'] = micro_wet
+    cone = json.loads(CONE_SCENE.read_text(encoding="utf-8"))
+    cone['budget'].update(backend='native', wall_time_s=180)
+    scenes['droplet_cone.json'] = cone
     scene = json.loads((SOURCE_ROOT / 'examples/three_body.json').read_text())
     scene['budget'].update(backend='native', wall_time_s=30)
     scenes['three_body.json'] = scene

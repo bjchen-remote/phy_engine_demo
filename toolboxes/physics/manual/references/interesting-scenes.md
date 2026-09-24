@@ -6,7 +6,10 @@ Call `physics_example` with one stable name below, without `.json`. It returns t
 |---|---|---|
 | `three_body` | Softened orbit; body positions, velocities, duration | Point masses do not couple to water/sand |
 | `three_body_queries` | Orbit criteria; `orbit-bounds` query, dt/duration | Finite sampled window, not permanent stability |
-| `droplet_ground` | 6 mm drop on floor; `drop` centre Y/radius | Static ground; calibrated wetting/contact angle and air are not modeled |
+| `droplet_ground` | 3 mm radius drop on dry floor; `drop` centre Y/radius | Radial ground beads, no demonstrated airborne droplets |
+| `droplet_ground_micro_wet` | 3 mm radius drop over a 1.2 mm pre-wetted film | Upward droplets depend on the film; not a dry-floor result |
+| `droplet_ground_splash` | Visible dry-floor splash from a 0.32 m radius drop | Macroscopic scale; 0.8 s early impact ends before horizontal ±4 m wall contact |
+| `droplet_cone` | Blue water drop onto copper cone; drop and cone geometry | Qualitative mesh contact, no fluid wetting adhesion or cone friction |
 | `liquid_preset_showcase` | Equal water/honey/glue/molten-lead drops | Single shared pressure phase; no real density or thermal effects |
 | `droplet_pool` | Drop enters water; `drop` and `pool` geometry | One liquid phase, no resolved air |
 | `droplet_sphere` | Drop over ball; `drop` height, `ball` radius | Static analytic sphere |

@@ -41,8 +41,10 @@ class ParticleGravityTests(unittest.TestCase):
 int force(int n, const double *x, const double *y, const double *z,
           double theta, double eps, double gm, double *out) {
     PGTree t = {0};
-    if (!pg_init(&t,n)) { pg_destroy(&t); return -1; }
-    pg_build(&t,x,y,z);
+    if (theta > 0) {
+        if (!pg_init(&t,n)) { pg_destroy(&t); return -1; }
+        pg_build(&t,x,y,z);
+    } else pg_bind_positions(&t,n,x,y,z);
     for(int i=0;i<n;++i) pg_acceleration(&t,i,theta,eps,gm,out+3*i);
     int nodes=t.used; pg_destroy(&t); return nodes;
 }
@@ -66,7 +68,10 @@ int force(int n, const double *x, const double *y, const double *z,
         arrays = [(C.c_double*n)(*(p[a] for p in positions)) for a in range(3)]
         out = (C.c_double*(3*n))()
         nodes = self.force(n, *arrays, theta, eps, gm, out)
-        self.assertGreater(nodes, 0)
+        if theta == 0:
+            self.assertEqual(nodes, 0)
+        else:
+            self.assertGreater(nodes, 0)
         self.assertLessEqual(nodes, 2*n-1)
         return [list(out[3*i:3*i+3]) for i in range(n)]
 
@@ -126,6 +131,19 @@ int force(int n, const double *x, const double *y, const double *z,
         self.assertEqual(g['algorithm'],'direct')
         self.assertAlmostEqual(g['represented_mass_kg'],2.)
         self.assertIn('particle_gravity_p50_s',p['plan']['timing_estimate'])
+
+    def test_direct_solver_matches_exact_two_particle_tree(self):
+        frames = []
+        for theta in (0, .5):
+            s = scene()
+            s['interactions']['gravity_theta'] = theta
+            p = prepare(s)
+            self.assertTrue(p['ready_to_simulate'], p)
+            result = run_scene(p['scene'], p['plan'], time.monotonic() + 10)
+            self.assertEqual(result['diagnostics']['particle_gravity']['algorithm'],
+                             'direct' if theta == 0 else 'Barnes-Hut')
+            frames.append(result['frames'])
+        self.assertEqual(frames[0], frames[1])
 
     def test_invalid_controls_and_unsupported_routes_are_explicit(self):
         for field,value in [('gravity_theta',.71),('gravity_theta',-1),

@@ -11,17 +11,24 @@ def publish_video(artifacts: Path, destination: Path, summary: dict,
         raise VideoEncodingError('invalid host video byte limit')
     source = artifacts/'simulation.mp4'
     original = summary['artifacts']['video']
+    physical_duration = original.get('physical_duration_s', original['duration_s'])
     if source.stat().st_size <= max_bytes:
         shutil.copyfile(source,destination)
         return {'max_bytes':max_bytes, 'bytes':destination.stat().st_size,
-                'compressed':False, 'all_frames_preserved':True, 'solver_rerun':False}
+                'compressed':False, 'all_frames_preserved':True, 'solver_rerun':False,
+                'sample_count':original['sample_count'],
+                'duration_s':original['duration_s'],
+                'physical_duration_s':physical_duration,
+                'time_scale_to_physical':physical_duration/original['duration_s']}
     temporary = destination.with_name('.delivery-video.tmp.mp4')
     try:
         presentation = original.get('presentation')
         if presentation:
             metadata = encode_watchable_mp4(artifacts/'result.json', temporary,
                 fps=int(original['fps']), segments=presentation['segments'],
-                max_bytes=max_bytes, timeout_seconds=timeout_seconds)
+                max_bytes=max_bytes, timeout_seconds=timeout_seconds,
+                camera_zoom=presentation.get('camera_zoom', 1.0),
+                camera_focus_quantile=presentation.get('camera_focus_quantile'))
         else:
             metadata = encode_bounded_mp4(artifacts/'result.json', temporary,
                 int(original['fps']), max_bytes, timeout_seconds)
@@ -34,4 +41,6 @@ def publish_video(artifacts: Path, destination: Path, summary: dict,
     return {**metadata['delivery'], 'bytes':destination.stat().st_size,
             'source_bytes':source.stat().st_size, 'compressed':True,
             'codec':'jpeg', 'sample_count':metadata['sample_count'],
-            'duration_s':metadata['duration_s']}
+            'duration_s':metadata['duration_s'],
+            'physical_duration_s':physical_duration,
+            'time_scale_to_physical':physical_duration/metadata['duration_s']}

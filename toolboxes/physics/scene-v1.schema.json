@@ -46,7 +46,7 @@
         "output_fps": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 60
+          "maximum": 120
         },
         "bounds": {
           "type": "object",

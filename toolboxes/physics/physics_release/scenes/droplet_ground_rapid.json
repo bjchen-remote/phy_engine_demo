@@ -6,7 +6,7 @@
   },
   "colliders": [
     {
-      "friction": 0.25,
+      "friction": 0.15,
       "id": "ground",
       "normal": [
         0,
@@ -14,8 +14,7 @@
         0
       ],
       "offset": 0,
-      "type": "plane",
-      "water_adhesion": 220.0
+      "type": "plane"
     }
   ],
   "entities": [
@@ -23,19 +22,19 @@
       "id": "drop",
       "preset": "water",
       "properties": {
-        "surface_tension": 10.0,
-        "viscosity": 0.03
+        "surface_tension": 0.05,
+        "viscosity": 0.035
       },
       "shape": {
         "center": [
           0,
-          0.015,
+          1.55,
           0
         ],
-        "radius": 0.003,
+        "radius": 0.32,
         "type": "sphere"
       },
-      "spacing": 0.0006,
+      "spacing": 0.06,
       "type": "fluid",
       "velocity": [
         0,
@@ -44,23 +43,23 @@
       ]
     }
   ],
-  "name": "qq-water-droplet-ground-rapid",
+  "name": "qq-large-water-droplet-ground-rapid",
   "version": 1,
   "world": {
     "bounds": {
       "max": [
-        0.04,
-        0.025,
-        0.04
+        4,
+        2.5,
+        4
       ],
       "min": [
-        -0.04,
+        -4,
         0,
-        -0.04
+        -4
       ]
     },
-    "dt": 0.001,
-    "duration": 0.15,
+    "dt": 0.0111111111,
+    "duration": 0.8,
     "gravity": [
       0,
       -9.81,
