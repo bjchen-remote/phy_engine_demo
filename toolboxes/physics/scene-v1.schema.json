@@ -1765,6 +1765,42 @@
           "required": [
             "id",
             "type",
+            "metric",
+            "reference_value",
+            "direction"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "period"
+            },
+            "metric": {
+              "$ref": "#/$defs/query_metric"
+            },
+            "reference_value": {
+              "type": "number",
+              "minimum": -1000000,
+              "maximum": 1000000
+            },
+            "direction": {
+              "enum": ["rising", "falling"]
+            },
+            "min_cycles": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 2
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
             "max_radius",
             "min_separation"
           ],

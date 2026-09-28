@@ -76,10 +76,19 @@ static rm_vec3 group_position(World *w,Group g) {rm_vec3 p=rm_v3(0,0,0);for(int 
 static rm_vec3 group_velocity(World *w,Group g) {rm_vec3 v=rm_v3(0,0,0);for(int i=0;i<g.count;i++)v=rm_add(v,rm_scale(velocity(w,g.e[i]),g.weight[i]));return v;}
 static double group_inverse(World *w,Group g,rm_vec3 n) {double d=0;for(int i=0;i<g.count;i++)d+=g.weight[i]*g.weight[i]*inverse(w,g.e[i],n);return d;}
 static void group_impulse(World *w,Group g,rm_vec3 j,int positional) {for(int i=0;i<g.count;i++)impulse(w,g.e[i],rm_scale(j,g.weight[i]),positional);}
+static int record_contacts(World *w,uint64_t count) {
+    if(w->d->status)return 0;
+    /* Never wrap or saturate: changes in this count trigger geometry refresh. */
+    if(count>UINT64_MAX-w->d->contact_count) {
+        w->d->status=PHY_STATUS_INTERNAL_ERROR;return 0;
+    }
+    w->d->contact_count+=count;return 1;
+}
 static void contact(World *w,Group a,Group b,rm_vec3 n,double gap,double friction,double restitution) {
     if(gap>=0 || !isfinite(gap))return;
     w->d->max_penetration_m=fmax(w->d->max_penetration_m,-gap);
     double den=group_inverse(w,a,n)+group_inverse(w,b,n);if(den<=0)return;
+    if(!record_contacts(w,1))return;
     rm_vec3 correction=rm_scale(n,-gap/den);
     group_impulse(w,a,correction,1);group_impulse(w,b,rm_scale(correction,-1),1);
     double vn=rm_dot(rm_sub(group_velocity(w,a),group_velocity(w,b)),n),normal=0;
@@ -89,7 +98,7 @@ static void contact(World *w,Group a,Group b,rm_vec3 n,double gap,double frictio
         if(speed>1e-12) {rm_vec3 t=rm_scale(v,1/speed);double inv=group_inverse(w,a,t)+group_inverse(w,b,t);
             if(inv>0) {rm_vec3 j=rm_scale(t,-fmin(friction*normal,speed/inv));group_impulse(w,a,j,0);group_impulse(w,b,rm_scale(j,-1),0);}}
     }
-    w->d->contact_count++;w->d->contact_impulse_norm+=normal;
+    w->d->contact_impulse_norm+=normal;
 }
 /* Exact signed distances for the supported homogeneous body geometries. */
 static double shape_distance(CoupledRigid *r,rm_vec3 p,rm_vec3 *normal) {
@@ -223,9 +232,10 @@ static void rigid_mesh_sample(World *w,CoupledEndpoint sample,double radius) {
             if(distance<1e-14&&rm_dot(rm_sub(velocity(w,sample),group_velocity(w,surface)),normal)>0)normal=rm_scale(normal,-1);
             CoupledRigid *r=&w->s->rigid[sample.index];CoupledEndpoint touching=sample;
             if(radius>0)touching.local_point=rm_sub(sample.local_point,rm_q_inverse_rotate(r->body.orientation,rm_scale(normal,radius)));
-            int contacts_before=w->d->contact_count;
+            uint64_t contacts_before=w->d->contact_count;
             contact(w,single(touching),surface,normal,distance-radius-object->thickness,
                     sqrt(r->friction*object->friction),r->restitution);
+            if(w->d->status)return;
             if(w->d->contact_count!=contacts_before)p=position(w,sample);
         }
     }
@@ -234,10 +244,12 @@ static int mesh_point(World *w,CoupledEndpoint e,double radius,double h) {
     rm_vec3 p=position(w,e),v=velocity(w,e);double pos[3]={p.x,p.y,p.z},vel[3]={v.x,v.y,v.z};int32_t count=0;
     int code=mesh_context_contact_point(w->mesh,pos,vel,inverse(w,e,rm_v3(1,0,0)),radius,h,0,&count);
     if(code)return code;
+    if(count<0)return w->d->status=PHY_STATUS_INTERNAL_ERROR;
+    if(!record_contacts(w,(uint64_t)count))return w->d->status;
     p=get3(pos,0);v=get3(vel,0);
     if(e.kind==0) {w->s->point[e.index].position=p;w->s->point[e.index].velocity=v;}
     else particle_put(w->s->particles,e.index,p,v);
-    w->d->contact_count+=count;return 0;
+    return 0;
 }
 static int contacts(World *w,double h) {
     CoupledSimulation *s=w->s;int status=0;

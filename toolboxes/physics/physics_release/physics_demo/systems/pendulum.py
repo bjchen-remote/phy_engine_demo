@@ -94,6 +94,11 @@ def _build(spec: dict, count: int, expected_type: str) -> dict:
                         "metric": {"type": "speed", "entity": bob_id}})
         previous_id = bob_id
 
+    if count == 1:
+        queries.append({"id": "bob1-period", "type": "period",
+                        "metric": {"type": "centroid", "entity": "bob1", "axis": "x"},
+                        "reference_value": 0.0, "direction": "falling", "min_cycles": 2})
+
     span, depth = max(1.0, 1.2 * reach), max(0.5, 0.1 * reach)
     return {
         "version": 1,

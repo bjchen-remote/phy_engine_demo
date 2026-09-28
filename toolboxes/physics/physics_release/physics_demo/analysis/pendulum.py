@@ -4,6 +4,52 @@ from __future__ import annotations
 import math
 
 
+def single_pendulum_reference(scene: dict, bob_id: str) -> dict | None:
+    """Analytic periods only for an undamped, released-from-rest ideal single pendulum."""
+    bodies, links, fields = scene.get("entities", []), scene.get("connections", []), scene.get("force_fields", [])
+    if (len(bodies) != 2 or len(links) != 1 or len(fields) != 1
+            or scene.get("colliders") or scene.get("interactions", {}).get("mutual_gravity")
+            or scene.get("world", {}).get("gravity") != [0.0, 0.0, 0.0]):
+        return None
+    anchor, bob = bodies
+    link, field = links[0], fields[0]
+    if (anchor.get("type") != "point_mass" or bob.get("type") != "point_mass"
+            or not anchor.get("fixed") or bob.get("fixed") or bob.get("id") != bob_id
+            or link.get("type") != "rod" or link.get("entities") != [anchor.get("id"), bob_id]
+            or field.get("type") != "uniform" or field.get("targets") != [bob_id]
+            or field.get("start_time") != 0 or field.get("end_time", 0) < scene["world"]["duration"]
+            or any(abs(v) > 1e-12 for v in bob.get("velocity", []))
+            or any(abs(v) > 1e-12 for v in anchor.get("velocity", []))):
+        return None
+    acceleration = field.get("acceleration", [])
+    if (len(acceleration) != 3 or acceleration[0] != 0 or acceleration[2] != 0
+            or acceleration[1] >= 0):
+        return None
+    dx = bob["position"][0] - anchor["position"][0]
+    dy = bob["position"][1] - anchor["position"][1]
+    dz = bob["position"][2] - anchor["position"][2]
+    length = link["rest_length"]
+    if abs(dz) > 1e-10 or abs(math.hypot(dx, dy) - length) > max(1e-10, length * 1e-8):
+        return None
+    amplitude = abs(math.atan2(dx, -dy))
+    if not 1e-9 < amplitude < math.pi:
+        return None
+    gravity = -acceleration[1]
+    small = 2 * math.pi * math.sqrt(length / gravity)
+    a, b = 1.0, math.cos(amplitude / 2)
+    for _ in range(64):
+        next_a, next_b = (a + b) / 2, math.sqrt(a * b)
+        a, b = next_a, next_b
+        if abs(a - b) <= 1e-15 * a:
+            break
+    return {"length_m": length, "gravity_m_s2": gravity,
+            "release_angle_rad": amplitude,
+            "release_side": "positive_x" if dx > 0 else "negative_x",
+            "small_angle_period_s": small,
+            "finite_amplitude_period_s": small / a,
+            "assumptions": "Ideal point mass, massless rod, uniform gravity, zero initial speed and no damping; the finite-amplitude reference is one complete return to the release state."}
+
+
 def pendulum_report(run) -> dict:
     """Energy and rod-length consistency for the registered ideal systems."""
     scene = run.scene

@@ -279,7 +279,10 @@ def make_plan(
     step_work = particles*80 + vertices*plan.get("mesh_iterations",1)*6 + links*16 + bodies*48 + nodes*8
     cost = plan["steps"]*(substeps+event_headroom)*(step_work+settings["iterations"]*contact_work)
     plan["estimated_peak_memory_mb"] += plan["output_frames"]*(plan["coupling_points"]*3+plan["coupling_rigid_bodies"]*7)*128/1e6
-    plan["coupling_fits_limits"]=substeps+event_headroom<=64 and vertices<=2048 and plan["steps"]<=100000 and cost<=2e9 and plan.get("mesh_fits_limits",True)
+    # Work is a runtime estimate; host-authorized unlimited tasks still retain
+    # the shared-clock, geometry, step-count and independent mesh safety limits.
+    fits_work_budget=scene["budget"].get("unlimited_runtime") is True or cost<=2e9
+    plan["coupling_fits_limits"]=substeps+event_headroom<=64 and vertices<=2048 and plan["steps"]<=100000 and fits_work_budget and plan.get("mesh_fits_limits",True)
     plan["resolution_policy"]="One shared clock and paired reaction impulses; explicit mesh topology and solid/link materials are preserved. Particle spacing follows the existing explicit preparation adjustments."
     plan["coupling_work_units"]=cost
     plan["adjustments"] += ([f"Coupling substeps increased from {settings['substeps']} to {substeps} for spring/mesh resolution."] if substeps!=settings["substeps"] else [])
