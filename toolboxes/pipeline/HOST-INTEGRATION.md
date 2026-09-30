@@ -247,3 +247,21 @@ are distinct evidence. A render/export failure retains its successful simulation
 checkpoint; the same task and component pins may rerender through
 `pipeline_render_prepare` without rerunning the solver. Retain incomplete stages
 for explicit recovery instead of overwriting or blindly replaying them.
+
+## Saved-model preparation for isolated host checks
+
+Composed package 0.2.1 adds `agent_api.context_preparation` metadata without
+changing its engine or stage digests. Each exact saved-model domain selects an
+`operation` and one JSON-string `argument`; the operation must also appear in
+`agent_api.operations`. The default/physics entries declare
+`physics_prepare(scene_json)` and the PCB entry declares `pcb_prepare(spec_json)`
+when available from the selected engine. Unknown domains are not routed to a
+default silently.
+
+A host checking a saved schema-1 wrapper sends its `scene` through the declared
+preparation operation, requires exact `ok:true` and `ready_to_simulate:true`, then
+probes and executes the pinned package. Copying a saved scene file alone does not
+create a composed plan or frozen lock. Missing contracts or incomplete preparation
+mean the model needs preparation; they are not evidence that a solver failed.
+Execution and artifact validation must still pass before recording a successful
+local check. This procedure has no platform-delivery authority.

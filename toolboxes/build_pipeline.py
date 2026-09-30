@@ -14,6 +14,7 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, validate_module, verify
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
+COMPOSED_VERSION = "0.2.1"
 
 
 def copy_tree(source: Path, target: Path) -> None:
@@ -89,6 +90,16 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         "pipeline_capabilities", "pipeline_configure", "pipeline_status", "pipeline_render_prepare",
         "modeling_from_image"})
     api["execution_operation"] = "physics_simulate"
+    # Saved scenes must pass this composed adapter's preparation before probe.
+    # Host-readable metadata does not change the original engine/stage bytes.
+    preparation = {}
+    if "physics_prepare" in api["operations"]:
+        preparation["default"] = {"operation": "physics_prepare", "argument": "scene_json"}
+        preparation["physics"] = dict(preparation["default"])
+    if "pcb_prepare" in api["operations"]:
+        preparation["pcb_thermal"] = {"operation": "pcb_prepare", "argument": "spec_json"}
+    if preparation:
+        api["context_preparation"] = preparation
     api["instructions"] = (
         "This package composes independently pinned modeling, simulation and rendering modules. "
         "Read help(topic=pipeline) first. Video and data ZIP are required; the host must support file delivery. "
@@ -104,7 +115,7 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         "High/deep/full-state capabilities must be explicitly advertised, not guessed. "
         + api.get("instructions", ""))
     write_json(output / "toolbox.json", {"schema_version": 1, "id": "physics-pipeline",
-        "version": VERSION, "entrypoint": "adapter.py", "requires_data_delivery": True,
+        "version": COMPOSED_VERSION, "entrypoint": "adapter.py", "requires_data_delivery": True,
         "capabilities": ["独立建模、数据模拟、保真视频渲染；机械与 PCB 的 MP4+JSON/CSV 数据 ZIP",
                          "原子组合版本热切换，运行中任务保留原引擎和三个模块版本"],
         "limitations": ["需要支持数据附件的 QQ 宿主；保持原物理引擎能力边界",
