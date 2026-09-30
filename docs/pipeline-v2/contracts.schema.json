@@ -1,0 +1,2505 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:phy-engine:pipeline:contracts:2",
+  "title": "Pipeline v2 design contracts",
+  "$comment": "Design-only. Envelope/argument validation does not implement file, domain, authority, lifecycle or receipt verification. See api-contract.md and artifact-contract.md.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/PipelineRequest"
+    },
+    {
+      "$ref": "#/$defs/AgentResult"
+    },
+    {
+      "$ref": "#/$defs/BundleManifest"
+    },
+    {
+      "$ref": "#/$defs/PipelineLock"
+    },
+    {
+      "$ref": "#/$defs/ToolboxContract"
+    },
+    {
+      "$ref": "#/$defs/StageTask"
+    },
+    {
+      "$ref": "#/$defs/DeliveryManifest"
+    },
+    {
+      "$ref": "#/$defs/DataPackageManifest"
+    }
+  ],
+  "$defs": {
+    "ModulePin": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "api_major": {
+          "const": 2
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "digest",
+        "api_major"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactRef": {
+      "type": "object",
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "schema",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "Quality": {
+      "type": "object",
+      "properties": {
+        "modeling": {
+          "enum": [
+            "standard",
+            "high"
+          ]
+        },
+        "simulation": {
+          "enum": [
+            "visual",
+            "strict"
+          ]
+        },
+        "rendering": {
+          "enum": [
+            "preview",
+            "standard",
+            "deep"
+          ]
+        }
+      },
+      "required": [
+        "modeling",
+        "simulation",
+        "rendering"
+      ],
+      "additionalProperties": false
+    },
+    "ParameterValue": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "maxLength": 1024
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 16
+        }
+      ]
+    },
+    "ModelSpec": {
+      "type": "object",
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 128,
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "input_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "maxItems": 16
+        },
+        "geometry_tolerance_m": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "template_id",
+        "parameters",
+        "input_refs",
+        "geometry_tolerance_m",
+        "assumptions"
+      ],
+      "additionalProperties": false
+    },
+    "QuerySpec": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "metric": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "entity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 64,
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "absolute_tolerance": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "metric",
+        "entity_ids",
+        "unit",
+        "parameters",
+        "absolute_tolerance"
+      ],
+      "additionalProperties": false
+    },
+    "SimulationSpec": {
+      "type": "object",
+      "properties": {
+        "physical_duration_s": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observation_interval_s": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "queries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuerySpec"
+          },
+          "maxItems": 64
+        },
+        "state_export": {
+          "enum": [
+            "observables",
+            "sampled_state",
+            "full_state"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "steady",
+            "transient"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "physical_duration_s",
+        "observation_interval_s",
+        "queries",
+        "state_export"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "steady"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "physical_duration_s": {
+                "type": "null"
+              },
+              "observation_interval_s": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "physical_duration_s": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "observation_interval_s": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "RenderSpec": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 16384
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 16384
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 240
+        },
+        "playback_duration_s": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "style": {
+          "enum": [
+            "scientific",
+            "cinematic"
+          ]
+        },
+        "fidelity": {
+          "enum": [
+            "trajectory_preserving",
+            "illustrative"
+          ]
+        },
+        "template_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "parameters": {
+          "type": "object",
+          "maxProperties": 128,
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        }
+      },
+      "required": [
+        "provider",
+        "width_px",
+        "height_px",
+        "fps",
+        "playback_duration_s",
+        "style",
+        "fidelity",
+        "template_id",
+        "parameters"
+      ],
+      "additionalProperties": false
+    },
+    "DeliverySpec": {
+      "type": "object",
+      "properties": {
+        "required_roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "video",
+              "data",
+              "model"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "include_model": {
+          "type": "boolean"
+        },
+        "data_formats": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "json",
+              "csv",
+              "npz"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "allow_partial": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "required_roles",
+        "include_model",
+        "data_formats",
+        "allow_partial"
+      ],
+      "additionalProperties": false
+    },
+    "RequestedBudget": {
+      "type": "object",
+      "properties": {
+        "wall_time_seconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "enum": [
+            "CNY",
+            "USD"
+          ]
+        }
+      },
+      "required": [
+        "wall_time_seconds",
+        "max_output_bytes",
+        "max_cost",
+        "currency"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineRequest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "pipeline-request/2"
+        },
+        "intent": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "model": {
+          "$ref": "#/$defs/ModelSpec"
+        },
+        "simulation": {
+          "$ref": "#/$defs/SimulationSpec"
+        },
+        "render": {
+          "$ref": "#/$defs/RenderSpec"
+        },
+        "quality": {
+          "$ref": "#/$defs/Quality"
+        },
+        "delivery": {
+          "$ref": "#/$defs/DeliverySpec"
+        },
+        "requested_budget": {
+          "$ref": "#/$defs/RequestedBudget"
+        },
+        "allow_adjustments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "render_resolution",
+              "render_compression"
+            ]
+          },
+          "uniqueItems": true,
+          "maxItems": 2
+        },
+        "reuse": {
+          "type": "object",
+          "properties": {
+            "model_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModelRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "simulation_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SimulationRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "render_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RenderRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "model_ref",
+            "simulation_ref",
+            "render_ref"
+          ],
+          "additionalProperties": false
+        },
+        "permitted_stages": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "modeling",
+              "simulation",
+              "rendering"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schema_version",
+        "intent",
+        "model",
+        "simulation",
+        "render",
+        "quality",
+        "delivery",
+        "requested_budget",
+        "allow_adjustments",
+        "reuse",
+        "permitted_stages"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineLock": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "pipeline-lock/2"
+        },
+        "lock_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "bundle_revision": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "modules": {
+          "type": "object",
+          "properties": {
+            "modeling": {
+              "$ref": "#/$defs/ModulePin"
+            },
+            "simulation": {
+              "$ref": "#/$defs/ModulePin"
+            },
+            "rendering": {
+              "$ref": "#/$defs/ModulePin"
+            }
+          },
+          "required": [],
+          "additionalProperties": false,
+          "minProperties": 1
+        },
+        "policy_revision": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "schema_version",
+        "lock_id",
+        "bundle_revision",
+        "modules",
+        "policy_revision",
+        "created_at"
+      ],
+      "additionalProperties": false
+    },
+    "CostEstimate": {
+      "type": "object",
+      "properties": {
+        "p50_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "p90_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cost_upper_bound": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "enum": [
+            "CNY",
+            "USD"
+          ]
+        },
+        "working_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "p50_seconds",
+        "p90_seconds",
+        "cost_upper_bound",
+        "currency",
+        "working_bytes",
+        "output_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "StatePlan": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "enum": [
+            "observables",
+            "sampled_state",
+            "full_state"
+          ]
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StateField"
+          },
+          "minItems": 1
+        },
+        "entity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "population": {
+          "enum": [
+            "observables_only",
+            "sampled",
+            "all_declared_entities"
+          ]
+        },
+        "selection_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clock": {
+          "enum": [
+            "observation",
+            "fixed_interval",
+            "solver_macro_step",
+            "static"
+          ]
+        },
+        "interval_s": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_window_s": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "endpoints": {
+          "enum": [
+            "both",
+            "single_static"
+          ]
+        },
+        "interpolation": {
+          "enum": [
+            "none",
+            "display_only"
+          ]
+        },
+        "chunking": {
+          "type": "object",
+          "properties": {
+            "frames_per_chunk": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_uncompressed_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "frames_per_chunk",
+            "max_uncompressed_bytes"
+          ],
+          "additionalProperties": false
+        },
+        "estimated_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "profile",
+        "fields",
+        "entity_ids",
+        "population",
+        "selection_ref",
+        "clock",
+        "interval_s",
+        "time_window_s",
+        "endpoints",
+        "interpolation",
+        "chunking",
+        "estimated_bytes",
+        "limitations"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "clock": {
+                "const": "static"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "interval_s": {
+                "type": "null"
+              },
+              "endpoints": {
+                "const": "single_static"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "interval_s": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "endpoints": {
+                "const": "both"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Plan": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "kind": {
+          "enum": [
+            "pipeline",
+            "modeling",
+            "simulation",
+            "rendering"
+          ]
+        },
+        "request_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "lock": {
+          "$ref": "#/$defs/PipelineLock"
+        },
+        "input_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          }
+        },
+        "quality_requested": {
+          "$ref": "#/$defs/StageQuality"
+        },
+        "state_plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatePlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "estimate": {
+          "$ref": "#/$defs/CostEstimate"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "adjustments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "permitted_stages": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "modeling",
+              "simulation",
+              "rendering"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "quality_resolved": {
+          "$ref": "#/$defs/StageQuality"
+        },
+        "effective_arguments": {
+          "type": "object"
+        },
+        "effective_limits": {
+          "$ref": "#/$defs/HostLimits"
+        },
+        "delivery": {
+          "$ref": "#/$defs/DeliverySpec"
+        }
+      },
+      "required": [
+        "plan_id",
+        "kind",
+        "request_sha256",
+        "lock",
+        "input_refs",
+        "quality_requested",
+        "state_plan",
+        "estimate",
+        "expires_at",
+        "assumptions",
+        "adjustments",
+        "idempotency_key",
+        "permitted_stages",
+        "quality_resolved",
+        "effective_arguments",
+        "effective_limits",
+        "delivery"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "pipeline"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effective_arguments": {
+                "$ref": "#/$defs/args_pipeline_prepare"
+              },
+              "state_plan": {
+                "$ref": "#/$defs/StatePlan"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "modeling"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effective_arguments": {
+                "$ref": "#/$defs/args_modeling_prepare"
+              },
+              "state_plan": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "simulation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effective_arguments": {
+                "$ref": "#/$defs/args_simulation_prepare"
+              },
+              "state_plan": {
+                "$ref": "#/$defs/StatePlan"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "rendering"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effective_arguments": {
+                "$ref": "#/$defs/args_rendering_prepare"
+              },
+              "state_plan": {
+                "$ref": "#/$defs/StatePlan"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "suggestion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8192
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "path",
+        "message",
+        "retryable",
+        "suggestion"
+      ],
+      "additionalProperties": false
+    },
+    "NextAction": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "call_tool",
+            "poll",
+            "respond",
+            "none"
+          ]
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "poll_after_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "tool",
+        "arguments",
+        "poll_after_ms"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "poll"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tool": {
+                "const": "pipeline_status"
+              },
+              "poll_after_ms": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "arguments": {
+                "type": "object",
+                "properties": {
+                  "job_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                  }
+                },
+                "required": [
+                  "job_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "call_tool"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tool": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+              },
+              "poll_after_ms": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "respond",
+                  "none"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tool": {
+                "type": "null"
+              },
+              "arguments": {
+                "maxProperties": 0
+              },
+              "poll_after_ms": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AgentResult": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "agent-result/2"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "capabilities_ready",
+            "template_ready",
+            "plan_ready",
+            "needs_input",
+            "needs_authorization",
+            "unsupported",
+            "over_budget",
+            "queued",
+            "running",
+            "reconciling",
+            "succeeded",
+            "partial",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "host",
+            "modeling",
+            "simulation",
+            "rendering",
+            "delivery"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "data": {
+          "type": "object"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Error"
+          },
+          "maxItems": 32
+        },
+        "next_action": {
+          "$ref": "#/$defs/NextAction"
+        }
+      },
+      "required": [
+        "schema_version",
+        "ok",
+        "status",
+        "stage",
+        "summary",
+        "data",
+        "errors",
+        "next_action"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "plan_ready"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ok": {
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "plan": {
+                    "$ref": "#/$defs/Plan"
+                  }
+                },
+                "required": [
+                  "plan"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "errors": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "needs_input",
+                  "needs_authorization",
+                  "unsupported",
+                  "over_budget",
+                  "failed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ok": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "FileEntry": {
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "role": {
+          "enum": [
+            "model",
+            "geometry",
+            "binding",
+            "data",
+            "state",
+            "dictionary",
+            "report",
+            "video",
+            "thumbnail",
+            "frame_map"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "role",
+        "path",
+        "media_type",
+        "bytes",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "Validation": {
+      "type": "object",
+      "properties": {
+        "integrity": {
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "domain": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_applicable"
+          ]
+        },
+        "numerical": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_checked",
+            "not_applicable"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        }
+      },
+      "required": [
+        "integrity",
+        "domain",
+        "numerical",
+        "checks",
+        "warnings"
+      ],
+      "additionalProperties": false
+    },
+    "BundleManifest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "bundle-manifest/1"
+        },
+        "kind": {
+          "enum": [
+            "ModelBundle/1",
+            "SimulationBundle/1",
+            "RenderBundle/1"
+          ]
+        },
+        "bundle_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "producer": {
+          "$ref": "#/$defs/ModulePin"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          },
+          "minItems": 1,
+          "maxItems": 100000
+        },
+        "quality": {
+          "type": "object",
+          "properties": {
+            "requested": {
+              "$ref": "#/$defs/StageQuality"
+            },
+            "actual": {
+              "$ref": "#/$defs/StageQuality"
+            }
+          },
+          "required": [
+            "requested",
+            "actual"
+          ],
+          "additionalProperties": false
+        },
+        "validation": {
+          "$ref": "#/$defs/Validation"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "bundle_id",
+        "run_id",
+        "producer",
+        "inputs",
+        "files",
+        "quality",
+        "validation",
+        "metadata"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ModelBundle/1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "quality": {
+                "properties": {
+                  "actual": {
+                    "type": "object",
+                    "properties": {
+                      "modeling": {
+                        "enum": [
+                          "standard",
+                          "high"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "modeling"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "SimulationBundle/1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "quality": {
+                "properties": {
+                  "actual": {
+                    "type": "object",
+                    "properties": {
+                      "modeling": {
+                        "enum": [
+                          "standard",
+                          "high"
+                        ]
+                      },
+                      "simulation": {
+                        "enum": [
+                          "visual",
+                          "strict"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "simulation"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "RenderBundle/1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "quality": {
+                "properties": {
+                  "actual": {
+                    "type": "object",
+                    "properties": {
+                      "modeling": {
+                        "enum": [
+                          "standard",
+                          "high"
+                        ]
+                      },
+                      "simulation": {
+                        "enum": [
+                          "visual",
+                          "strict"
+                        ]
+                      },
+                      "rendering": {
+                        "enum": [
+                          "preview",
+                          "standard",
+                          "deep"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "rendering"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DeliveryItem": {
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "role": {
+          "enum": [
+            "video",
+            "data",
+            "model",
+            "report"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "verified",
+            "queued",
+            "sent",
+            "acknowledged",
+            "unknown",
+            "failed"
+          ]
+        },
+        "receipt_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "artifact",
+        "role",
+        "required",
+        "state",
+        "receipt_id"
+      ],
+      "additionalProperties": false
+    },
+    "DeliveryManifest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "delivery-manifest/2"
+        },
+        "delivery_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "required_roles": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "video",
+              "data",
+              "model"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "reconciling",
+            "succeeded",
+            "partial",
+            "failed"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeliveryItem"
+          },
+          "minItems": 1
+        },
+        "retention_until": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "delivery_id",
+        "run_id",
+        "required_roles",
+        "status",
+        "items",
+        "retention_until",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "HostLimits": {
+      "type": "object",
+      "properties": {
+        "wall_time_seconds": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "memory_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "work_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "output_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_provider_submissions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "enum": [
+            "CNY",
+            "USD"
+          ]
+        },
+        "hard_enforced": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "wall_time",
+              "memory",
+              "work_bytes",
+              "output_bytes",
+              "cost",
+              "provider_submissions"
+            ]
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "wall_time_seconds",
+        "memory_bytes",
+        "work_bytes",
+        "output_bytes",
+        "max_provider_submissions",
+        "max_cost",
+        "currency",
+        "hard_enforced"
+      ],
+      "additionalProperties": false
+    },
+    "StageTask": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "stage-task/2"
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "stage": {
+          "enum": [
+            "modeling",
+            "simulation",
+            "rendering"
+          ]
+        },
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "plan_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "pin": {
+          "$ref": "#/$defs/ModulePin"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          }
+        },
+        "input_mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifact": {
+                "$ref": "#/$defs/ArtifactRef"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+              },
+              "read_only": {
+                "const": true
+              }
+            },
+            "required": [
+              "artifact",
+              "path",
+              "read_only"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "output_dir": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+        },
+        "work_dir": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"
+        },
+        "limits": {
+          "$ref": "#/$defs/HostLimits"
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "network": {
+              "const": false
+            },
+            "broker_handle": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "network",
+            "broker_handle"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "run_id",
+        "stage",
+        "plan_id",
+        "plan_sha256",
+        "pin",
+        "inputs",
+        "input_mounts",
+        "output_dir",
+        "work_dir",
+        "limits",
+        "permissions"
+      ],
+      "additionalProperties": false
+    },
+    "ToolboxContract": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "toolbox-contract/2"
+        },
+        "status": {
+          "const": "design_only"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "role": {
+          "enum": [
+            "modeling",
+            "simulation",
+            "rendering"
+          ]
+        },
+        "planned_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "api_major": {
+          "const": 2
+        },
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "input_schemas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "output_schemas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "minItems": 1
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "skill_source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "packaged_skill_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "isolation": {
+          "type": "object",
+          "properties": {
+            "network": {
+              "const": false
+            },
+            "provider_broker": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "network",
+            "provider_broker"
+          ],
+          "additionalProperties": false
+        },
+        "capability_policy": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "acceptance": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "id",
+        "role",
+        "planned_version",
+        "api_major",
+        "entrypoint",
+        "input_schemas",
+        "output_schemas",
+        "operations",
+        "skill_source",
+        "packaged_skill_path",
+        "isolation",
+        "capability_policy",
+        "dependencies",
+        "acceptance"
+      ],
+      "additionalProperties": false
+    },
+    "args_pipeline_prepare": {
+      "type": "object",
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/PipelineRequest"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "additionalProperties": false
+    },
+    "args_pipeline_submit": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "plan_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "args_modeling_build": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "plan_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "args_simulation_run": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "plan_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "args_rendering_render": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "plan_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "args_pipeline_status": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "job_id"
+      ],
+      "additionalProperties": false
+    },
+    "args_pipeline_cancel": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "job_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "args_pipeline_deliver": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "job_id",
+        "idempotency_key"
+      ],
+      "additionalProperties": false
+    },
+    "args_modeling_capabilities": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "args_simulation_capabilities": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "args_rendering_capabilities": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "args_modeling_template": {
+      "type": "object",
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "template_id"
+      ],
+      "additionalProperties": false
+    },
+    "args_modeling_prepare": {
+      "type": "object",
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/ModelSpec"
+        },
+        "quality": {
+          "enum": [
+            "standard",
+            "high"
+          ]
+        }
+      },
+      "required": [
+        "spec",
+        "quality"
+      ],
+      "additionalProperties": false
+    },
+    "args_modeling_inspect": {
+      "type": "object",
+      "properties": {
+        "model_ref": {
+          "$ref": "#/$defs/ModelRef"
+        }
+      },
+      "required": [
+        "model_ref"
+      ],
+      "additionalProperties": false
+    },
+    "args_simulation_prepare": {
+      "type": "object",
+      "properties": {
+        "model_ref": {
+          "$ref": "#/$defs/ModelRef"
+        },
+        "spec": {
+          "$ref": "#/$defs/SimulationSpec"
+        },
+        "quality": {
+          "enum": [
+            "visual",
+            "strict"
+          ]
+        }
+      },
+      "required": [
+        "model_ref",
+        "spec",
+        "quality"
+      ],
+      "additionalProperties": false
+    },
+    "args_simulation_query": {
+      "type": "object",
+      "properties": {
+        "simulation_ref": {
+          "$ref": "#/$defs/SimulationRef"
+        },
+        "query_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "simulation_ref",
+        "query_id"
+      ],
+      "additionalProperties": false
+    },
+    "args_simulation_inspect": {
+      "type": "object",
+      "properties": {
+        "simulation_ref": {
+          "$ref": "#/$defs/SimulationRef"
+        }
+      },
+      "required": [
+        "simulation_ref"
+      ],
+      "additionalProperties": false
+    },
+    "args_rendering_prepare": {
+      "type": "object",
+      "properties": {
+        "model_ref": {
+          "$ref": "#/$defs/ModelRef"
+        },
+        "simulation_ref": {
+          "$ref": "#/$defs/SimulationRef"
+        },
+        "spec": {
+          "$ref": "#/$defs/RenderSpec"
+        },
+        "quality": {
+          "enum": [
+            "preview",
+            "standard",
+            "deep"
+          ]
+        }
+      },
+      "required": [
+        "model_ref",
+        "simulation_ref",
+        "spec",
+        "quality"
+      ],
+      "additionalProperties": false
+    },
+    "args_rendering_inspect": {
+      "type": "object",
+      "properties": {
+        "render_ref": {
+          "$ref": "#/$defs/RenderRef"
+        }
+      },
+      "required": [
+        "render_ref"
+      ],
+      "additionalProperties": false
+    },
+    "StageQuality": {
+      "type": "object",
+      "properties": {
+        "modeling": {
+          "enum": [
+            "standard",
+            "high"
+          ]
+        },
+        "simulation": {
+          "enum": [
+            "visual",
+            "strict"
+          ]
+        },
+        "rendering": {
+          "enum": [
+            "preview",
+            "standard",
+            "deep"
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "StateField": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "dtype": {
+          "enum": [
+            "float64",
+            "float32",
+            "int64",
+            "uint64",
+            "bool",
+            "string"
+          ]
+        },
+        "components": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "source": {
+          "enum": [
+            "solver",
+            "legacy_display"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "unit",
+        "dtype",
+        "components",
+        "source",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "DataPackageManifest": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "data-package/1"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "simulation_ref": {
+          "$ref": "#/$defs/SimulationRef"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileEntry"
+          },
+          "minItems": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "simulation_ref",
+        "files",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "ModelRef": {
+      "type": "object",
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "schema": {
+          "const": "ModelBundle/1"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "schema",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "SimulationRef": {
+      "type": "object",
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "schema": {
+          "const": "SimulationBundle/1"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "schema",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "RenderRef": {
+      "type": "object",
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "schema": {
+          "const": "RenderBundle/1"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "schema",
+        "sha256"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

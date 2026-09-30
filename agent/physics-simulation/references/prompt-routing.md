@@ -2,6 +2,8 @@
 
 For a single/double pendulum, start with `physics_system` and its [physical parameter specification](systems.md). For other models route by the requested physical event, then select from [interesting-scenes](interesting-scenes.md). “Advertising,” “engineering,” or “pharma” describes the use of a video, not additional solver accuracy. Load the closest `physics_example`; use its `common_patches`, inherited assumptions and limitation rather than guessing IDs or fields.
 
+`physics_capabilities.examples` and `physics_example` expose `mechanism_boundary` for scenarios with an easy-to-miss substitution. Compare the mechanisms explicitly requested by the user against `modeled` and `unavailable` before selecting the scene. For example, a vehicle wading shot models moving water around a static vehicle proxy; it cannot fulfill an explicit request for a translating car or rotating tyres. A fountain burst starts with a finite volume and timed acceleration; it cannot fulfill a request for a steady, pressure-driven jet. An absent tag means the mechanism has not been classified, not that it is supported. A ready result from `physics_prepare` establishes executable scene validity, not that the user's requested mechanism was simulated.
+
 ## Construct the scene
 
 Extract, in order: event/objects/interactions; geometry in metres; velocities and accelerations; physical duration and field windows; queries; FPS/quality/backend/wall budget. Patch every explicit difference. Keep omitted canonical values and disclose relevant assumptions. Validator assumptions are deterministic effective choices from the complete normalized scene, not merely a list of newly inserted defaults.

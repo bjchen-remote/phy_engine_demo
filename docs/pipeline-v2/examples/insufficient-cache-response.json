@@ -1,0 +1,29 @@
+{
+  "schema_version": "agent-result/2",
+  "ok": false,
+  "status": "unsupported",
+  "stage": "rendering",
+  "summary": "协议示例：旧视频抽样数据不足以满足所请求深度渲染。",
+  "data": {
+    "simulation_ref": {
+      "artifact_ref": "example-simulation-old",
+      "schema": "SimulationBundle/1",
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555"
+    }
+  },
+  "errors": [
+    {
+      "code": "insufficient_render_cache",
+      "path": "simulation.state_plan",
+      "message": "仅保存抽样位置，缺少要求的全体粒子与速度；不能从视频恢复。",
+      "retryable": false,
+      "suggestion": "选择符合现有缓存的渲染，或在允许重新模拟后 prepare 新状态保存规格。"
+    }
+  ],
+  "next_action": {
+    "kind": "respond",
+    "tool": null,
+    "arguments": {},
+    "poll_after_ms": null
+  }
+}

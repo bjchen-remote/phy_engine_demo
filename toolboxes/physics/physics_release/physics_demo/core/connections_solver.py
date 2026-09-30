@@ -17,12 +17,12 @@ from physics_demo.core.native_backend import (CForceField, NativeResourceLimitEr
 from physics_demo.core.native_runtime import load_library
 from physics_demo.analysis.observers import unpack_observations
 
-ABI_VERSION = 1
+ABI_VERSION = 3
 
 
 class Connection(C.Structure):
     _fields_ = [(name, C.c_int32) for name in ("type", "a", "b")] + [
-        (name, C.c_double) for name in ("rest", "stiffness", "damping")]
+        (name, C.c_double) for name in ("rest", "stiffness", "damping", "break_tensile_strain")]
 
 
 class Metric(C.Structure):
@@ -38,7 +38,9 @@ class Simulation(C.Structure):
         ("fixed", C.POINTER(C.c_int32)), ("field_mask", C.POINTER(C.c_uint32)),
         ("connection", C.POINTER(Connection)), ("field", C.POINTER(CForceField)),
         ("metric", C.POINTER(Metric))] + [(name, C.POINTER(C.c_double)) for name in (
-        "frames", "frame_times", "observation_times", "observation_values")]
+        "frames", "frame_times", "observation_times", "observation_values")] + [
+        ("break_times", C.POINTER(C.c_double)),
+        ("break_lengths", C.POINTER(C.c_double))]
 
 
 class Diagnostics(C.Structure):
@@ -47,7 +49,7 @@ class Diagnostics(C.Structure):
         "substeps", "max_substeps_used")] + [(name, C.c_double) for name in (
         "simulated_time_s", "runtime_s", "max_rod_error_m", "max_rope_extension_m", "max_constraint_error_ratio", "max_speed_m_s",
         "initial_kinetic_energy", "final_kinetic_energy", "initial_spring_energy", "final_spring_energy",
-        "connection_peak_relative_energy_drift")]
+        "connection_peak_relative_energy_drift", "connection_prebreak_peak_relative_energy_drift")]
 
 
 _LIBRARIES: dict[str, C.CDLL] = {}
@@ -89,7 +91,8 @@ def _pack(scene: dict[str, Any], plan: dict[str, Any], deadline_seconds: float) 
     link_ids = {link["id"]: i for i, link in enumerate(links)}
     connections = [Connection({"spring": 0, "rod": 1, "rope": 2}[link["type"]],
         *(ids[ident] for ident in link["entities"]), float(link["rest_length"]),
-        float(link.get("stiffness", 0)), float(link.get("damping", 0))) for link in links]
+        float(link.get("stiffness", 0)), float(link.get("damping", 0)),
+        float(link.get("break_tensile_strain", -1))) for link in links]
     fields, _, masks = _force_fields(scene, [], [SimpleNamespace(ident=e["id"]) for e in entities])
     kinds = {"centroid": 0, "speed": 1, "center_distance": 2, "connection_length": 3,
              "connection_extension": 4, "spring_force": 5, "spring_energy": 6}
@@ -117,7 +120,9 @@ def _pack(scene: dict[str, Any], plan: dict[str, Any], deadline_seconds: float) 
         frames=(C.c_double * (frame_capacity*len(entities)*3))(),
         frame_times=(C.c_double * frame_capacity)(),
         observation_times=(C.c_double * max(1, observation_capacity))(),
-        observation_values=(C.c_double * max(1, observation_capacity*len(metrics)))())
+        observation_values=(C.c_double * max(1, observation_capacity*len(metrics)))(),
+        break_times=(C.c_double * len(links))(),
+        break_lengths=(C.c_double * len(links))())
 
 
 def run_scene_connections(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> dict[str, Any]:
@@ -132,9 +137,16 @@ def run_scene_connections(scene: dict[str, Any], plan: dict[str, Any], deadline:
     if status not in {0, 3, 4}:
         raise NativeSimulationError("Unexpected connections native status: " + str(status))
     diagnostics = {name: getattr(diag, name) for name, _ in Diagnostics._fields_
-                   if name not in {"status", "frames_written", "observations_written"}}
-    energy_applicable = (not scene.get("force_fields") and
+                   if name not in {"status", "frames_written", "observations_written",
+                                   "connection_prebreak_peak_relative_energy_drift"}}
+    breakable = any("break_tensile_strain" in link for link in scene["connections"])
+    break_times = [None if simulation.break_times[j] < 0 else float(simulation.break_times[j])
+                   for j in range(simulation.connections)]
+    break_lengths = [None if simulation.break_lengths[j] < 0 else float(simulation.break_lengths[j])
+                     for j in range(simulation.connections)]
+    energy_eligible = (not scene.get("force_fields") and
         all(e["type"] == "spring" and e.get("damping", 0) == 0 for e in scene["connections"]))
+    energy_applicable = energy_eligible and all(value is None for value in break_times)
     diagnostics.update(finite=bool(diag.finite), completed=bool(diag.completed), backend="native-c11-connections",
         native_status=STATUS_NAMES[status], native_build=build, native_compile_s=compile_seconds,
         bridge_runtime_s=time.monotonic()-started, particle_count=0, render_particle_count=0,
@@ -149,9 +161,22 @@ def run_scene_connections(scene: dict[str, Any], plan: dict[str, Any], deadline:
                                "only when connection_energy_conservation_applicable is true.",
         solver_features=["hooke-verlet", "exact-pair-dashpot-splitting", "shake-rod-position", "rattle-rod-velocity",
                          "inelastic-tension-only-rope", "force-field-event-splitting"])
+    if breakable:
+        diagnostics["connection_break_times_s"] = break_times
+        diagnostics["connection_break_lengths_m"] = break_lengths
+        diagnostics["broken_connection_count"] = sum(value is not None for value in break_times)
+        diagnostics["connection_prebreak_peak_relative_energy_drift"] = float(diag.connection_prebreak_peak_relative_energy_drift)
+        diagnostics["connection_prebreak_energy_conservation_applicable"] = (
+            energy_eligible and any(value is not None and value > 0 for value in break_times))
+        diagnostics["connection_energy_note"] += " Irreversible tensile failure can dissipate stored spring energy."
+        diagnostics["solver_features"].append("one-way-tensile-spring-failure")
     frames = [{"t": float(simulation.frame_times[j]), "p": [], "r": [],
                "g": [[float(simulation.frames[(j*simulation.nodes+i)*3+k]) for k in range(3)]
                      for i in range(simulation.nodes)]} for j in range(diag.frames_written)]
+    if breakable:
+        for frame in frames:
+            frame["connection_active"] = [event_time is None or frame["t"] + 1e-12 < event_time
+                                          for event_time in break_times]
     result = {"frames": frames, "particle_materials": [], "particle_groups": [], "particle_radius": 0,
               "gravity_body_ids": [entity["id"] for entity in scene["entities"]],
               "rigid_ids": [], "rigid_shapes": [], "diagnostics": diagnostics}

@@ -3,6 +3,7 @@
  * This is not a monolithic moving-boundary DFSPH pressure solve. */
 #define _POSIX_C_SOURCE 200809L
 #include "coupled_native.h"
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -75,10 +76,19 @@ static rm_vec3 group_position(World *w,Group g) {rm_vec3 p=rm_v3(0,0,0);for(int 
 static rm_vec3 group_velocity(World *w,Group g) {rm_vec3 v=rm_v3(0,0,0);for(int i=0;i<g.count;i++)v=rm_add(v,rm_scale(velocity(w,g.e[i]),g.weight[i]));return v;}
 static double group_inverse(World *w,Group g,rm_vec3 n) {double d=0;for(int i=0;i<g.count;i++)d+=g.weight[i]*g.weight[i]*inverse(w,g.e[i],n);return d;}
 static void group_impulse(World *w,Group g,rm_vec3 j,int positional) {for(int i=0;i<g.count;i++)impulse(w,g.e[i],rm_scale(j,g.weight[i]),positional);}
+static int record_contacts(World *w,uint64_t count) {
+    if(w->d->status)return 0;
+    /* Never wrap or saturate: changes in this count trigger geometry refresh. */
+    if(count>UINT64_MAX-w->d->contact_count) {
+        w->d->status=PHY_STATUS_INTERNAL_ERROR;return 0;
+    }
+    w->d->contact_count+=count;return 1;
+}
 static void contact(World *w,Group a,Group b,rm_vec3 n,double gap,double friction,double restitution) {
     if(gap>=0 || !isfinite(gap))return;
     w->d->max_penetration_m=fmax(w->d->max_penetration_m,-gap);
     double den=group_inverse(w,a,n)+group_inverse(w,b,n);if(den<=0)return;
+    if(!record_contacts(w,1))return;
     rm_vec3 correction=rm_scale(n,-gap/den);
     group_impulse(w,a,correction,1);group_impulse(w,b,rm_scale(correction,-1),1);
     double vn=rm_dot(rm_sub(group_velocity(w,a),group_velocity(w,b)),n),normal=0;
@@ -88,7 +98,7 @@ static void contact(World *w,Group a,Group b,rm_vec3 n,double gap,double frictio
         if(speed>1e-12) {rm_vec3 t=rm_scale(v,1/speed);double inv=group_inverse(w,a,t)+group_inverse(w,b,t);
             if(inv>0) {rm_vec3 j=rm_scale(t,-fmin(friction*normal,speed/inv));group_impulse(w,a,j,0);group_impulse(w,b,rm_scale(j,-1),0);}}
     }
-    w->d->contact_count++;w->d->contact_impulse_norm+=normal;
+    w->d->contact_impulse_norm+=normal;
 }
 /* Exact signed distances for the supported homogeneous body geometries. */
 static double shape_distance(CoupledRigid *r,rm_vec3 p,rm_vec3 *normal) {
@@ -194,22 +204,39 @@ static rm_vec3 closest_triangle(rm_vec3 p,rm_vec3 a,rm_vec3 b,rm_vec3 c,double w
     double inverse=1/(va+vb+vc);weight[1]=vb*inverse;weight[2]=vc*inverse;weight[0]=1-weight[1]-weight[2];
     return rm_add(a,rm_add(rm_scale(ab,weight[1]),rm_scale(ac,weight[2])));
 }
+static int outside_triangle_aabb(rm_vec3 p,rm_vec3 a,rm_vec3 b,rm_vec3 c,double reach) {
+    /* Leave exceptional values to the exact path and its existing error checks.
+     * The guard covers rounding in the bounds, sample and closest-point math. */
+    double scale=fabs(p.x)+fabs(p.y)+fabs(p.z)+fabs(a.x)+fabs(a.y)+fabs(a.z)
+                +fabs(b.x)+fabs(b.y)+fabs(b.z)+fabs(c.x)+fabs(c.y)+fabs(c.z)+fabs(reach);
+    if(!(scale<=1e50) || reach<0)return 0;
+    double extent=reach+64*DBL_EPSILON*(scale+1);
+    return p.x<fmin(a.x,fmin(b.x,c.x))-extent || p.x>fmax(a.x,fmax(b.x,c.x))+extent
+        || p.y<fmin(a.y,fmin(b.y,c.y))-extent || p.y>fmax(a.y,fmax(b.y,c.y))+extent
+        || p.z<fmin(a.z,fmin(b.z,c.z))-extent || p.z>fmax(a.z,fmax(b.z,c.z))+extent;
+}
 static void rigid_mesh_sample(World *w,CoupledEndpoint sample,double radius) {
     MeshSimulation *s=w->s->mesh;if(!s)return;
+    rm_vec3 p=position(w,sample);
     for(int o=0;o<s->objects;o++) {MeshObject *object=&s->object[o];
+        double reach=radius+object->thickness;
         for(int triangle=object->triangle_start;triangle<object->triangle_start+object->triangle_count;triangle++) {
             if((triangle&127)==0&&now()-w->started>=w->s->deadline_seconds){w->d->status=3;return;}
             int *ids=&s->indices[3*triangle];rm_vec3 a=get3(s->positions,ids[0]),b=get3(s->positions,ids[1]),c=get3(s->positions,ids[2]);
-            rm_vec3 p=position(w,sample);double weights[3];rm_vec3 q=closest_triangle(p,a,b,c,weights),delta=rm_sub(p,q);double distance=rm_norm(delta);
-            if(distance>=radius+object->thickness)continue;
+            if(outside_triangle_aabb(p,a,b,c,reach))continue;
+            double weights[3];rm_vec3 q=closest_triangle(p,a,b,c,weights),delta=rm_sub(p,q);double distance=rm_norm(delta);
+            if(distance>=reach)continue;
             Group surface={0};surface.count=3;
             for(int k=0;k<3;k++){surface.e[k]=endpoint(1,ids[k]);surface.weight[k]=weights[k];}
             rm_vec3 normal=unit(delta,unit(rm_cross(rm_sub(b,a),rm_sub(c,a)),rm_v3(0,1,0)));
             if(distance<1e-14&&rm_dot(rm_sub(velocity(w,sample),group_velocity(w,surface)),normal)>0)normal=rm_scale(normal,-1);
             CoupledRigid *r=&w->s->rigid[sample.index];CoupledEndpoint touching=sample;
             if(radius>0)touching.local_point=rm_sub(sample.local_point,rm_q_inverse_rotate(r->body.orientation,rm_scale(normal,radius)));
+            uint64_t contacts_before=w->d->contact_count;
             contact(w,single(touching),surface,normal,distance-radius-object->thickness,
                     sqrt(r->friction*object->friction),r->restitution);
+            if(w->d->status)return;
+            if(w->d->contact_count!=contacts_before)p=position(w,sample);
         }
     }
 }
@@ -217,10 +244,12 @@ static int mesh_point(World *w,CoupledEndpoint e,double radius,double h) {
     rm_vec3 p=position(w,e),v=velocity(w,e);double pos[3]={p.x,p.y,p.z},vel[3]={v.x,v.y,v.z};int32_t count=0;
     int code=mesh_context_contact_point(w->mesh,pos,vel,inverse(w,e,rm_v3(1,0,0)),radius,h,0,&count);
     if(code)return code;
+    if(count<0)return w->d->status=PHY_STATUS_INTERNAL_ERROR;
+    if(!record_contacts(w,(uint64_t)count))return w->d->status;
     p=get3(pos,0);v=get3(vel,0);
     if(e.kind==0) {w->s->point[e.index].position=p;w->s->point[e.index].velocity=v;}
     else particle_put(w->s->particles,e.index,p,v);
-    w->d->contact_count+=count;return 0;
+    return 0;
 }
 static int contacts(World *w,double h) {
     CoupledSimulation *s=w->s;int status=0;

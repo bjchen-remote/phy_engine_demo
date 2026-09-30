@@ -1,0 +1,127 @@
+{
+  "schema_version": "bundle-manifest/1",
+  "kind": "SimulationBundle/1",
+  "bundle_id": "example-simulation-001",
+  "run_id": "example-run-001",
+  "producer": {
+    "id": "simulation-physics",
+    "version": "0.1.0",
+    "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "api_major": 2
+  },
+  "inputs": [
+    {
+      "artifact_ref": "example-model-001",
+      "schema": "ModelBundle/1",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    }
+  ],
+  "files": [
+    {
+      "artifact_id": "example-observations",
+      "role": "data",
+      "path": "observations.csv",
+      "media_type": "text/csv",
+      "bytes": 256,
+      "sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    },
+    {
+      "artifact_id": "example-dictionary",
+      "role": "dictionary",
+      "path": "data-dictionary.json",
+      "media_type": "application/json",
+      "bytes": 512,
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    {
+      "artifact_id": "example-report",
+      "role": "report",
+      "path": "simulation.json",
+      "media_type": "application/json",
+      "bytes": 1024,
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "artifact_id": "example-state",
+      "role": "state",
+      "path": "state-000.npz",
+      "media_type": "application/octet-stream",
+      "bytes": 4096,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "quality": {
+    "requested": {
+      "modeling": "standard",
+      "simulation": "strict",
+      "rendering": "standard"
+    },
+    "actual": {
+      "modeling": "standard",
+      "simulation": "strict"
+    }
+  },
+  "validation": {
+    "integrity": "passed",
+    "domain": "passed",
+    "numerical": "passed",
+    "checks": [
+      "example-fixture-only"
+    ],
+    "warnings": []
+  },
+  "metadata": {
+    "fixture_only": true,
+    "model_ref": {
+      "artifact_ref": "example-model-001",
+      "schema": "ModelBundle/1",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "domain": "mechanical",
+    "backend": "example-backend",
+    "seed": 0,
+    "physical_interval_s": [
+      0,
+      8
+    ],
+    "state_export": "sampled_state",
+    "numerical_status": "passed",
+    "limitations": [
+      "这是 envelope 示例，没有配套数据文件或真实物理验证证据，不得导入运行时。"
+    ],
+    "state_plan": {
+      "profile": "sampled_state",
+      "fields": [
+        {
+          "name": "position",
+          "unit": "m",
+          "dtype": "float64",
+          "components": 3,
+          "source": "solver",
+          "limitations": []
+        }
+      ],
+      "entity_ids": [
+        "bob1"
+      ],
+      "population": "all_declared_entities",
+      "selection_ref": null,
+      "clock": "fixed_interval",
+      "interval_s": 0.01,
+      "time_window_s": [
+        0,
+        8
+      ],
+      "endpoints": "both",
+      "interpolation": "none",
+      "chunking": {
+        "frames_per_chunk": 128,
+        "max_uncompressed_bytes": 65536
+      },
+      "estimated_bytes": 65536,
+      "limitations": [
+        "仅为拟议摆模型导出，不是现有全粒子状态能力声明。"
+      ]
+    }
+  }
+}

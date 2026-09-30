@@ -22,7 +22,8 @@ MESH_FIELDS = {
 }
 MESH_CAPABILITIES = {
     "algorithm": "C11 XPBD triangle-surface stretch, bending-distance and closed global-volume constraints",
-    "modeling": "A language/vision agent supplies a bounded recipe, image silhouette with inferred depth, or explicit imagined vertices/triangles to physics_mesh.",
+    "modeling": "A language/vision agent supplies bounded parameters or explicit vertices/triangles to physics_mesh. The adult_clothed_non_explicit upper-torso recipe is a clothed outer-surface proxy and makes image scale, depth and projections explicit assumptions.",
+    "recipes": ["raw", "ellipsoid", "box", "torus", "lathe", "extrusion", "cloth", "clothed_upper_torso"],
     "motion": ["soft", "static", "kinematic"],
     "accuracy": "visual elastic surface proxy; no calibrated volumetric stress, fracture, cutting or force prediction",
     "contacts": "BVH vertex-triangle contacts and swept vertex-face detection; no general edge-edge CCD or self-collision guarantee",

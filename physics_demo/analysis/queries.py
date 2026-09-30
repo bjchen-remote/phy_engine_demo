@@ -31,7 +31,7 @@ METRIC_FIELDS = {
 }
 CAPABILITIES = {
     "declaration": "scene.queries before prepare/simulate; physics_query retrieves declared IDs only",
-    "query_types": ["threshold", "series", "nbody_stability"],
+    "query_types": ["threshold", "series", "period", "nbody_stability"],
     "metrics": sorted(METRIC_FIELDS),
     "operators": ["gte", "lte"],
     "max_queries": MAX_QUERIES,
@@ -44,6 +44,7 @@ CAPABILITIES = {
     "stability": "finite-window sampled radius/separation criteria with whole-window energy/momentum checks; no long-term stability proof",
     "mesh_metrics": "volume_ratio is signed current/rest volume; max_edge_strain is max abs(length/rest-1); max_displacement is maximum vertex travel from the initial world position, including translation. Mesh centroid/speed are unweighted vertex means.",
     "connection_metrics": "Connection length/extension are metres; spring_force is signed k*(length-rest)+c*axial_relative_speed in N (positive tension), spring_energy is 0.5*k*(length-rest)^2 in J. Declare a connection ID; these are ideal constitutive values, not rod/rope impulses or calibrated stresses.",
+    "period": "Full-cycle return interval between successive same-direction crossings of an explicit scalar reference level. Requires at least two complete intervals by default; reports each interval, sample brackets, and variation. Irregular returns do not establish one stable period.",
 }
 
 
@@ -80,12 +81,14 @@ def validate_queries(scene: dict[str, Any]) -> list[dict[str, Any]]:
         else:
             seen.add(ident)
         kind = query.get("type")
-        if not isinstance(kind, str) or kind not in {"threshold", "series", "nbody_stability"}:
-            issue("query_kind", path + ".type", "Use threshold, series, or nbody_stability.")
+        if not isinstance(kind, str) or kind not in {"threshold", "series", "period", "nbody_stability"}:
+            issue("query_kind", path + ".type", "Use threshold, series, period, or nbody_stability.")
             continue
         allowed = {"id", "type", "metric"}
         if kind == "threshold":
             allowed |= {"operator", "value", "hold_for"}
+        elif kind == "period":
+            allowed |= {"reference_value", "direction", "min_cycles"}
         elif kind == "nbody_stability":
             allowed = {"id", "type", "max_radius", "min_separation"}
         for key in set(query) - allowed:
@@ -170,6 +173,19 @@ def validate_queries(scene: dict[str, Any]) -> list[dict[str, Any]]:
                 issue("query_hold", path + ".hold_for", "hold_for must lie between zero and world.duration seconds.")
             else:
                 query["hold_for"] = float(query["hold_for"])
+        if kind == "period":
+            value = query.get("reference_value")
+            if not finite_number(value) or abs(value) > 1e6:
+                issue("period_reference", path + ".reference_value", "reference_value must be an explicit finite scalar in the metric's SI unit.")
+            else:
+                query["reference_value"] = float(value)
+            if query.get("direction") not in {"rising", "falling"}:
+                issue("period_direction", path + ".direction", "direction must be rising or falling.")
+            count = query.get("min_cycles", 2)
+            if type(count) is not int or not 1 <= count <= 20:
+                issue("period_cycles", path + ".min_cycles", "min_cycles must be an integer from 1 to 20.")
+            else:
+                query["min_cycles"] = count
     return errors
 
 
@@ -289,6 +305,45 @@ def _crossing(query: dict[str, Any], times: list[float], values: list[float]) ->
             "first_observed_at_s": None, "confirmed_at_s": None, "hold_for_s": hold}
 
 
+def _period(query: dict[str, Any], times: list[float], values: list[float]) -> dict[str, Any]:
+    """Reduce full-step scalar observations to same-direction return intervals."""
+    reference = query["reference_value"]
+    falling = query["direction"] == "falling"
+    crossings: list[dict[str, Any]] = []
+    for index in range(1, len(times)):
+        before, after = values[index - 1] - reference, values[index] - reference
+        if not (before > 0 >= after if falling else before < 0 <= after):
+            continue
+        fraction = before / (before - after)
+        crossing = times[index - 1] + fraction * (times[index] - times[index - 1])
+        crossings.append({"time_s": crossing,
+                          "sample_bracket_s": [times[index - 1], times[index]]})
+    intervals = [later["time_s"] - earlier["time_s"]
+                 for earlier, later in zip(crossings, crossings[1:])]
+    answer: dict[str, Any] = {
+        "status": "insufficient_cycles", "period_s": None, "frequency_hz": None,
+        "crossing_definition": "same-direction scalar reference crossing",
+        "direction": query["direction"], "reference_value": reference,
+        "crossings": crossings, "cycle_intervals_s": intervals,
+        "complete_cycles": len(intervals), "required_cycles": query["min_cycles"],
+        "interpretation": "Intervals are measured inside the finite observation window using linear interpolation between full solver steps; sample brackets are resolution, not certified error bounds.",
+    }
+    if len(intervals) < query["min_cycles"]:
+        return answer
+    mean = math.fsum(intervals) / len(intervals)
+    variation = (max(intervals) - min(intervals)) / mean if mean > 0 else math.inf
+    answer["relative_interval_range"] = variation
+    if mean <= 4 * (times[1] - times[0]):
+        answer["status"] = "sampling_too_coarse"
+    elif variation > 0.05:
+        answer["status"] = "irregular_returns"
+    else:
+        answer["status"] = "measured"
+        answer["period_s"] = mean
+        answer["frequency_hz"] = 1 / mean
+    return answer
+
+
 def evaluate(scene: dict[str, Any], plan: dict[str, Any], trajectory: dict[str, Any],
              run_id: str, scene_hash: str) -> dict[str, Any]:
     obs = validate_observations(scene, plan, trajectory)
@@ -342,6 +397,14 @@ def evaluate(scene: dict[str, Any], plan: dict[str, Any], trajectory: dict[str, 
             if q["type"] == "threshold":
                 answer.update(_crossing(q, times, values))
                 answer["interpretation"] = "Linear-interpolated first qualifying sampled interval; the bracket is temporal sampling resolution, not a certified error bound. A missed event between samples is possible. not_observed does not mean never."
+            elif q["type"] == "period":
+                answer.update(_period(q, times, values))
+                if (metric_type == "centroid" and q["metric"].get("axis") == "x"
+                        and q["reference_value"] == 0):
+                    from physics_demo.analysis.pendulum import single_pendulum_reference
+                    reference = single_pendulum_reference(scene, q["metric"]["entity"])
+                    if reference is not None:
+                        answer["ideal_single_pendulum_reference"] = reference
             else:
                 answer.update({"status": "measured", "sample_count": len(times)})
             if not complete:
@@ -349,6 +412,9 @@ def evaluate(scene: dict[str, Any], plan: dict[str, Any], trajectory: dict[str, 
                 if q["type"] == "threshold":
                     answer["time_s"] = None
                     answer["time_bracket_s"] = None
+                if q["type"] == "period":
+                    answer["period_s"] = None
+                    answer["frequency_hz"] = None
         answers.append(answer)
     return {"version": 1, "run_id": run_id, "scene_hash": scene_hash,
             "query_contract_sha256": digest(scene["queries"]),

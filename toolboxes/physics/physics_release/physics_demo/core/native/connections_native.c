@@ -42,6 +42,21 @@ static double geometry(Work *w,int j,Vec *normal) {
     *normal=len>1e-14?mul(delta,1/len):w->initial_direction[j];
     return len;
 }
+/* Failure is sampled at the initial state and at completed integration substeps.
+ * A failed spring never heals, even if its endpoints later move together. */
+static int break_stretched_springs(Work *w,double t) {
+    ConnectionSimulation *s=w->s;int broken=0;
+    for(int j=0;j<s->connections;j++) {
+        Connection *e=&s->connection[j];
+        if(e->type!=0 || e->break_tensile_strain<0 || s->break_times[j]>=0) continue;
+        Vec n;double len=geometry(w,j,&n);
+        if(!isfinite(len)) return -1;
+        if(len>e->rest*(1+e->break_tensile_strain)) {
+            s->break_times[j]=t;s->break_lengths[j]=len;broken++;
+        }
+    }
+    return broken;
+}
 static Vec field_acceleration(Work *w,int i,double t) {
     ConnectionSimulation *s=w->s;Vec result=v(0,0,0),p=get(s->positions,i);
     for(int j=0;j<s->fields;j++) {
@@ -65,7 +80,7 @@ static int accelerations(Work *w,double t) {
     ConnectionSimulation *s=w->s;
     for(int i=0;i<s->nodes;i++) put(w->acceleration,i,s->fixed[i]?v(0,0,0):field_acceleration(w,i,t));
     for(int j=0;j<s->connections;j++) {
-        Connection *e=&s->connection[j];if(e->type!=0) continue;
+        Connection *e=&s->connection[j];if(e->type!=0 || s->break_times[j]>=0) continue;
         Vec n;double len=geometry(w,j,&n);
         /* The gradient of a positive-rest-length spring is undefined at coincidence. */
         if(!(len>1e-14)) return 0;
@@ -79,7 +94,7 @@ static void damping(Work *w,double h,int reverse) {
     ConnectionSimulation *s=w->s;
     for(int j=0;j<s->connections;j++) {
         int index=reverse?s->connections-1-j:j;Connection *e=&s->connection[index];
-        if(e->type!=0 || e->damping==0) continue;
+        if(e->type!=0 || e->damping==0 || s->break_times[index]>=0) continue;
         Vec n;geometry(w,index,&n);
         double wa=w->inverse_mass[e->a],wb=w->inverse_mass[e->b],sum=wa+wb;
         double u=dot(sub(get(s->velocities,e->b),get(s->velocities,e->a)),n);
@@ -164,7 +179,9 @@ static int diagnostics(Work *w,int initial) {
     }
     for(int j=0;j<s->connections;j++) {
         Connection *e=&s->connection[j];Vec n;double error=geometry(w,j,&n)-e->rest;
-        if(e->type==0) potential+=.5*e->stiffness*error*error;
+        if(e->type==0) {
+            if(s->break_times[j]<0) potential+=.5*e->stiffness*error*error;
+        }
         else {
             double residual=e->type==1?fabs(error):fmax(0,error);
             if(e->type==1) d->max_rod_error_m=fmax(d->max_rod_error_m,residual);
@@ -179,6 +196,11 @@ static int diagnostics(Work *w,int initial) {
     double relative=fabs(kinetic+potential-initial_energy)/fmax(initial_energy,1e-12);
     if(!isfinite(relative)) return 0;
     d->connection_peak_relative_energy_drift=fmax(d->connection_peak_relative_energy_drift,relative);
+    int any_broken=0;
+    for(int j=0;j<s->connections;j++) if(s->break_times[j]>=0) {any_broken=1;break;}
+    if(!any_broken)
+        d->connection_prebreak_peak_relative_energy_drift=fmax(
+            d->connection_prebreak_peak_relative_energy_drift,relative);
     return 1;
 }
 static int observe(Work *w,double t) {
@@ -193,8 +215,9 @@ static int observe(Work *w,double t) {
             Connection *e=&s->connection[m->a];Vec n;double len=geometry(w,m->a,&n),extension=len-e->rest;
             if(m->type==3) result=len;
             else if(m->type==4) result=extension;
-            else if(m->type==5) result=e->stiffness*extension+e->damping*dot(sub(get(s->velocities,e->b),get(s->velocities,e->a)),n);
-            else result=.5*e->stiffness*extension*extension;
+            else if(m->type==5) result=s->break_times[m->a]>=0?0:
+                e->stiffness*extension+e->damping*dot(sub(get(s->velocities,e->b),get(s->velocities,e->a)),n);
+            else result=s->break_times[m->a]>=0?0:.5*e->stiffness*extension*extension;
         }
         if(!isfinite(result)) return 0;
         s->observation_values[(size_t)row*s->metrics+j]=result;
@@ -215,6 +238,7 @@ static int validate(ConnectionSimulation *s) {
        || !(s->dt>0) || !(s->duration>0) || !(s->fps>0) || !isfinite(s->dt+s->duration+s->fps+s->deadline_seconds)
        || s->duration/s->dt>250000 || s->duration*s->fps>2400
        || !s->positions || !s->velocities || !s->mass || !s->fixed || !s->connection || !s->frames || !s->frame_times
+       || !s->break_times || !s->break_lengths
        || (s->fields && (!s->field || !s->field_mask))
        || (s->metrics && (!s->metric || !s->observation_times || !s->observation_values))) return 0;
     int frames=(int)fmax(1,ceil(s->duration*s->fps-1e-10))+1;
@@ -230,7 +254,8 @@ static int validate(ConnectionSimulation *s) {
         Connection *e=&s->connection[j];
         if(e->type<0 || e->type>2 || e->a<0 || e->a>=s->nodes || e->b<0 || e->b>=s->nodes || e->a==e->b
            || (s->fixed[e->a] && s->fixed[e->b]) || !(e->rest>0) || e->rest>1e6
-           || !isfinite(e->rest+e->stiffness+e->damping) || e->stiffness<0 || e->damping<0
+           || !isfinite(e->rest+e->stiffness+e->damping+e->break_tensile_strain) || e->stiffness<0 || e->damping<0
+           || !(e->break_tensile_strain==-1 || (e->type==0 && e->break_tensile_strain>=0 && e->break_tensile_strain<=10))
            || (e->type==0 && !(e->stiffness>0)) || (e->type!=0 && (e->stiffness!=0 || e->damping!=0))) return 0;
         double len=length(sub(get(s->positions,e->a),get(s->positions,e->b)));
         if(!isfinite(len) || (e->type!=2 && len<=1e-9) || (e->type==1 && fabs(len-e->rest)>tolerance(e->rest))
@@ -273,11 +298,12 @@ CONNECTIONS_API int32_t connections_simulate(ConnectionSimulation *s,ConnectionD
     if(!d) return 1;memset(d,0,sizeof(*d));d->status=1;
     if(!validate(s)) return 1;
     Work w={0};w.s=s;w.d=d;w.started=now();d->finite=1;d->status=0;
+    for(int j=0;j<s->connections;j++) {s->break_times[j]=-1;s->break_lengths[j]=-1;}
     for(int i=0;i<s->nodes;i++) w.inverse_mass[i]=s->fixed[i]?0:1/s->mass[i];
     for(int j=0;j<s->connections;j++) {Connection *e=&s->connection[j];Vec delta=sub(get(s->positions,e->b),get(s->positions,e->a));
         double len=length(delta);w.initial_direction[j]=len>1e-14?mul(delta,1/len):v(1,0,0);}
     memcpy(w.macro_start,s->positions,(size_t)3*s->nodes*sizeof(double));
-    if(!diagnostics(&w,1) || !observe(&w,0)) {d->status=4;d->finite=0;goto done;}
+    if(break_stretched_springs(&w,0)<0 || !diagnostics(&w,1) || !observe(&w,0)) {d->status=4;d->finite=0;goto done;}
     frame(&w,0,0);
     int target_frames=(int)fmax(1,ceil(s->duration*s->fps-1e-10))+1;
     double t=0;
@@ -299,6 +325,10 @@ CONNECTIONS_API int32_t connections_simulate(ConnectionSimulation *s,ConnectionD
                 double h=next-t;
                 if(!(h>0)) {d->status=5;goto done;}
                 if(!step(&w,t,h)||!diagnostics(&w,0)) {d->status=4;d->finite=0;goto done;}
+                int newly_broken=break_stretched_springs(&w,next);
+                if(newly_broken<0 || (newly_broken && !diagnostics(&w,0))) {
+                    d->status=4;d->finite=0;goto done;
+                }
                 t=next;used++;d->substeps++;d->simulated_time_s=t;
             }
         }

@@ -25,7 +25,7 @@ class SystemSchemaTests(unittest.TestCase):
                  {'type':'ballistic_burst','lengths':[1]}, {'type':'ballistic_burst','preset':'invented'},
                  {'type':'triple_pendulum'}, {'type':'pendulum','masses':[1,2]},
                  {'type':'double_pendulum','lengths':[1,0]}, {'type':'pendulum','angles':[True]},
-                 {'type':'pendulum','output_fps':2.5}, {'type':'pendulum','duration':31},
+                 {'type':'pendulum','output_fps':2.5}, {'type':'pendulum','duration':61},
                  {'type':'pendulum','solver':'guess'}, {'type':'pendulum','gravity':0}]
         for spec in valid:
             self.assertTrue(validator.is_valid(spec),spec)

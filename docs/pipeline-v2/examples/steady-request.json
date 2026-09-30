@@ -1,0 +1,71 @@
+{
+  "schema_version": "pipeline-request/2",
+  "intent": "示例：给定功耗的 PCB 稳态板温，视频与数据。",
+  "model": {
+    "template_id": "pcb-steady-basic",
+    "parameters": {
+      "board_width_m": 0.1,
+      "board_height_m": 0.08,
+      "total_power_w": 2.0
+    },
+    "input_refs": [],
+    "geometry_tolerance_m": null,
+    "assumptions": [
+      "仅为 schema 示例；有效板材参数仍需模板补全与审计。"
+    ]
+  },
+  "simulation": {
+    "physical_duration_s": null,
+    "observation_interval_s": null,
+    "queries": [],
+    "state_export": "observables",
+    "mode": "steady"
+  },
+  "render": {
+    "provider": "local-fast",
+    "width_px": 960,
+    "height_px": 540,
+    "fps": 30,
+    "playback_duration_s": 8.0,
+    "style": "scientific",
+    "fidelity": "trajectory_preserving",
+    "template_id": "thermal-map",
+    "parameters": {}
+  },
+  "quality": {
+    "modeling": "standard",
+    "simulation": "strict",
+    "rendering": "standard"
+  },
+  "delivery": {
+    "required_roles": [
+      "video",
+      "data"
+    ],
+    "include_model": true,
+    "data_formats": [
+      "json",
+      "csv"
+    ],
+    "allow_partial": false
+  },
+  "requested_budget": {
+    "wall_time_seconds": 120,
+    "max_output_bytes": 33554432,
+    "max_cost": 0,
+    "currency": "CNY"
+  },
+  "allow_adjustments": [
+    "render_compression"
+  ],
+  "reuse": {
+    "model_ref": null,
+    "simulation_ref": null,
+    "render_ref": null
+  },
+  "permitted_stages": [
+    "modeling",
+    "simulation",
+    "rendering"
+  ]
+}

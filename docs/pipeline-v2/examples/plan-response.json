@@ -1,0 +1,228 @@
+{
+  "schema_version": "agent-result/2",
+  "ok": true,
+  "status": "plan_ready",
+  "stage": "host",
+  "summary": "协议示例：计划可提交；不是实际执行结果。",
+  "data": {
+    "plan": {
+      "plan_id": "example-plan-001",
+      "kind": "pipeline",
+      "request_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "lock": {
+        "schema_version": "pipeline-lock/2",
+        "lock_id": "example-lock-001",
+        "bundle_revision": "example-bundle-001",
+        "modules": {
+          "modeling": {
+            "id": "modeling-basic",
+            "version": "0.1.0",
+            "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "api_major": 2
+          },
+          "simulation": {
+            "id": "simulation-physics",
+            "version": "0.1.0",
+            "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+            "api_major": 2
+          },
+          "rendering": {
+            "id": "rendering-fast",
+            "version": "0.1.0",
+            "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+            "api_major": 2
+          }
+        },
+        "policy_revision": "example-local-policy",
+        "created_at": "2026-09-26T00:00:00Z"
+      },
+      "input_refs": [],
+      "quality_requested": {
+        "modeling": "standard",
+        "simulation": "strict",
+        "rendering": "standard"
+      },
+      "state_plan": {
+        "profile": "sampled_state",
+        "fields": [
+          {
+            "name": "position",
+            "unit": "m",
+            "dtype": "float64",
+            "components": 3,
+            "source": "solver",
+            "limitations": []
+          }
+        ],
+        "entity_ids": [
+          "bob1"
+        ],
+        "population": "all_declared_entities",
+        "selection_ref": null,
+        "clock": "fixed_interval",
+        "interval_s": 0.01,
+        "time_window_s": [
+          0,
+          8
+        ],
+        "endpoints": "both",
+        "interpolation": "none",
+        "chunking": {
+          "frames_per_chunk": 128,
+          "max_uncompressed_bytes": 65536
+        },
+        "estimated_bytes": 65536,
+        "limitations": [
+          "仅为拟议摆模型导出，不是现有全粒子状态能力声明。"
+        ]
+      },
+      "estimate": {
+        "p50_seconds": 15,
+        "p90_seconds": 35,
+        "cost_upper_bound": 0,
+        "currency": "CNY",
+        "working_bytes": 67108864,
+        "output_bytes": 16777216
+      },
+      "expires_at": "2026-09-26T00:10:00Z",
+      "assumptions": [
+        "理想点质量、无质量杆、无阻尼；此处为协议示例。"
+      ],
+      "adjustments": [],
+      "idempotency_key": "example-submit-001",
+      "permitted_stages": [
+        "modeling",
+        "simulation",
+        "rendering"
+      ],
+      "quality_resolved": {
+        "modeling": "standard",
+        "simulation": "strict",
+        "rendering": "standard"
+      },
+      "effective_arguments": {
+        "request": {
+          "schema_version": "pipeline-request/2",
+          "intent": "模拟一米长小角度单摆，给周期数据和视频。",
+          "model": {
+            "template_id": "pendulum-basic",
+            "parameters": {
+              "length_m": 1.0,
+              "mass_kg": 1.0,
+              "angle_rad": 0.05,
+              "gravity_m_s2": 9.81
+            },
+            "input_refs": [],
+            "geometry_tolerance_m": null,
+            "assumptions": [
+              "理想点质量、无质量杆、无阻尼；此处为协议示例。"
+            ]
+          },
+          "simulation": {
+            "physical_duration_s": 8.0,
+            "observation_interval_s": 0.01,
+            "queries": [
+              {
+                "id": "period",
+                "metric": "pendulum-period",
+                "entity_ids": [
+                  "bob1"
+                ],
+                "unit": "s",
+                "parameters": {},
+                "absolute_tolerance": 0.01
+              }
+            ],
+            "state_export": "sampled_state",
+            "mode": "transient"
+          },
+          "render": {
+            "provider": "local-fast",
+            "width_px": 960,
+            "height_px": 540,
+            "fps": 30,
+            "playback_duration_s": 8.0,
+            "style": "scientific",
+            "fidelity": "trajectory_preserving",
+            "template_id": "scientific-default",
+            "parameters": {
+              "camera_azimuth_deg": 30.0,
+              "key_light_intensity": 1.0
+            }
+          },
+          "quality": {
+            "modeling": "standard",
+            "simulation": "strict",
+            "rendering": "standard"
+          },
+          "delivery": {
+            "required_roles": [
+              "video",
+              "data"
+            ],
+            "include_model": true,
+            "data_formats": [
+              "json",
+              "csv"
+            ],
+            "allow_partial": false
+          },
+          "requested_budget": {
+            "wall_time_seconds": 120,
+            "max_output_bytes": 33554432,
+            "max_cost": 0,
+            "currency": "CNY"
+          },
+          "allow_adjustments": [
+            "render_compression"
+          ],
+          "reuse": {
+            "model_ref": null,
+            "simulation_ref": null,
+            "render_ref": null
+          },
+          "permitted_stages": [
+            "modeling",
+            "simulation",
+            "rendering"
+          ]
+        }
+      },
+      "effective_limits": {
+        "wall_time_seconds": 120,
+        "memory_bytes": 536870912,
+        "work_bytes": 134217728,
+        "output_bytes": 33554432,
+        "max_provider_submissions": 0,
+        "max_cost": 0,
+        "currency": "CNY",
+        "hard_enforced": [
+          "wall_time",
+          "output_bytes"
+        ]
+      },
+      "delivery": {
+        "required_roles": [
+          "video",
+          "data"
+        ],
+        "include_model": true,
+        "data_formats": [
+          "json",
+          "csv"
+        ],
+        "allow_partial": false
+      }
+    }
+  },
+  "errors": [],
+  "next_action": {
+    "kind": "call_tool",
+    "tool": "pipeline_submit",
+    "arguments": {
+      "plan_id": "example-plan-001",
+      "idempotency_key": "example-submit-001"
+    },
+    "poll_after_ms": null
+  }
+}

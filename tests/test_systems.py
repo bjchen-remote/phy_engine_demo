@@ -34,7 +34,8 @@ class SystemFactoryTests(unittest.TestCase):
                 self.assertFalse(scene["interactions"]["mutual_gravity"])
                 self.assertEqual([query["id"] for query in scene["queries"]],
                                  [f"bob{i}-{metric}" for i in range(1, count + 1)
-                                  for metric in ("x", "y", "z", "speed")])
+                                  for metric in ("x", "y", "z", "speed")]
+                                 + (["bob1-period"] if count == 1 else []))
                 prepared = call_tool("physics_prepare", {"scene_json": json.dumps(scene)})
                 self.assertTrue(prepared["ready_to_simulate"], prepared)
                 self.assertEqual(prepared["plan"]["backend"], "connections")
@@ -98,7 +99,7 @@ class SystemFactoryTests(unittest.TestCase):
         cases = [("lengths", [0]), ("lengths", [1001]), ("lengths", [401]),
                  ("masses", [1e-10]), ("masses", [1e12 + 1]),
                  ("angles", [7]), ("angular_velocities", [-501]),
-                 ("gravity", 0), ("gravity", 251), ("duration", 0), ("duration", 31),
+                 ("gravity", 0), ("gravity", 251), ("duration", 0), ("duration", 61),
                  ("dt", .00009), ("dt", .051), ("output_fps", 0),
                  ("output_fps", 60.5), ("output_fps", 24.5),
                  ("wall_time_s", .9), ("wall_time_s", 301)]

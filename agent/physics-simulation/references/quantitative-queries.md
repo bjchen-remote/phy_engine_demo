@@ -40,6 +40,41 @@ For spring/rod/rope scenes, [connections](connections.md) defines `connection_le
 
 For rotating rigid bodies, [coupling](coupling.md#angular-measurements-and-recorded-geometry) defines `angular_speed`, world-component `angular_momentum` with `axis`, `rotational_energy` and `axis_tilt`. These metrics target only `rigid_body`; tilt compares body +Y with world +Y in radians. Pivot momentum and energy are about the fixed anchor.
 
+## Measured return period
+
+Use `period` for a named scalar signal that repeatedly crosses a reference
+level in the same direction. The registered single-pendulum factory declares
+`bob1-period` automatically: the bob's X coordinate crosses 0 from positive
+to negative, once per complete oscillation of an ordinary released pendulum.
+For a custom scene, declare it before preparing:
+
+```json
+{"id":"bob-period","type":"period",
+ "metric":{"type":"centroid","entity":"bob","axis":"x"},
+ "reference_value":0.0,"direction":"falling","min_cycles":2}
+```
+
+`period_s` is the mean of complete intervals between these same-direction
+crossings; `frequency_hz` is its inverse. Every crossing has an interpolated
+time and the adjacent solver-step sample bracket. `cycle_intervals_s`,
+`complete_cycles`, the observation window, and `sampling_interval_s` show the
+evidence. Two intervals are required by default. `insufficient_cycles` means
+the window contained too few complete intervals; `sampling_too_coarse` means
+fewer than four samples per measured interval; `irregular_returns` means the
+interval range exceeds 5% of their mean. These statuses have null `period_s`
+and `frequency_hz`; do not infer one stable period for a double pendulum or
+another irregular signal. A same-direction crossing measures a full cycle,
+not the first passage through equilibrium. On an ideal, regular pendulum it
+has the same duration as release-to-return on the same side, although the
+recorded events are the equilibrium crossings rather than the turning points.
+
+For an undamped, released-from-rest, gravity-only single pendulum, the answer
+also contains `ideal_single_pendulum_reference`: `small_angle_period_s` from
+`2π√(L/g)` and `finite_amplitude_period_s` from the elliptic-integral
+correction. These are **analytic references**, separate from the measured
+`period_s`. Check `quality_gate.numerical_passed` before quoting the measured
+value; a completed video by itself does not validate period accuracy.
+
 ## Three common questions
 
 ### When does this drop reach a radius of 1 m?
@@ -209,6 +244,8 @@ Every answer carries its exact `definition`, physical `window_s`, and
 | `initially_satisfied` | Condition already true at t=0, and any requested hold duration was confirmed |
 | `not_observed` | No qualifying threshold/hold event observed within `window_s`; `time_s` is null |
 | `measured` | Series collected; report unit and requested values, with `sample_count` |
+| `measured` (`period`) | Same-direction return intervals passed the sampling and regularity checks; report `period_s`, `frequency_hz`, event definition, complete cycles and brackets |
+| `insufficient_cycles`, `sampling_too_coarse`, `irregular_returns` | No reliable single period from this finite sample; inspect `crossings`, intervals and sampling before changing the model or horizon |
 | `criteria_satisfied` | Declared N-body radius/separation limits passed at sampled times and whole-window numerical integrity passed |
 | `criteria_violated` | A declared N-body bound failed; use `first_violation_observed_s` and the measured extrema |
 | `inconclusive` | Completion or numerical-integrity requirements failed; do not convert it into a positive or negative physics claim |

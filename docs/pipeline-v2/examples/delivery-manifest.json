@@ -1,0 +1,36 @@
+{
+  "schema_version": "delivery-manifest/2",
+  "delivery_id": "example-delivery-001",
+  "run_id": "example-run-001",
+  "required_roles": [
+    "video",
+    "data"
+  ],
+  "status": "reconciling",
+  "items": [
+    {
+      "artifact": {
+        "artifact_ref": "example-video-001",
+        "schema": "video/mp4",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "role": "video",
+      "required": true,
+      "state": "acknowledged",
+      "receipt_id": "example-receipt-001"
+    },
+    {
+      "artifact": {
+        "artifact_ref": "example-data-001",
+        "schema": "data-package/1",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "role": "data",
+      "required": true,
+      "state": "unknown",
+      "receipt_id": null
+    }
+  ],
+  "retention_until": "2026-10-03T00:00:00Z",
+  "revision": 2
+}

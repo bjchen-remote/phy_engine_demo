@@ -57,6 +57,8 @@ def physics_claims(scene: dict[str, Any] | None = None) -> dict[str, str]:
         claims["connections"] = "Ideal massless Hooke springs and axial dashpots between point masses; rods fix length and ropes cap length with inelastic take-up. Constraints can dissipate numerical energy. No collision, bending, fracture, calibrated stress or fluid/mesh coupling. Only explicit fields accelerate nodes."
         if scene is not None:
             claims["point_mass"] = "Translating point masses accelerated by declared connections and explicit fields; no collision, rotation or mutual gravity in this route."
+            if any("break_tensile_strain" in link for link in scene["connections"]):
+                claims["connections"] = "Ideal massless springs may fail irreversibly when sampled tensile strain exceeds their declared threshold. Broken springs exert no force and store no elastic energy. This is a discrete link failure proxy, not continuum fracture or calibrated stress; no collision, bending or fluid/mesh coupling. Only explicit fields accelerate nodes."
     return claims
 
 def verified_measurements(result: dict[str, Any], root: Path | None) -> dict[str, Any]:
@@ -312,7 +314,9 @@ def _validated_result_scene(
     scene = result.get("scene")
     if not isinstance(scene, dict):
         raise TypeError("scene must be an object")
-    report = normalize_and_validate(copy.deepcopy(scene))
+    # This is a saved result, not a request to run work. Host-authorized scenes
+    # retain their unlimited marker for exact result verification.
+    report = normalize_and_validate(copy.deepcopy(scene), allow_unlimited=True)
     if not report["valid"]:
         raise ValueError("scene is not a valid normalized simulation scene")
     normalized = report["scene"]
