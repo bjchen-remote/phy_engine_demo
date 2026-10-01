@@ -1,6 +1,6 @@
 # QQ modeling / simulation / rendering pipeline
 
-`physics-pipeline` 0.2.1 composes three independently versioned 0.2.0 stage packages and an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_from_image`; it does not train a new model or replace the solver.
+`physics-pipeline` 0.2.2 composes independently versioned modeling 0.2.1, simulation 0.2.0 and rendering 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_from_image`; it does not train a new model or replace the solver.
 
 The messaging bridge is installed separately; this repository publishes the engine and composable modules. The public [host integration contract](HOST-INTEGRATION.md) describes image admission, runtime pins and complete data delivery.
 

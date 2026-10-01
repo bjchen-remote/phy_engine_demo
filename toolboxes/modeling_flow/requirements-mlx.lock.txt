@@ -10,6 +10,7 @@ safetensors==0.8.0
 scikit-image==0.25.2
 trimesh==4.12.2
 fast-simplification==0.1.13
+pymeshlab==2023.12.post3
 scipy==1.17.1
 imageio==2.38.0
 tifffile==2026.3.3

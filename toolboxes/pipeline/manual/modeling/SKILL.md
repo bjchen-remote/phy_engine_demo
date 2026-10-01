@@ -7,6 +7,13 @@ description: Prepare structured mechanical or PCB thermal models for the QQ phys
 
 模块内部实现、图片重建与完整场景准备的边界见 [内部架构](architecture.md)。
 
+Simulation-only reduction uses audited topology-preserving QEM. It may remove only
+fixed-threshold numerical micro-components, recorded individually in the receipt;
+display geometry is retained. Significant separate parts and cavities remain and
+can legitimately fail the single-solid simulation gate. Keep the original engine
+intersection audit and full-scene preparation; never select the largest component
+or fabricate a primitive to turn a failed reconstruction into success.
+
 Use the host's toolbox-call bridge. `physics_simulate` remains the single execution entry for the complete modeling → simulation → rendering pipeline; internal stage modules are not QQ tools or commands to invoke directly.
 
 1. Call `pipeline_capabilities({})` and the relevant domain capabilities. Choose `physics` for mechanical scenes or `pcb_thermal` for board temperature. Use `help({"topic":"pipeline"})` for pipeline settings and the existing physics help topics for model fields.

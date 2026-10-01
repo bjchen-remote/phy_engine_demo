@@ -14,7 +14,8 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, validate_module, verify
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
-COMPOSED_VERSION = "0.2.1"
+COMPOSED_VERSION = "0.2.2"
+ROLE_VERSIONS = {"modeling": "0.2.1"}
 
 
 def copy_tree(source: Path, target: Path) -> None:
@@ -43,13 +44,13 @@ def build_module(role: str, output: Path) -> dict:
     shutil.copyfile(PIPELINE / "worker.py", output / "adapter.py")
     copy_tree(PIPELINE / 'manual' / role, output / 'manual')
     info = {"schema_version": "stage-module/1", "id": "physics-" + role,
-        "version": VERSION, "role": role, "entrypoint": "adapter.py",
+        "version": ROLE_VERSIONS.get(role, VERSION), "role": role, "entrypoint": "adapter.py",
         "input_schema": FORMATS[role][0], "output_schema": FORMATS[role][1],
         "engine_contract": "physics-python/1", "network": False}
     write_json(output / "module.json", info)
     # Stage packages can use the existing content-addressed registry as storage.
     write_json(output / "toolbox.json", {"schema_version": 1, "id": info["id"],
-        "version": VERSION, "entrypoint": "adapter.py", "package_kind": "stage-module",
+        "version": info["version"], "entrypoint": "adapter.py", "package_kind": "stage-module",
         "capabilities": [role + " stage; compose before activating on QQ"]})
     return info
 

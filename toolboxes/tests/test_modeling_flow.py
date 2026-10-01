@@ -72,6 +72,7 @@ class ModelingFlowTests(unittest.TestCase):
                                                                {"commit": "a" * 40})),
                               _load_image=Mock(return_value=(Mock(), {"foreground_mask": "provided_alpha"})),
                               _model_mesh=Mock(return_value=mesh or FakeMesh()),
+                              _verify_decimator_runtime=Mock(return_value={"ready": True, "package": "test-fixture"}),
                               _versions=Mock(return_value={"mlx": "test-fixture"}))
 
     def test_config_defaults_to_mps_but_mlx_requires_metal(self):
@@ -312,50 +313,51 @@ class ModelingFlowTests(unittest.TestCase):
 
     def test_decimation_retries_from_source_and_preserves_exact_requested_extent(self):
         config, request = load_config(self.config), load_request(self.request)
-        source = Mock()
-        source.simplify_quadric_decimation.side_effect = [FakeMesh(faces=TETRAHEDRON["faces"][:-1]), FakeMesh()]
-        trimesh = types.SimpleNamespace(Trimesh=Mock(return_value=source))
+        decimate = Mock(side_effect=[{**TETRAHEDRON, "faces": TETRAHEDRON["faces"][:-1]}, TETRAHEDRON])
         def audit(candidate, simulation=False):
             result = audit_mesh(candidate, simulation=simulation)
             if candidate is TETRAHEDRON:
                 result["simulation_budget_passed"] = False
             return result
         with patch.object(runner, "audit_mesh", side_effect=audit), \
+                patch.object(runner, "topology_decimate", decimate), \
                 patch.object(runner.importlib, "import_module", return_value=Mock()):
-            mesh, report = runner._decimate(TETRAHEDRON, trimesh, request)
-        self.assertEqual(report["target_faces"], 6000)
+            mesh, report = runner._decimate(TETRAHEDRON, Mock(), request)
+        self.assertEqual(report["target_faces"], 8188)
         self.assertEqual(len(report["attempts"]), 2)
         self.assertFalse(report["attempts"][0]["audit"]["simulation_eligible"])
         self.assertTrue(report["attempts"][1]["audit"]["simulation_eligible"])
         self.assertAlmostEqual(max(audit_mesh(mesh)["extent"]), request["physical_extent_m"])
-        self.assertEqual(source.simplify_quadric_decimation.call_count, 2)
+        self.assertEqual(decimate.call_count, 2)
+        self.assertIs(decimate.call_args_list[0].args[0], TETRAHEDRON)
+        self.assertIs(decimate.call_args_list[1].args[0], TETRAHEDRON)
 
     def test_all_decimation_candidates_rejected_with_audit_details(self):
         request = load_request(self.request)
-        source = Mock()
-        source.simplify_quadric_decimation.return_value = FakeMesh(faces=TETRAHEDRON["faces"][:-1])
-        trimesh = types.SimpleNamespace(Trimesh=Mock(return_value=source))
+        decimate = Mock(return_value={**TETRAHEDRON, "faces": TETRAHEDRON["faces"][:-1]})
         def audit(candidate, simulation=False):
             result = audit_mesh(candidate, simulation=simulation)
             if candidate is TETRAHEDRON:
                 result["simulation_budget_passed"] = False
             return result
         with patch.object(runner, "audit_mesh", side_effect=audit), \
+                patch.object(runner, "topology_decimate", decimate), \
                 patch.object(runner.importlib, "import_module", return_value=Mock()):
             with self.assertRaises(FlowError) as rejected:
-                runner._decimate(TETRAHEDRON, trimesh, request)
+                runner._decimate(TETRAHEDRON, Mock(), request)
         self.assertEqual(rejected.exception.code, "simulation_mesh_rejected")
         self.assertEqual(len(rejected.exception.details["attempts"]), 3)
 
     def test_decimation_budget_failure_is_not_hidden(self):
         request = load_request({**self.request, "allow_decimation": False})
-        with patch.object(runner, "audit_mesh", return_value={"simulation_budget_passed": False}):
+        oversized = {**audit_mesh(TETRAHEDRON), "simulation_budget_passed": False}
+        with patch.object(runner, "audit_mesh", return_value=oversized):
             with self.assertRaisesRegex(FlowError, "decimation is disabled"):
                 runner._decimate(TETRAHEDRON, Mock(), request)
         request["allow_decimation"] = True
-        with patch.object(runner, "audit_mesh", return_value={"simulation_budget_passed": False}), \
+        with patch.object(runner, "audit_mesh", return_value=oversized), \
                 patch.object(runner.importlib, "import_module", side_effect=ImportError("missing")):
-            with self.assertRaisesRegex(FlowError, "fast-simplification"):
+            with self.assertRaisesRegex(FlowError, "pymeshlab"):
                 runner._decimate(TETRAHEDRON, Mock(), request)
 
     def test_health_reports_installation_without_inference_claim(self):
@@ -364,6 +366,25 @@ class ModelingFlowTests(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertTrue(result["runtime_ready"])
         self.assertFalse(result["inference_verified"])
+        self.assertTrue(result["decimator"]["ready"])
+
+    def test_health_missing_decimator_fails_before_model_runtime_load(self):
+        with self.fake_runtime(), patch.object(runner, "_verify_decimator_runtime",
+                side_effect=FlowError("decimator_missing", "test pinned decimator missing")), \
+                patch.object(runner, "_load_runtime") as runtime:
+            result = runner.health(self.config)
+        runtime.assert_not_called()
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], "decimator_missing")
+
+    def test_generate_missing_decimator_fails_before_inference_or_output(self):
+        with self.fake_runtime(), patch.object(runner, "_verify_decimator_runtime",
+                side_effect=FlowError("decimator_missing", "test pinned decimator missing")), \
+                patch.object(runner, "_model_mesh") as model:
+            result = runner.generate(self.config, self.request, self.root / "run")
+        model.assert_not_called()
+        self.assertFalse((self.root / "run").exists())
+        self.assertEqual(result["code"], "decimator_missing")
 
     def test_mlx_model_call_pins_algorithm_and_disables_optional_approximation(self):
         mx = types.SimpleNamespace(float16="test-fp16", clear_cache=Mock())

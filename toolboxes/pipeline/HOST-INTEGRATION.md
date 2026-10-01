@@ -183,6 +183,12 @@ public reference page into the same image operation:
    decode its complete pixels, and check MIME, dimensions and byte limits.
    Bound source downloads, archive expansion, page/image counts, subprocess
    resources and total normalized-image bytes independently.
+   Supported-image servers can mislabel one supported format as another. Require
+   both the declared MIME and sniffed container to be supported; use the fixed
+   decoder for the actual container, and retain both formats in the acquisition
+   receipt. Never admit HTML, SVG or executable bytes merely because a server
+   labels them as an image. Inspect actual pixels for subject identity; a matched
+   page title and a successful download do not establish the right reference.
 3. Assign a host-generated current-task image ID and an immutable receipt
    linking the normalized image to its exact admitted source. Store only
    regular files at fixed host-owned locations inside the task. Recheck source
@@ -388,3 +394,13 @@ create a composed plan or frozen lock. Missing contracts or incomplete preparati
 mean the model needs preparation; they are not evidence that a solver failed.
 Execution and artifact validation must still pass before recording a successful
 local check. This procedure has no platform-delivery authority.
+
+## Independently reused modeling versions
+
+The 0.2.2 composer can reuse a pinned legacy modeling 0.2.0 stage without the new
+PyMeshLab reducer. Its original four license exports remain valid. Modeling
+0.2.1, future/custom versions and any stage containing the reducer must also
+export the full PyMeshLab GPL-3.0 text; a missing license fails the export.
+Do not edit published package bytes to add the dependency or a license.
+Install the exact pinned worker dependencies separately, publish a fresh module,
+and preserve each accepted task's component and runtime pins.

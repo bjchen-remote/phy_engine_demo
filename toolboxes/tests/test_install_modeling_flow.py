@@ -168,6 +168,7 @@ class ModelingFlowInstallerTests(unittest.TestCase):
         self.assertEqual(config["foreground_model"]["sha256"], installer.FOREGROUND_SHA256)
         self.assertTrue((output / "licenses/U2NET-APACHE-2.0.txt").is_file())
         self.assertTrue((output / "licenses/REMBG-MIT.txt").is_file())
+        self.assertTrue((output / "licenses/PYMESHLAB-GPL-3.0.txt").is_file())
 
     def test_none_configuration_cannot_start_a_foreground_download(self):
         configured = installer._runtime_config(self.root / "runtime", "none")

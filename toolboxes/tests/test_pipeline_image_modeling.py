@@ -42,6 +42,7 @@ class ImageModelingGateTests(unittest.TestCase):
         self.root = self.directory / 'package'
         self.job = self.directory / 'job'
         (self.root / 'modules/modeling').mkdir(parents=True)
+        save(self.root / 'modules/modeling/module.json', {'version': '0.2.1'})
         (self.root / 'modules/modeling/flow_runner.py').write_text('# never executed\n')
         (self.job / 'inputs').mkdir(parents=True)
         self.input = self.job / 'inputs/fixture.png'
@@ -280,9 +281,9 @@ class ImageModelingGateTests(unittest.TestCase):
                 finally:
                     path.write_bytes(original)
 
-    def test_geometry_export_includes_all_four_licenses_only_for_used_model(self):
+    def test_geometry_export_includes_all_modeling_licenses_only_for_used_model(self):
         license_names = {'Hunyuan3D-LICENSE.txt', 'MLX-port-LICENSE.txt',
-                         'U2Net-APACHE-2.0.txt', 'rembg-MIT.txt'}
+                         'U2Net-APACHE-2.0.txt', 'rembg-MIT.txt', 'PyMeshLab-GPL-3.0.txt'}
         license_directory = self.root / 'modules/modeling/modeling_flow/third_party'
         license_directory.mkdir(parents=True)
         for name in license_names:
@@ -294,12 +295,39 @@ class ImageModelingGateTests(unittest.TestCase):
         receipt_sha = bundle.sha256(self.output / 'receipt.json')
         model = {'entities': [{'mesh': {'metadata': {'provenance': {'notes': receipt_sha}}}}]}
         exports = image_modeling.used_modeling_assets(self.job, model, root=self.root)
-        self.assertEqual(len(exports), 10)
+        self.assertEqual(len(exports), 11)
         licenses = [item for item in exports if item['name'].startswith('modeling/licenses/')]
         self.assertEqual({Path(item['name']).name for item in licenses}, license_names)
         for item in licenses:
             self.assertEqual(Path(item['path']).parent, license_directory)
             self.assertEqual(item['sha256'], bundle.sha256(Path(item['path'])))
+
+    def test_legacy_pinned_modeling_stage_exports_its_four_original_licenses(self):
+        license_names = {'Hunyuan3D-LICENSE.txt', 'MLX-port-LICENSE.txt',
+                         'U2Net-APACHE-2.0.txt', 'rembg-MIT.txt'}
+        module = self.root / 'modules/modeling'
+        save(module / 'module.json', {'version': '0.2.0'})
+        directory = module / 'modeling_flow/third_party'
+        directory.mkdir(parents=True)
+        for name in license_names:
+            (directory / name).write_text('Synthetic legacy license: ' + name)
+        with patch.object(image_modeling.subprocess, 'run', side_effect=self.backend):
+            self.call()
+        receipt_sha = bundle.sha256(self.output / 'receipt.json')
+        model = {'entities': [{'mesh': {'metadata': {'provenance': {'notes': receipt_sha}}}}]}
+        exports = image_modeling.used_modeling_assets(self.job, model, root=self.root)
+        self.assertEqual(len(exports), 10)
+        self.assertEqual({Path(item['name']).name for item in exports
+                          if item['name'].startswith('modeling/licenses/')}, license_names)
+        for version in ('0.2.1', 'custom-stage'):
+            with self.subTest(version=version):
+                save(module / 'module.json', {'version': version})
+                with self.assertRaises(FileNotFoundError):
+                    image_modeling.used_modeling_assets(self.job, model, root=self.root)
+        save(module / 'module.json', {'version': '0.2.0'})
+        (module / 'modeling_flow/reduction.py').write_text('# synthetic custom reducer marker')
+        with self.assertRaises(FileNotFoundError):
+            image_modeling.used_modeling_assets(self.job, model, root=self.root)
 
     def test_engine_rejection_cannot_create_usable_mesh_reference(self):
         self.engine_call.return_value = {'ok': False, 'code': 'self_intersection'}

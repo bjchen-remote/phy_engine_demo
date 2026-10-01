@@ -16,6 +16,7 @@ from .contracts import (FlowError, MAX_IMAGE_PIXELS, MAX_SIMULATION_FACES,
                         artifact, canonical_bytes, digest, file_digest, load_config,
                         load_request, output_directory, verify_foreground_model, verify_weights, write_json)
 from .meshes import audit_mesh, import_obj, orient_outward, scale_mesh, validate_mesh, write_obj
+from .reduction import numerical_component_cleanup, topology_decimate
 
 
 ASSUMPTIONS = [
@@ -161,6 +162,7 @@ def health(config_source: str | Path | dict) -> dict:
             except (ImportError, OSError, RuntimeError) as error:
                 raise FlowError("foreground_dependency_missing", "Install compatible offline onnxruntime for U2-Net") from error
         header = _checkpoint_header(config)
+        decimator = _verify_decimator_runtime()
         _, _, _, upstream = _load_runtime(config)
         return {"ok": True, "schema_version": RESULT_SCHEMA, "operation": "health",
                 "runtime_ready": True, "inference_verified": False,
@@ -168,6 +170,7 @@ def health(config_source: str | Path | dict) -> dict:
                 "config_sha256": digest(config), "upstream": upstream,
                 "foreground_model": foreground_model,
                 "background_removal": config["background_removal"],
+                "decimator": decimator,
                 "checkpoint": {"id": config["checkpoint_id"], "revision": config["checkpoint_revision"],
                                "inventory": inventory, **header}, "dependencies": _versions(),
                 "capabilities": ["image_to_shape", "shape_glb", "bounded_triangle_obj", "offline_only"],
@@ -183,6 +186,21 @@ def health(config_source: str | Path | dict) -> dict:
 def _failure(error: FlowError, **details) -> dict:
     return {"ok": False, "schema_version": RESULT_SCHEMA, "code": error.code,
             "error": str(error), "ready_to_simulate": False, **details}
+
+
+def _verify_decimator_runtime() -> dict:
+    """Check local reduction imports before expensive image inference."""
+    try:
+        importlib.import_module("numpy")
+        importlib.import_module("scipy.sparse")
+        importlib.import_module("scipy.sparse.csgraph")
+        native = importlib.import_module("pymeshlab")
+        if not callable(getattr(native, "Mesh", None)) or not callable(getattr(native, "MeshSet", None)):
+            raise ImportError("PyMeshLab mesh API is unavailable")
+    except (ImportError, OSError, RuntimeError, ValueError, AttributeError) as error:
+        raise FlowError("decimator_missing", "Install compatible pinned pymeshlab/numpy/scipy for local mesh reduction") from error
+    return {"ready": True, "method": "topology_preserving_quadric_edge_collapse",
+            "package": "pymeshlab", "geometry_validation_verified": False}
 
 
 def _load_image(request: dict, config: dict | None = None):
@@ -225,33 +243,55 @@ def _mesh_arrays(mesh) -> dict:
 
 def _decimate(mesh: dict, trimesh, request: dict) -> tuple[dict, dict]:
     original = audit_mesh(mesh)
-    if original["simulation_budget_passed"]:
+    if original["simulation_budget_passed"] and original.get("connected_components", 1) == 1:
         return mesh, {"applied": False, "method": None}
     if not request["allow_decimation"]:
+        if original["simulation_budget_passed"]:
+            raise FlowError("simulation_mesh_rejected", "Disconnected mesh requires geometry cleanup and decimation is disabled")
         raise FlowError("simulation_mesh_budget_exceeded", "Generated mesh exceeds simulation budget and decimation is disabled")
-    try:
-        importlib.import_module("fast_simplification")
-    except (ImportError, OSError) as error:
-        raise FlowError("decimator_missing", "Install fast-simplification in the local runtime to reduce this mesh") from error
-    # Independent simplification attempts can differ in topology. Recompute
-    # each candidate from the unchanged display mesh and accept only a passing
-    # audit; never fill holes, delete components or fabricate replacement faces.
-    targets = (min(MAX_SIMULATION_FACES, 2 * (MAX_SIMULATION_VERTICES - 2)), 6000, 4000)
-    source = trimesh.Trimesh(vertices=mesh["vertices"], faces=mesh["faces"], process=False)
+    cleanup = {"applied": False, "reason": "single_component", "display_geometry_preserved": True}
+    if (original.get("connected_components", 1) > 1
+            and all(original.get(key, 0) == 0 for key in ("boundary_edges", "nonmanifold_edges",
+                "inconsistent_winding_edges", "duplicate_faces", "unreferenced_vertices"))):
+        mesh, cleanup = numerical_component_cleanup(mesh)
+    prepared = audit_mesh(mesh) if cleanup["applied"] else original
     attempts = []
-    metadata = {"applied": True, "method": "quadric_error_metrics",
+    metadata = {"applied": False, "reduction_required": not prepared["simulation_budget_passed"],
+                "method": "topology_preserving_quadric_edge_collapse",
                 "source_vertices": original["vertices"], "source_faces": original["faces"],
-                "geometry_error_bound": "not_certified", "attempts": attempts}
+                "geometry_error_bound": "not_certified", "numerical_cleanup": cleanup,
+                "constraints": {"preserve_topology": True, "preserve_normal": True,
+                                "preserve_boundary": True, "optimal_placement": False,
+                                "automatic_cleaning": False},
+                "attempts": attempts}
+    if prepared.get("connected_components", 1) > 1:
+        raise FlowError("simulation_mesh_rejected",
+                        "Significant disconnected surfaces remain; they cannot be silently deleted or connected",
+                        {**metadata, "source_audit": original, "prepared_audit": prepared})
+    if prepared["simulation_budget_passed"]:
+        return mesh, {**metadata, "applied": False, "method": None}
+    try:
+        importlib.import_module("pymeshlab")
+    except (ImportError, OSError) as error:
+        raise FlowError("decimator_missing", "Install pinned pymeshlab in the local runtime to reduce this mesh", metadata) from error
+    # Every attempt starts from the same simulation source. Six thousand faces
+    # leaves headroom for the engine's bounded intersection audit. Original
+    # vertex placements avoid QEM's unconstrained spikes in flat regions.
+    targets = (6000, min(MAX_SIMULATION_FACES, 2 * (MAX_SIMULATION_VERTICES - 2)), 4000)
     for target in targets:
         try:
-            simplified = source.simplify_quadric_decimation(face_count=target)
-            candidate = _mesh_arrays(simplified)
+            metadata["applied"] = True
+            candidate = topology_decimate(mesh, target)
             candidate, transform = scale_mesh(candidate, request["physical_extent_m"], request["scale_axis"])
             candidate, reversed_winding = orient_outward(candidate)
             report = audit_mesh(candidate, simulation=True)
+            topology_preserved = (report.get("euler_characteristic") == prepared.get("euler_characteristic")
+                                  and report["connected_components"] == prepared.get("connected_components", 1))
             attempts.append({"target_faces": target, "audit": report,
-                             "scale_transform": transform, "winding_reversed": reversed_winding})
-            if report["simulation_eligible"]:
+                             "scale_transform": transform, "winding_reversed": reversed_winding,
+                             "source_euler_characteristic": prepared.get("euler_characteristic"),
+                             "topology_preserved": topology_preserved})
+            if report["simulation_eligible"] and topology_preserved:
                 return candidate, {**metadata, "target_faces": target, "scale_transform": transform}
         except (FlowError, ValueError, TypeError, RuntimeError) as error:
             attempts.append({"target_faces": target, "code": getattr(error, "code", "decimation_failed"),
@@ -307,6 +347,8 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
         inventory = verify_weights(config)
         verify_foreground_model(config)
         header = _checkpoint_header(config)
+        if request["allow_decimation"]:
+            _verify_decimator_runtime()
         torch, pipeline_class, trimesh, upstream = _load_runtime(config)
         image, preprocessing = _load_image(request, config)
         image_sha256 = file_digest(Path(request["image_path"]))

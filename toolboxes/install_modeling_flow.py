@@ -29,6 +29,7 @@ MODEL_SHA256 = "3cc66f3bea33e4062b7dbc875ffe1d70c4888914aec3e91b60f94e9bd01b522b
 TENCENT_LICENSE_SHA256 = "94259df223918a5733677965c1bfe1774a2dba25042d9c3b47a3418ea6c1f324"
 MLX_LICENSE_SHA256 = "e0485dc21868a42682cf1255af42d1bf038cf5e80608b2006b5c69d65d426d7f"
 THIRD_PARTY_NOTICE_SHA256 = "abd4d61f1c0bf3dcfc6a399457f26254be74518dc53de8b69e2606e3a3a1d241"
+PYMESHLAB_LICENSE_SHA256 = "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
 FOREGROUND_URL = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx"
 FOREGROUND_SHA256 = "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491"
 FOREGROUND_BYTES = 175997641
@@ -299,6 +300,8 @@ def install(output: str | Path, python: str | Path, provider_name: str,
                             licenses / "TENCENT-HUNYUAN-LICENSE.txt", TENCENT_LICENSE_SHA256, 17829)
             _copy_verified(root / "upstream/LICENSE", licenses / "MLX-PORT-LICENSE.txt", MLX_LICENSE_SHA256)
             _copy_verified(root / "upstream/THIRD_PARTY_LICENSES.md", licenses / "THIRD_PARTY_LICENSES.md", THIRD_PARTY_NOTICE_SHA256)
+            _copy_verified(SOURCE / "third_party/PyMeshLab-GPL-3.0.txt",
+                           licenses / "PYMESHLAB-GPL-3.0.txt", PYMESHLAB_LICENSE_SHA256)
             if foreground_model == "u2net":
                 download_pinned(U2NET_LICENSE_URL, licenses / "U2NET-APACHE-2.0.txt", U2NET_LICENSE_SHA256, 11357)
                 download_pinned(REMBG_LICENSE_URL, licenses / "REMBG-MIT.txt", REMBG_LICENSE_SHA256, 1069)
@@ -308,6 +311,9 @@ def install(output: str | Path, python: str | Path, provider_name: str,
                       "Model: tencent/Hunyuan3D-2mini, revision " + CHECKPOINT_REVISION + ".\n"
                       "Model license: licenses/TENCENT-HUNYUAN-LICENSE.txt\n"
                       "MLX port license: licenses/MLX-PORT-LICENSE.txt\n")
+            notice += ("Simulation reduction: PyMeshLab 2023.12.post3, GPL-3.0; "
+                       "https://github.com/cnr-isti-vclab/PyMeshLab\n"
+                       "Mesh reduction license: licenses/PYMESHLAB-GPL-3.0.txt\n")
             notice += "Foreground processing: " + foreground_model + "; estimated masks are not verified object boundaries.\n"
             if foreground_model == "u2net":
                 notice += ("Foreground model license: licenses/U2NET-APACHE-2.0.txt\n"

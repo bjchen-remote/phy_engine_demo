@@ -23,8 +23,9 @@ QQ trusted attachment + explicit dimensions/material
   -> modeling_flow CLI (dedicated worker process)
      contracts.py: JSON schemas, paths, limits, content hashes
      runner.py: verified Git/checkpoint -> offline backend -> immutable assets
-     meshes.py: triangle import -> uniform metre scale -> topology/volume audit
-                -> optional quadric decimation -> independent second audit
+     meshes.py: triangle import -> uniform metre scale -> topology/volume/Euler audit
+     reduction.py: bounded numerical-component cleanup -> topology-preserving QEM
+                   -> independent second audit; original display stays intact
   -> display.glb + display_mesh.json + simulation.obj + simulation_mesh.json + receipt.json
   -> host validates artifact hashes and physics stage validates its scene
 ```
@@ -68,7 +69,11 @@ Its audited source commit is `f8db63096c8282cb27354314d896feba5ba6ff8a`.
 
 The MLX port declares Python >=3.12 and MLX >=0.31.2. Shape inference needs MLX,
 NumPy, OpenCV, Pillow, PyYAML, safetensors, scikit-image and trimesh. Install
-`fast-simplification` for simulation reduction. PyTorch additionally needs its
+`pymeshlab==2023.12.post3` for topology-preserving simulation reduction. Its
+[official filters](https://pymeshlab.readthedocs.io/en/latest/filter_list.html#meshing-decimation-quadric-edge-collapse)
+describe the QEM topology/normal/boundary constraints and original-vertex placement.
+The package is GPL-3.0; the installer and exported modeling data retain its full
+license, and dependency versions remain in each receipt. PyTorch additionally needs its
 upstream shape dependencies, including torchvision, diffusers, transformers,
 einops and pymeshlab. Dependency versions are recorded in each receipt; their
 presence alone does not establish a tested inference environment.
@@ -151,11 +156,25 @@ geometry error. It never silently removes disconnected components, fills holes,
 substitutes a primitive or extrudes an image silhouette to satisfy the request.
 Global face reversal is allowed only for a closed, consistently oriented,
 single-component mesh with negative signed volume, and is recorded.
-Reduction tries face budgets 8188, 6000 and 4000 independently from the unchanged
-display geometry, accepting the first independently passing candidate. Each
+Simulation-only cleanup may remove a numerical micro-component only when one
+surface accounts for at least 99% of total area, the fragment stays inside that
+surface's bounds, and all extent/area/absolute-volume thresholds pass. Individual
+limits are 0.001 / 1e-6 / 1e-9 of the corresponding dominant/total measures;
+aggregate area/volume losses stay below 1e-5 / 1e-8. Thin large parts, cavities,
+separate objects and outside fragments remain and can cause a genuine rejection.
+The receipt lists every removed fragment and threshold; display geometry is preserved.
+Disabling decimation also disables this cleanup.
+
+Reduction tries face budgets 6000, 8188 and 4000 independently from the admitted
+simulation source, using PyMeshLab topology/normal/boundary preservation,
+original-vertex placement and no automatic repair. Each candidate must preserve
+the source Euler characteristic as well as closure and winding, accepting the
+first independently passing candidate. Each
 candidate is uniformly rescaled to retain the explicitly requested physical
 extent; attempted topology audits and additional transforms are in the receipt.
-If none passes, the simulation mesh is rejected.
+If none passes, the simulation mesh is rejected. The pipeline then applies its
+unchanged engine intersection/work-budget gate; a decimator flag is not proof of
+intersection freedom. A candidate failing that final gate remains a failure.
 
 Physics eligibility requires bounded finite coordinates, distinct triangle
 indices, no duplicate/degenerate faces or unused vertices, one connected

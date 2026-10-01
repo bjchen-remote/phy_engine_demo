@@ -30,6 +30,12 @@ decimator or topology errors explicitly.
 
 Use the detailed `display.glb` for visual inspection and the independently
 audited, bounded `simulation.obj` / `simulation_mesh.json` for physics.
+Simulation reduction may remove only explicitly measured numerical micro-components
+under the fixed all-threshold policy, with each removal disclosed in the receipt.
+Detailed display geometry stays intact; significant parts, shells and cavities are
+retained. Topology-preserving QEM is still independently audited, including the
+pipeline's original engine intersection gate. Never use largest-component selection
+to discard meaningful parts or describe cleanup as exact reconstruction.
 The worker's `ready_to_simulate` establishes bounded mesh eligibility, not verified
 physical accuracy or a prepared scene. The QQ modeling adapter additionally runs
 the engine mesh gate and returns `mesh_ref`; insert it into the authored scene,

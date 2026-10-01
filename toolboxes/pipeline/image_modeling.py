@@ -159,9 +159,18 @@ def used_modeling_assets(job: Path, model: dict, root: Path | None = None) -> li
                 result.append({'path': str(path), 'name': 'modeling/' + reference + '/' + name,
                                'sha256': item['sha256']})
     if result and root is not None:
-        licenses = root / 'modules/modeling/modeling_flow/third_party'
-        for name in ('Hunyuan3D-LICENSE.txt', 'MLX-port-LICENSE.txt',
-                     'U2Net-APACHE-2.0.txt', 'rembg-MIT.txt'):
+        module_root = inside(root, 'modules/modeling')
+        module = read_json(inside(module_root, 'module.json'), 65536)
+        licenses = module_root / 'modeling_flow/third_party'
+        names = ['Hunyuan3D-LICENSE.txt', 'MLX-port-LICENSE.txt',
+                 'U2Net-APACHE-2.0.txt', 'rembg-MIT.txt']
+        # An independently pinned 0.2.0 stage predates the PyMeshLab reducer.
+        # Only that known legacy stage can omit its new dependency license.
+        # Newer/custom reducer stages must fail if their license is missing.
+        if (module.get('version') != '0.2.0'
+                or (module_root / 'modeling_flow/reduction.py').exists()):
+            names.append('PyMeshLab-GPL-3.0.txt')
+        for name in names:
             path = inside(licenses, name)
             result.append({'path': str(path), 'name': 'modeling/licenses/' + name, 'sha256': sha256(path)})
     return result

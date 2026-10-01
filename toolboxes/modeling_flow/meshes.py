@@ -203,6 +203,7 @@ def audit_mesh(mesh: dict, simulation: bool = False) -> dict:
             "extent": extent, "boundary_edges": boundary, "nonmanifold_edges": nonmanifold,
             "inconsistent_winding_edges": inconsistent, "duplicate_faces": duplicate_faces,
             "degenerate_faces": degenerate_faces, "unreferenced_vertices": len(vertices) - len(used),
+            "edges": len(edges), "euler_characteristic": len(used) - len(edges) + len(faces),
             "connected_components": components, "signed_volume": volume, "volume": abs(volume),
             "closed_oriented_single_component": topology_ok,
             "simulation_budget_passed": within_budget,
