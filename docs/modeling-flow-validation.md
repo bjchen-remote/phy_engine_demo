@@ -156,8 +156,9 @@ members/licenses before releasing reference image, video and model ZIP through
 a local capture API with independent receipts. No real platform network was used
 for those sends; this acceptance does not prove delivery to a QQ group.
 
-The complete toolbox suite ran 212 tests successfully; the separately maintained
-host ran 709 tests with 707 passing and two optional CLI tests skipped. Cleanup
+The maintained source toolbox suite ran 212 tests successfully. This public
+branch passed 212 of 213 checks, with the optional private-host SDK integration
+skipped. The separately maintained host ran 709 tests with 707 passing and two optional CLI tests skipped. Cleanup
 policy tests covered 19 cases. Adversarial verification checks included altered
 raw pins, partial-body deletion, changed retained coordinates, relaxed policies,
 changed OBJ/GLB geometry, accessor bounds and float32 quantization, coordinate

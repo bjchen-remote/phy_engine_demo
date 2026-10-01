@@ -120,6 +120,7 @@ conservative cleanup → video/archive flow completed in 203.063 seconds, removi
 25 eligible components while preserving raw geometry. Independent capture API
 image/video/archive receipts passed. The external host deployed 0.3.1 while
 preserving the frozen engine/simulation and existing state; real QQ delivery
-remains unverified. The full toolbox suite passed 212 tests; the separate host
-passed 707 of 709 with two optional CLI checks skipped. Detailed limits and
+remains unverified. The maintained source toolbox suite passed 212 tests; this
+public branch passed 212 of 213 checks with its optional private-host SDK test
+skipped. The separate host passed 707 of 709 with two optional CLI checks skipped. Detailed limits and
 metrics are in the dated [acceptance record](modeling-flow-validation.md).
