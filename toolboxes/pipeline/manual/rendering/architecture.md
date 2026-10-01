@@ -1,8 +1,15 @@
 # 渲染模块内部架构
 
-渲染模块从保存且经过验证的模拟结果生成科学视频和完整数据包。它不运行求解器、不改变模型与原始结果、不把插值画面当成测量。当前实现是 local-scientific provider；preview/standard 可用，deep/PBR/diffusion 仍需能力发现与独立实现。操作说明见 [Skill](SKILL.md)，恢复与 pin 见 [组合架构](../../ARCHITECTURE.md)。
+渲染模块有独立模型展示与物理结果呈现两条路径。前者从当前任务绑定的完整生成网格绘制 360° 相机旋转，导出模型 ZIP；后者从保存且经过验证的模拟结果生成科学视频和完整数值数据包。模块不运行求解器、不改变模型与原始结果、不把旋转或插值画面当成测量。物理呈现使用 local-scientific provider；质量档位 preview/standard 与独立 model-preview 目的分开。deep/PBR/diffusion 仍需能力发现与独立实现。操作说明见 [Skill](SKILL.md)，恢复与 pin 见 [组合架构](../../ARCHITECTURE.md)。
 
 ```text
+当前事件 model_ref + 完整 display mesh / GLB / OBJ / 生成回执
+  → current image/runtime/modeling/rendering pins 与源哈希核验
+  → model_preview：全部原三角面 → 等比例相机取景 → 360° 旋转 H.264
+  → 全帧解码/帧数/时长/可见表面检查 + source unchanged
+  → 完整模型 ZIP + model-preview 结果合同 → 宿主检查及 qq_video 交付
+    （simulation 跳过；model_unit；没有物理测量）
+
 保存 result + model + simulation manifest
   → artifacts.load_source：模型绑定、领域质量门、全部声明摘要
   → export_data：完整原始 JSON + CSV + 字典 + provenance → data.zip
@@ -15,7 +22,9 @@
 
 | 实现 | 责任 |
 |---|---|
-| `pipeline/worker.py` | rendering role 仅接受内部 export / render 两种固定 action |
+| `pipeline/worker.py` | rendering role 接受固定 export / render / model_preview action，目的明确分开 |
+| `pipeline_presentation/model_preview.py` | 当前完整三角网格的本机中性表面绘制、360° 相机旋转、视频/可见性验证与源不变回执；不调用求解器 |
+| `pipeline/model_preview.py` | model_ref 和来源/pin 核验、固定 rendering 阶段调用、完整模型 ZIP 和 model-preview 宿主合同 |
 | `pipeline_presentation/artifacts.py` | saved source、模型/阶段证据、质量标签、CSV、完整数据字典、确定性 ZIP 和原子发布 |
 | `pipeline_presentation/rendering.py` | 保存状态渲染、独立时间/视频大小预算、H.264 转码和解码、render receipt |
 | `pipeline_presentation/providers.py` | 外部 provider 的离线 request/receipt 合同；不调用网络或声称外部服务已接通 |
@@ -23,6 +32,32 @@
 | 组合 `adapter.py` | 原模拟 checkpoint、先 export 再 render、render_only 与最终 v1 result-manifest |
 
 所有结果和文件来自当前任务与固定组件组合。`load_source` 只读取 bounded regular JSON，拒绝软链接、重复键、非有限数字和越界 artifact 引用。它记录源文件的实际字节摘要，以便发布前重新校验。
+
+## 独立模型展示合同
+
+`modeling_preview_render` 只接受当前事件 `model_ref` 与有界相机参数。它重新验证成功
+display-only 生成回执、来源图片摘要、全部展示工件和 rendering module pin，按模型/
+参数/模块摘要分配独立输出；不能导入旧物理失败任务、任意路径或跨事件模型。
+
+展示保留全部原顶点、三角索引与断开的组件。有限坐标、索引、空间范围和独立预算
+仍严格准入；相机归一化只在呈现副本内等比例居中/取景。没有单实体化、数值微屑
+清理、模拟减面、碰撞、积分器或模拟时间轴。默认 `model_unit` 不解释为米，显式
+用户尺度另有来源；质量、密度、材料和测量均不由此估计。
+
+本机固定 native triangle drawer 绘制中性无贴图表面，相机绕模型完整旋转。源三角
+索引摘要与实际传给绘制器的摘要一致；可见表面记录逐帧检查。固定 ffmpeg 编码 H.264，
+随后 ffprobe 检查帧数、分辨率和播放时长，并完整解码视频。标签明确 AI MODEL PREVIEW、
+SHAPE ONLY 与 no simulation or measurements。颜色属于呈现样式，不是纹理生成。
+
+输出 `model-preview.mp4`、海报和 `model-preview-render/1` 回执；组合导出完整 GLB、OBJ、
+mesh JSON、生成/渲染回执、来源与许可，逐文件绑定哈希并验证 ZIP。最终合同标记
+`result_kind=model-preview`、`simulation_performed=false`、`measurement_source=false`，
+宿主核验后由 qq_video 交付 MP4 和模型 ZIP。没有 `pipeline-simulation/1` 或假造数值数据。
+
+模型可展示不证明可模拟；原物理 gate 保持。生成或渲染失败必须具体报告，不能将空白视频、
+截取参考图、单张图片平移或未知工件当作三维模型旋转展示。完整原始网格和来源工件在
+发布前复核不变；预览不改写原模拟 checkpoint。新 0.3.0 的真实新图完整验收由最终记录
+另行确认，不以实现完成、构建或 health 代替实际工件证据。
 
 ## 输入身份与数值质量
 

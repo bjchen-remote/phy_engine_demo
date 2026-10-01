@@ -95,4 +95,6 @@ def verify_bundle(root: Path) -> dict:
         info = validate_module(path, role)
         if digest_tree(path) != pin["digest"] or any(info[key] != pin[key] for key in ("id", "version")):
             raise ValueError("pinned module integrity mismatch: " + role)
+        if (pin.get('model_preview') is True) != (info.get('model_preview') is True):
+            raise ValueError('pinned preview capability mismatch: ' + role)
     return lock

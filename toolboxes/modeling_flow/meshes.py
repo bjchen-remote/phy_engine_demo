@@ -104,10 +104,10 @@ def import_obj(path: str | Path, max_vertices=MAX_DISPLAY_VERTICES,
     return validate_mesh({"vertices": vertices, "faces": faces}, max_vertices, max_faces)
 
 
-def write_obj(path: Path, mesh: dict) -> None:
+def write_obj(path: Path, mesh: dict, units: str = "m") -> None:
     mesh = validate_mesh(mesh)
     with path.open("x", encoding="utf-8", newline="\n") as handle:
-        handle.write("# modeling-flow: metres, generated shape; explicit scale and material\n")
+        handle.write("# modeling-flow: " + units + ", generated shape; see bound receipt for scale and assumptions\n")
         for vertex in mesh["vertices"]:
             handle.write("v " + " ".join(format(value, ".17g") for value in vertex) + "\n")
         for face in mesh["faces"]:

@@ -48,7 +48,10 @@ def main() -> None:
             from pipeline_stages.simulation import run_simulation
             result = run_simulation(**options)
         elif metadata["role"] == "rendering":
-            if request.get("action") == "export":
+            if request.get("action") == "model_preview":
+                from pipeline_presentation.model_preview import render_model_preview
+                result = render_model_preview(**options, engine_root=engine)
+            elif request.get("action") == "export":
                 from pipeline_presentation.artifacts import export_data
                 result = export_data(**options)
             elif request.get("action") == "render":

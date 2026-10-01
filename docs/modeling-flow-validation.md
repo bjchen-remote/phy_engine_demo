@@ -74,6 +74,48 @@ PyMeshLab 2023.12.post3 保拓扑 QEM 和原顶点位置减面；Euler、闭合�
 两次都保留展示 GLB，但没有模拟、视频、ZIP 或 QQ 投递。这证明当前单图生成质量
 仍不可靠，不能因为客户端联网或减面修复成功就宣称任意参考图可完整交付。
 
-当前组合为 0.2.2、modeling 0.2.1，原 physics 1.4.7 与 simulation/rendering 0.2.0 摘要不变。
+此前部署基线为 0.2.2、modeling 0.2.1，原 physics 1.4.7 与 simulation/rendering 0.2.0 摘要不变。
 客户端代码修复已在空闲时部署，status/check 与 Metal 依赖健康通过；旧队列/pin 保留。
 平台送达与具体图片生成成功仍分别验证。
+
+## Original-model preview acceptance (2026-10-01)
+
+Pipeline/modeling/rendering 0.3.0 adds a separate shape-only contract while the
+maintenance deployment keeps the physics 1.4.7 and simulation 0.2.0 content pins.
+A real restricted external agent processed a new isolated PDF event, performed
+public search and image inspection, ran fresh offline MLX inference and the
+original-mesh turntable, and released image/video/model ZIP together through a
+capture API. The reference was the visually checked Chinese meme Naiwa image
+from https://nailong.matchamilk.site/ (SHA256
+`1572f2c9642d756e8fcd87abe7668a5c876f15cc7d7c8b090238d4c8f3d073c6`).
+It crops the feet and does not show the back; those surfaces remain inferred.
+
+Seed0, 30 steps, octree128, chunks2000 produced 29,892 vertices and 59,684
+triangles; the original 26 components and degenerate triangle remain in display
+assets. Inference took 145.538 seconds; the complete isolated event took 196.096
+seconds. A 640x640 H.264 video had 90 fully decoded frames over 6 seconds, all
+with real surface pixels. The complete ZIP retains original GLB/OBJ/JSON,
+receipts, reference/source receipt and all five licenses. Units are model_unit;
+no size, material, density, mass, solver or numerical measurement was inferred.
+Independent image/video/file receipts were obtained from the local capture API,
+not a real QQ group. The separately installed host was deployed and checked;
+no old event or unknown receipt was resent.
+
+A separate octree256 run took 382.885 seconds and generated 120,261 vertices /
+239,954 triangles. Its original-mesh video and host validation passed, but the
+first model file send was rejected by the host's legacy filename rule. That
+unknown action was retained without retry. A constrained model-/simulation-
+filename fix and an entirely new task established the complete acceptance above.
+These timings describe specific runs on a 16 GB Mac; they are not fixed resource
+or fidelity guarantees. Shape-only neutral rendering has no generated texture.
+
+The installed MLX/NumPy/trimesh toolbox suite ran 189 checks successfully. The
+separately maintained host ran 696 checks, 694 passing and two optional Bun CLI
+checks skipped. Native rendering, complete ZIPs/licenses, full decoding, cache
+isolation/tamper rejection, legacy-stage capability gates and actual OneBot file
+request naming were checked. Public repository tests remain independent of the
+private host. See the typed [host contract](../toolboxes/pipeline/HOST-INTEGRATION.md).
+
+Final independent public toolbox discovery: 189 checks, 188 passed and one
+optional private-host SDK integration skipped. No client, weights, credentials
+or private task records are published by this repository.

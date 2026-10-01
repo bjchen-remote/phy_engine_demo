@@ -18,15 +18,17 @@ configuration. There is no automatic backend, dtype, geometry or device fallback
 ## Architecture and ownership
 
 ```text
-QQ trusted attachment + explicit dimensions/material
+QQ trusted attachment + purpose (model preview or physical simulation)
   -> host writes bounded request / selects pinned local runtime
   -> modeling_flow CLI (dedicated worker process)
      contracts.py: JSON schemas, paths, limits, content hashes
      runner.py: verified Git/checkpoint -> offline backend -> immutable assets
-     meshes.py: triangle import -> uniform metre scale -> topology/volume/Euler audit
+     meshes.py: triangle import -> uniform declared metre/normalized model-unit scale -> audit
      reduction.py: bounded numerical-component cleanup -> topology-preserving QEM
                    -> independent second audit; original display stays intact
-  -> display.glb + display_mesh.json + simulation.obj + simulation_mesh.json + receipt.json
+  -> original display.glb + display.obj + display_mesh.json + receipt.json
+  -> preview: original mesh -> turntable + original-model/reference/license ZIP
+  -> physics: explicit dimensions/material -> simulation.obj + simulation_mesh.json -> scene audit
   -> host validates artifact hashes and physics stage validates its scene
 ```
 
@@ -126,8 +128,17 @@ cubes are explicit preprocessing/postprocessing, recorded in the receipt.
 
 ## Input and assets
 
-The request requires a still PNG/JPEG/WebP attachment, a physical extent in metres
-and declared material name/density. Prefer an isolated object with a meaningful
+The physical `modeling-flow-request/1` requires a still PNG/JPEG/WebP attachment,
+a physical extent in metres and declared material name/density. The separate
+`modeling-flow-preview-request/1` requires only the image. It accepts an optional
+explicit extent, forbids material and decimation, and otherwise normalizes the
+maximum extent to one `model_unit`; no physical dimensions are inferred. Its
+receipt records `purpose: model_preview`, no simulation, and null material/mass.
+The QQ route is `modeling_preview_from_image` → `modeling_preview_render` →
+`qq_video`, preserving all original display components. Simulation topology
+gates apply only to the physical route. `configuration_file_sha256` binds the
+receipt to the exact runtime snapshot; `configuration_sha256` records the
+validated configuration with defaults. Prefer an isolated object with a meaningful
 alpha foreground. The default `background_removal: none` uses the whole opaque
 image and the receipt says `foreground_mask: full_image` and
 `background_removal: not_performed`. An operator may explicitly enable

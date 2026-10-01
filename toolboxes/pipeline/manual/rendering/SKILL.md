@@ -1,13 +1,36 @@
 ---
 name: physics-rendering
-description: 将 QQ 当前任务已保存的物理模拟结果渲染成视频，并交付可提取的 JSON、CSV 数据包；适用于重渲染、预览与视频和数据交付。
+description: 将 QQ 当前任务的完整三维展示模型渲染为 360° 相机旋转视频与模型 ZIP，或将已保存的物理模拟结果渲染为科学视频和 JSON、CSV 数据包。
 ---
 
-# 物理结果渲染与数据交付
+# 模型展示、物理结果渲染与数据交付
 
 模块内部实现、源结果校验、导出和重渲染合同见 [内部架构](architecture.md)。
 
-客户端工具是 `pipeline_capabilities`、`pipeline_configure`、`pipeline_status`、`pipeline_render_prepare` 和 `physics_simulate`。内部的 `render_simulation`、`export_data` 与 `stage-call/1` 由 toolbox 运行，不是客户端工具名。
+客户端另有独立的 `modeling_preview_from_image` 与 `modeling_preview_render`，供纯建模展示。
+物理工具是 `pipeline_capabilities`、`pipeline_configure`、`pipeline_status`、
+`pipeline_render_prepare` 和 `physics_simulate`。内部的 `render_simulation`、`export_data`
+与 `stage-call/1` 由 toolbox 运行，不是客户端工具名。
+
+## 360° 三维模型展示
+
+先读当前任务的 capabilities，确认组合与宿主支持 model-preview。对已由
+`modeling_preview_from_image` 成功生成的完整展示模型，调用
+`modeling_preview_render`，传入其准确 `model_ref`；随后用 `qq_video` 交接返回的已验证
+MP4。宿主同时验证模型 ZIP，并与所选参考图一起按 held 合同交付。不要把未经来源和
+工件 pin 核验的 GLB、路径或跨事件模型当作当前模型。
+
+该视频使用完整源网格作 360° 相机旋转，保留全部连通组件，无模拟微屑清理、减面或
+求解器。默认模型为 `model_unit`；相机居中/等比例取景只服务呈现，不恢复真实尺度，
+不需要编造密度、质量或物理时长。用户另给明确尺度时保留那项假设。视频显示无贴图的
+中性表面阴影，颜色只是展示样式，不能声称重建了参考图的材质或纹理。
+
+必须通过源哈希/三角索引绑定、完整视频解码、可见表面和大小检查，再允许交付。
+模型 ZIP 保留完整 GLB、OBJ、网格 JSON、生成/渲染回执、来源与许可证；它没有
+模拟数值、测量或物理轨迹。预览不能声称 `ready_to_simulate`，也不能被回答成通过
+物理验收。需要物理运动或数值问题时，回到独立的建模准备和原模拟质量门。
+
+## 物理结果呈现
 
 先读 `pipeline_capabilities({})`。当前本地渲染支持 `standard` 与 `preview`；深度渲染和外部商用 provider 只有 capabilities 明确声明可用时才可选择，不能把请求的深度渲染默默降成标准效果。
 

@@ -5,15 +5,21 @@ description: Internal offline Mac-local flow matching worker for single-image sh
 
 # Image modeling worker
 
-Use the QQ host's `modeling_from_image` operation for an actual image-to-3D
-request once its operator-installed runtime is available. Refer to the trusted
+Use the QQ host's `modeling_preview_from_image` for shape reconstruction and
+`modeling_preview_render` for a model turntable. Use `modeling_from_image` when
+the task explicitly requests a physical simulation. Both need the verified
+operator-installed runtime. Refer to the trusted
 attachment ID, not an invented filesystem path. This package is the worker that
 the modeling stage invokes, not a general shell tool or a simulation/rendering
 skill. Keep the existing structured modeling route for explicitly specified
 geometry.
 
 Require an explicit physical extent in metres and declared material density
-before preparing a physics asset. If the user only wants a visual shape, explain
+before preparing a physics asset. A visual shape uses the separate
+`modeling-flow-preview-request/1`: only an image is required, material is forbidden,
+decimation is disabled, and missing dimensions mean `model_unit`. Export the
+original GLB/OBJ/JSON, reference and licenses; retain all components for the
+turntable without creating a simulation mesh, mass or numerical result. Explain
 that a physical extent and density are assumptions if supplied later; never
 describe them as values recovered from the image. Prefer an isolated foreground
 image. This worker preserves provided alpha and applies EXIF orientation.

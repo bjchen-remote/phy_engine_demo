@@ -12,6 +12,7 @@ import tempfile
 
 CONFIG_SCHEMA = "modeling-flow-config/1"
 REQUEST_SCHEMA = "modeling-flow-request/1"
+PREVIEW_REQUEST_SCHEMA = "modeling-flow-preview-request/1"
 RESULT_SCHEMA = "modeling-flow-result/1"
 RECEIPT_SCHEMA = "modeling-flow-receipt/1"
 MODEL_SUBFOLDER = "hunyuan3d-dit-v2-mini"
@@ -227,10 +228,15 @@ def verify_foreground_model(config: dict) -> dict | None:
 
 def load_request(source: str | Path | dict) -> dict:
     value = read_json(source) if not isinstance(source, dict) else dict(source)
-    _keys(value, {"schema_version", "image_path", "physical_extent_m", "material"},
-          {"seed", "scale_axis", "num_inference_steps", "guidance_scale",
-           "octree_resolution", "num_chunks", "allow_decimation"}, "request")
-    if value["schema_version"] != REQUEST_SCHEMA:
+    preview = value.get("schema_version") == PREVIEW_REQUEST_SCHEMA
+    required = {"schema_version", "image_path"} if preview else {
+        "schema_version", "image_path", "physical_extent_m", "material"}
+    optional = {"seed", "scale_axis", "num_inference_steps", "guidance_scale",
+                "octree_resolution", "num_chunks", "allow_decimation"}
+    if preview:
+        optional.add("physical_extent_m")
+    _keys(value, required, optional, "request")
+    if value["schema_version"] not in (REQUEST_SCHEMA, PREVIEW_REQUEST_SCHEMA):
         raise FlowError("invalid_request", "Unsupported flow request schema")
     image = value["image_path"]
     if not isinstance(image, str) or not Path(image).is_absolute():
@@ -240,27 +246,31 @@ def load_request(source: str | Path | dict) -> dict:
             or path.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp")):
         raise FlowError("invalid_image", "Image must be a bounded regular PNG, JPEG or WebP file")
     value["image_path"] = str(path.resolve())
-    value["physical_extent_m"] = _finite_positive(value["physical_extent_m"], "physical_extent_m", 10000)
+    if "physical_extent_m" in value:
+        value["physical_extent_m"] = _finite_positive(value["physical_extent_m"], "physical_extent_m", 10000)
     value["scale_axis"] = value.get("scale_axis", "max")
     if value["scale_axis"] not in ("max", "x", "y", "z"):
         raise FlowError("invalid_request", "scale_axis must be max, x, y or z in the generated mesh coordinate frame")
-    material = value["material"]
-    if not isinstance(material, dict):
-        raise FlowError("invalid_request", "material must specify name and density_kg_m3")
-    _keys(material, {"name", "density_kg_m3"}, set(), "request")
-    if (not isinstance(material["name"], str) or not 1 <= len(material["name"]) <= 200
-            or any(ord(char) < 32 for char in material["name"])):
-        raise FlowError("invalid_request", "material.name must be a short plain string")
-    value["material"] = {"name": material["name"], "density_kg_m3":
-                         _finite_positive(material["density_kg_m3"], "density_kg_m3", 100000)}
+    if not preview:
+        material = value["material"]
+        if not isinstance(material, dict):
+            raise FlowError("invalid_request", "material must specify name and density_kg_m3")
+        _keys(material, {"name", "density_kg_m3"}, set(), "request")
+        if (not isinstance(material["name"], str) or not 1 <= len(material["name"]) <= 200
+                or any(ord(char) < 32 for char in material["name"])):
+            raise FlowError("invalid_request", "material.name must be a short plain string")
+        value["material"] = {"name": material["name"], "density_kg_m3":
+                             _finite_positive(material["density_kg_m3"], "density_kg_m3", 100000)}
     value["seed"] = _integer(value.get("seed", 0), "seed", 0, 2**32 - 1)
     value["num_inference_steps"] = _integer(value.get("num_inference_steps", 30), "num_inference_steps", 1, 100)
     value["octree_resolution"] = _integer(value.get("octree_resolution", 128), "octree_resolution", 16, 256)
     value["num_chunks"] = _integer(value.get("num_chunks", 2000), "num_chunks", 256, 8000)
     value["guidance_scale"] = _finite_positive(value.get("guidance_scale", 5.0), "guidance_scale", 20)
-    value["allow_decimation"] = value.get("allow_decimation", True)
+    value["allow_decimation"] = value.get("allow_decimation", not preview)
     if type(value["allow_decimation"]) is not bool:
         raise FlowError("invalid_request", "allow_decimation must be a boolean")
+    if preview and value["allow_decimation"]:
+        raise FlowError("invalid_request", "Display-only modeling preserves the full generated geometry")
     return value
 
 

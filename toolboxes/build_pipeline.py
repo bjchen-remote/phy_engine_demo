@@ -14,8 +14,8 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, validate_module, verify
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
-COMPOSED_VERSION = "0.2.2"
-ROLE_VERSIONS = {"modeling": "0.2.1"}
+COMPOSED_VERSION = "0.3.0"
+ROLE_VERSIONS = {"modeling": "0.3.0", "rendering": "0.3.0"}
 
 
 def copy_tree(source: Path, target: Path) -> None:
@@ -47,6 +47,8 @@ def build_module(role: str, output: Path) -> dict:
         "version": ROLE_VERSIONS.get(role, VERSION), "role": role, "entrypoint": "adapter.py",
         "input_schema": FORMATS[role][0], "output_schema": FORMATS[role][1],
         "engine_contract": "physics-python/1", "network": False}
+    if role in ('modeling', 'rendering'):
+        info['model_preview'] = True
     write_json(output / "module.json", info)
     # Stage packages can use the existing content-addressed registry as storage.
     write_json(output / "toolbox.json", {"schema_version": 1, "id": info["id"],
@@ -83,13 +85,18 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         info = validate_module(target, role)
         lock["modules"][role] = {"id": info["id"], "version": info["version"],
             "path": "modules/" + role, "digest": digest_tree(target)}
-    for filename in ("adapter.py", "bundle.py", "image_modeling.py"):
+        if info.get('model_preview') is True:
+            lock['modules'][role]['model_preview'] = True
+    for filename in ("adapter.py", "bundle.py", "image_modeling.py", "model_preview.py"):
         shutil.copyfile(PIPELINE / filename, output / filename)
     write_json(output / "bundle-lock.json", lock)
     api = dict(engine_manifest.get("agent_api", {}))
     api["operations"] = sorted(set(api.get("operations", [])) | {
         "pipeline_capabilities", "pipeline_configure", "pipeline_status", "pipeline_render_prepare",
         "modeling_from_image"})
+    if all(lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering')):
+        api['operations'] = sorted(set(api['operations']) | {'modeling_preview_from_image', 'modeling_preview_render'})
+        api['model_preview_render_operation'] = 'modeling_preview_render'
     api["execution_operation"] = "physics_simulate"
     # Saved scenes must pass this composed adapter's preparation before probe.
     # Host-readable metadata does not change the original engine/stage bytes.
@@ -107,6 +114,10 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         "Use pipeline_capabilities and pipeline_configure before preparing. Defaults are standard modeling, "
         "For an image requiring 3D reconstruction, use modeling_from_image with the current event's image_id, "
         "explicit physical_extent_m and material assumptions; it returns a task-owned mesh_ref. "
+        "For shape-only reconstruction and a 360-degree model video, use modeling_preview_from_image "
+        "with image_id, then modeling_preview_render with its model_ref, then qq_video using video_path. "
+        "This path preserves the full display geometry and exports GLB/OBJ/JSON/reference/license ZIP. "
+        "It needs no physical dimensions or density; never invent them. No simulation is performed. "
         "Never replace unavailable image inference with guessed geometric primitives. "
         "model-selected visual/strict simulation and standard faithful rendering. For numerical questions "
         "set simulation_quality=strict and declare queries before physics_prepare. Use existing physics_* "

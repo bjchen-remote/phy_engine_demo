@@ -12,7 +12,7 @@ import sys
 import time
 
 from .contracts import (FlowError, MAX_IMAGE_PIXELS, MAX_SIMULATION_FACES,
-                        MAX_SIMULATION_VERTICES, RECEIPT_SCHEMA, RESULT_SCHEMA,
+                        MAX_SIMULATION_VERTICES, PREVIEW_REQUEST_SCHEMA, RECEIPT_SCHEMA, RESULT_SCHEMA,
                         artifact, canonical_bytes, digest, file_digest, load_config,
                         load_request, output_directory, verify_foreground_model, verify_weights, write_json)
 from .meshes import audit_mesh, import_obj, orient_outward, scale_mesh, validate_mesh, write_obj
@@ -344,6 +344,14 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
     started = time.monotonic()
     try:
         config, request = load_config(config_source), load_request(request_source)
+        preview = request["schema_version"] == PREVIEW_REQUEST_SCHEMA
+        units = "model_unit" if preview and "physical_extent_m" not in request else "m"
+        assumptions = (["AI-generated shape; hidden surfaces are inferred from one image.",
+                        "No physical simulation, density or mass is computed for this model preview.",
+                        "Shape-only assets have no generated texture or measured surface properties.",
+                        "Dimensions are explicitly supplied." if units == "m" else
+                        "Extent is normalized to one model unit; no physical size is inferred."]
+                       if preview else ASSUMPTIONS)
         inventory = verify_weights(config)
         verify_foreground_model(config)
         header = _checkpoint_header(config)
@@ -354,28 +362,33 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
         image_sha256 = file_digest(Path(request["image_path"]))
         model = _model_mesh(torch, pipeline_class, config, request, image)
         generated = _mesh_arrays(model)
-        mesh, scale = scale_mesh(generated, request["physical_extent_m"], request["scale_axis"])
+        mesh, scale = scale_mesh(generated, request.get("physical_extent_m", 1.0), request["scale_axis"])
+        if units == "model_unit":
+            scale = {key: value for key, value in scale.items() if key != "physical_extent_m"}
+            scale.update(units=units, normalized_extent=1.0, physical_extent_m=None)
         mesh, flipped = orient_outward(mesh)
         display_audit = audit_mesh(mesh)
         # Only now create output. Dependency, image and inference failures leave
         # no misleading successful artifacts behind.
         root = output_directory(output)
         display_obj, display_glb = root / "display.obj", root / "display.glb"
-        write_obj(display_obj, mesh)
+        write_obj(display_obj, mesh, units)
         display_model = trimesh.Trimesh(vertices=mesh["vertices"], faces=mesh["faces"], process=False)
         display_model.export(str(display_glb), file_type="glb")
         display_json = root / "display_mesh.json"
-        write_json(display_json, {"schema_version": "modeling-flow-display/1", "units": "m", **mesh,
+        write_json(display_json, {"schema_version": "modeling-flow-display/1", "units": units, **mesh,
                                  "scale": scale, "audit": display_audit,
                                  "image_sha256": image_sha256,
                                  "geometry_origin": "generated_single_image_approximation",
-                                 "physical_accuracy": "unverified", "assumptions": ASSUMPTIONS})
+                                 "physical_accuracy": "unverified", "assumptions": assumptions})
         # Round-trip through the bounded importer before a mesh reaches physics.
         verified = import_obj(display_obj)
         rejection = None
         decimation = {"applied": False, "method": None}
         simulation_audit = audit_mesh(verified, simulation=True)
         try:
+            if preview:
+                raise FlowError("display_only_requested", "Physical mesh preparation was not requested")
             simulation_mesh, decimation = _decimate(verified, trimesh, request)
             simulation_mesh, simulation_flipped = orient_outward(simulation_mesh)
             simulation_audit = audit_mesh(simulation_mesh, simulation=True)
@@ -391,10 +404,11 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
                      artifact(display_obj, root, "display_mesh_source", "model/obj"),
                      artifact(display_json, root, "display_mesh_data", "application/json")]
         result = {"schema_version": RESULT_SCHEMA, "ready_to_simulate": rejection is None,
+                  "display_only": preview, "ready_to_preview": preview,
                   "display_mesh_path": str(display_glb), "display_obj_path": str(display_obj),
                   "display_mesh_json_path": str(display_json),
                   "receipt_path": str(root / "receipt.json"), "audit": simulation_audit,
-                  "assumptions": ASSUMPTIONS, "artifacts": artifacts}
+                  "assumptions": assumptions, "artifacts": artifacts}
         if simulation_mesh is not None:
             physics_obj, physics_json = root / "simulation.obj", root / "simulation_mesh.json"
             write_obj(physics_obj, simulation_mesh)
@@ -414,7 +428,10 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
                    "upstream": upstream,
                    "checkpoint": {"id": config["checkpoint_id"], "revision": config["checkpoint_revision"],
                                   "inventory": inventory, **header},
-                   "configuration_sha256": digest(config), "request_sha256": digest(request),
+                   "configuration_sha256": digest(config),
+                   "configuration_file_sha256": (file_digest(Path(config_source))
+                        if isinstance(config_source, (str, Path)) else None),
+                   "request_sha256": digest(request),
                    "image": {"sha256": image_sha256, "bytes": Path(request["image_path"]).stat().st_size,
                              **preprocessing}, "sampling": {key: request[key] for key in
                    ("seed", "num_inference_steps", "guidance_scale", "octree_resolution", "num_chunks")},
@@ -424,18 +441,25 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
                                  "mlx_quantization": None, "compiled_dit": False,
                                  "texture_generation": False, "flashvdm": False,
                                  "marching_cubes": "skimage_mc", "dependencies": _versions()},
-                   "scale": scale, "material": request["material"],
+                   "purpose": "model_preview" if preview else "physics_geometry",
+                   "units": units, "scale": scale, "material": request.get("material"),
                    "mass_estimate_kg": (simulation_audit["volume"] * request["material"]["density_kg_m3"]
                                         if rejection is None else None),
                    "display_audit": display_audit, "simulation_audit": simulation_audit,
                    "decimation": decimation, "display_winding_reversed": flipped,
                    "simulation_winding_reversed": simulation_flipped,
-                   "ready_to_simulate": rejection is None, "assumptions": ASSUMPTIONS,
+                   "ready_to_simulate": rejection is None, "display_only": preview,
+                   "assumptions": assumptions,
                    "artifacts": artifacts, "elapsed_seconds": time.monotonic() - started}
-        if rejection is not None:
+        if rejection is not None and not preview:
             receipt["simulation_rejection"] = {"code": rejection.code, "error": str(rejection)}
+        if preview:
+            receipt.update(simulation_preparation="not_requested", simulation_performed=False,
+                           numerical_usable=False, mass_estimate_kg=None)
         write_json(root / "receipt.json", receipt)
         result["artifacts"] = artifacts + [artifact(root / "receipt.json", root, "modeling_receipt", "application/json")]
+        if preview:
+            return {"ok": True, **result}
         if rejection is not None:
             return _failure(rejection, **{key: value for key, value in result.items()
                                          if key not in ("schema_version", "ready_to_simulate")})

@@ -12,14 +12,17 @@ from bundle import inside, read_json, sha256
 
 
 def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
-                         arguments: dict, atomic, object_hash) -> dict:
+                         arguments: dict, atomic, object_hash, *, preview: bool = False) -> dict:
     runtime = task.get('modeling_runtime')
     if not runtime:
         return {'ok': False, 'code': 'image_modeling_not_configured',
                 'message': 'A verified Mac-local flow matching runtime must be installed by the operator.'}
     notice = runtime.get('provider_notice', '')
-    if set(arguments) - {'image_id', 'physical_extent_m', 'material', 'seed', 'num_inference_steps',
-                         'guidance_scale', 'octree_resolution', 'num_chunks'}:
+    allowed = {'image_id', 'physical_extent_m', 'seed', 'num_inference_steps',
+               'guidance_scale', 'octree_resolution', 'num_chunks'}
+    if not preview:
+        allowed.add('material')
+    if set(arguments) - allowed:
         raise ValueError('image modeling accepts attachment IDs and physical parameters only')
     images = [image for image in task['request'].get('input_images', [])
               if image.get('id') == arguments.get('image_id')]
@@ -32,7 +35,7 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
     config_path = inside(job, runtime['config_path'])
     if sha256(config_path) != runtime['config_sha256']:
         raise ValueError('pinned modeling runtime configuration changed')
-    request = {'schema_version': 'modeling-flow-request/1', 'image_path': str(image_path),
+    request = {'schema_version': 'modeling-flow-preview-request/1' if preview else 'modeling-flow-request/1', 'image_path': str(image_path),
                'scale_axis': 'max', **{k: v for k, v in arguments.items() if k != 'image_id'}}
     request.setdefault('seed', 0)
     reference = object_hash({'request': request, 'image_sha256': image['sha256'],
@@ -83,7 +86,21 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
     # An inference receipt describes generated geometry, never measured anatomy,
     # hidden surfaces, physical scale, material identification or CAD accuracy.
     mesh_path = output / 'simulation_mesh.json'
-    if completed.returncode or not mesh_path.is_file():
+    if preview and completed.returncode == 0 and receipt.get('display_only') is True:
+        display = read_json(output / 'display_mesh.json', 128_000_000)
+        if (receipt.get('image', {}).get('sha256') != image['sha256']
+                or display.get('image_sha256') != image['sha256']
+                or display.get('units') not in ('m', 'model_unit')
+                or receipt.get('purpose') != 'model_preview'):
+            raise ValueError('display-only model receipt is not bound to the current image')
+        public = {'ok': True, 'result_kind': 'model-preview', 'model_ref': reference,
+                  'ready_to_preview': True, 'ready_to_simulate': False,
+                  'display_geometry_available': True, 'simulation_performed': False,
+                  'units': display['units'], 'audit': receipt.get('display_audit'),
+                  'inference_seconds': round(time.monotonic() - started, 3),
+                  'assumptions': receipt.get('assumptions', []),
+                  'next_action': {'tool': 'modeling_preview_render', 'model_ref': reference}}
+    elif completed.returncode or not mesh_path.is_file():
         public = {'ok': False, 'code': receipt.get('code', 'simulation_mesh_rejected'),
                   'model_ref': reference, 'ready_to_simulate': False,
                   'message': 'Generated geometry did not pass the simulation mesh gate.',

@@ -63,10 +63,30 @@ Mac 本地公开流匹配后端属于可选建模运行时，代码与权重由�
 
 完整数据包可包含经来源 pin 校验的 GLB、OBJ、网格 JSON 与四份第三方许可。大包按需无损压缩，成员原始字节不变，宿主不解压/执行。旧引擎的模型序列化缩进由组合适配器规范化，仍保留原 1 MB 模型限额和 mesh_ref 插入顺序摘要。
 
-## 当前维护组合（2026-10-01）
+## 历史 0.2.2 维护组合（2026-10-01）
 
 `physics-pipeline` 0.2.2 使用 modeling 0.2.1、simulation 0.2.0、rendering 0.2.0 和原 physics 1.4.7。新模块在离线 worker 内检查减面依赖，保留原展示网格，只对模拟网格执行明确数值微屑阈值、保拓扑 QEM 和原引擎最终审计。阈值与实现见 [建模内部架构](../toolboxes/pipeline/manual/modeling/architecture.md)。旧任务 pin 和回滚快照保持。
 
 “联网搜索/浏览参考图并建模”进入同一 held 交付合同；普通问题、否定建模和反馈使用各自路由。来源下载失败的 HTTP 状态、建议和剩余预算经结构回执返回，不能误报成物理或全任务超时。仅在声明 MIME 和实际容器均为受支持图片格式时容忍服务器标注错误；角色选择必须核对实际像素，下载成功不证明选图正确。
 
 新奶蛙参考图的两次真实生成均未通过模拟门，保留展示模型并拒绝完整物理交付。既有网格后处理恢复成功与新图生成成功分别验收；不能把恢复后的复测视频算作新图的视频。宿主输入、固定运行时与交付边界见 [宿主集成说明](../toolboxes/pipeline/HOST-INTEGRATION.md)。
+
+## 0.3.0 independent model presentation
+
+The current maintenance combination upgrades modeling/rendering to 0.3.0 while
+reusing frozen physics 1.4.7 and simulation 0.2.0. The separately typed preview
+path is admitted image → offline original shape → native camera turntable →
+verified MP4 + original model/reference/license ZIP. It uses model_unit when no
+size is supplied, no invented material/mass and no solver. It preserves all
+components and rejects malformed data instead of forcing a physics mesh pass.
+Existing physical preparation, strict checks and rerender recovery remain.
+
+The external host distinguishes preview manifests from physical results,
+verifies source/runtime/component pins, all original triangles and visible
+surfaces, independently decodes the whole video and validates the inert ZIP.
+Only after all checks does it release held image/video/data with separate
+receipts. Preview results are not physical experiment records. Legacy modules
+without the declared capability cannot advertise preview operations.
+Read [acceptance and limitations](modeling-flow-validation.md) and the public
+[typed host contract](../toolboxes/pipeline/HOST-INTEGRATION.md). Capture API
+acceptance and an installed host health pass do not prove real group delivery.

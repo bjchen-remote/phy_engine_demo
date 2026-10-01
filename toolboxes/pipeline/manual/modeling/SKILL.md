@@ -1,9 +1,9 @@
 ---
 name: physics-pipeline-modeling
-description: Prepare structured mechanical or PCB thermal models for the QQ physics pipeline, including declared measurements and explicit quality settings. Use before a new simulation or a change to physical parameters.
+description: Generate current-event image models for a 360-degree shape preview, or prepare structured mechanical and PCB thermal models with explicit physical assumptions before simulation.
 ---
 
-# Prepare a physical model
+# Generate or prepare a model
 
 模块内部实现、图片重建与完整场景准备的边界见 [内部架构](architecture.md)。
 
@@ -14,7 +14,22 @@ can legitimately fail the single-solid simulation gate. Keep the original engine
 intersection audit and full-scene preparation; never select the largest component
 or fabricate a primitive to turn a failed reconstruction into success.
 
-Use the host's toolbox-call bridge. `physics_simulate` remains the single execution entry for the complete modeling → simulation → rendering pipeline; internal stage modules are not QQ tools or commands to invoke directly.
+Use the host's toolbox-call bridge. Choose the requested purpose first. A 360-degree
+model presentation uses `modeling_preview_from_image` → `modeling_preview_render`
+→ `qq_video`; it does not need a fabricated physical size or density and does not
+run simulation. `physics_simulate` remains the execution entry for the physical
+modeling → simulation → rendering pipeline. Internal stage modules are not QQ
+tools or commands to invoke directly.
+
+## Image model presentation
+
+1. Read `pipeline_capabilities({})` and require the image runtime and model-preview operations to be available in the current pinned combination. Reading a PDF, searching the web or downloading an image is input preparation; each reference must still be checked visually against the user's object.
+2. Call `modeling_preview_from_image` with the admitted current-event `image_id`. Sampling settings are bounded optional parameters. Omit `physical_extent_m` unless the user supplied that physical size; the default output uses `model_unit`. Do not invent material, density, mass, motion or a physical scene for a shape-only request.
+3. Require `ok` and `ready_to_preview`, retain the returned task-owned `model_ref`, and inspect the reconstruction assumptions and display audit. All generated components remain in the display assets. Preview readiness does not assert closed-solid topology, calibrated mechanics or `ready_to_simulate`.
+4. Pass that exact `model_ref` to `modeling_preview_render` for the 360-degree camera presentation, then hand its verified MP4 to `qq_video`. The host validates and queues MP4 plus the complete model ZIP, and any selected reference images, under the held delivery transaction. The preview contains source-bound geometry, generation receipts and licenses; it has no simulation or measurement results.
+5. Describe hidden surfaces, cropped anatomy and uncertain image identity honestly. A photo provides no absolute scale or material measurement. If the user later asks for physical simulation, use the separate physical reconstruction and full-scene preparation below; a successful preview cannot bypass those checks.
+
+## Physical model preparation
 
 1. Call `pipeline_capabilities({})` and the relevant domain capabilities. Choose `physics` for mechanical scenes or `pcb_thermal` for board temperature. Use `help({"topic":"pipeline"})` for pipeline settings and the existing physics help topics for model fields.
 2. If the request refers to an earlier experiment, call `context({})`, preserve its domain and every unmentioned physical parameter, and modify the returned verified model. If context is unavailable, obtain the missing parameters instead of inventing a prior experiment.

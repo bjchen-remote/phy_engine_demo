@@ -1,9 +1,17 @@
 # 建模模块内部架构
 
-建模模块维护两条相接但独立的路径：标准结构化物理模型准备，以及可选本地公开权重的单图到几何。它负责来源、尺度、材料假设、几何审计和完整场景准备，不负责 QQ 授权/发送、不自行积分，也不以语言模型描述替代真实图片生成。操作说明见 [Skill](SKILL.md)，组合 pin 与恢复见 [组合架构](../../ARCHITECTURE.md)。
+建模模块维护标准结构化物理模型准备、本地单图到物理几何和独立单图模型展示三条路径。它负责来源、生成假设与几何记录；物理路径另负责明确尺度、材料和完整场景准备。模型展示默认 model_unit，不推断真实物理尺寸或密度，不执行模拟。模块不负责 QQ 授权/发送、不自行积分，也不以语言模型描述替代真实图片生成。操作说明见 [Skill](SKILL.md)，组合 pin 与恢复见 [组合架构](../../ARCHITECTURE.md)。
 
 ```text
 结构化 scene/spec → pinned engine prepare/validate → pipeline-model/1
+
+当前事件图片 ID + 模型展示目的
+  → 宿主图片/runtime/modeling pin → modeling_preview_from_image
+  → dedicated worker：alpha 或 U2Net CPU → MLX Metal shape
+  → 完整 display GLB / OBJ / mesh JSON + 来源与生成回执
+     （默认 model_unit，保留全部组件，无模拟减面/微屑清理）
+  → model_ref → modeling_preview_render → 360° MP4 + 模型 ZIP → qq_video
+     （simulation 阶段跳过；ready_to_simulate=false）
 
 当前事件图片 ID + 明确尺度/材料
   → 宿主图片/runtime pin → pipeline.image_modeling
@@ -22,9 +30,9 @@
 |---|---|
 | `pipeline_stages/modeling.py` | standard 结构化机械/PCB prepare；固定引擎、预算和 canonical model bundle，不调用生成模型 |
 | `pipeline_stages/common.py` | 严格 JSON、canonical 摘要、不可覆盖工件、专用目录和 source_engine |
-| `pipeline/image_modeling.py` | 当前事件 image ID、任务路径隔离、runtime/config pin、固定 argv 推理、工件复用、engine mesh audit 和 task mesh_ref |
+| `pipeline/image_modeling.py` | 当前事件 image ID、任务路径隔离、runtime/config pin、固定 argv 推理和工件复用；独立展示返回 model_ref，物理分支另执行 engine mesh audit 并返回 task mesh_ref |
 | `modeling_flow/contracts.py` | 有界严格配置/请求、固定 source/checkpoint、权重和前景模型摘要、类型/数值范围 |
-| `modeling_flow/runner.py` | 离线运行时与依赖加载、图片处理、MLX/PyTorch shape inference、双资产分流和回执 |
+| `modeling_flow/runner.py` | 离线运行时与依赖加载、图片处理、MLX/PyTorch shape inference、展示目的/物理目的分流和回执 |
 | `modeling_flow/segmentation.py` | 可选固定 U2Net ONNX 的 CPU 前景估计；保留提供的 alpha，记录掩膜假设 |
 | `modeling_flow/meshes.py` | 三角网格导入、米制均匀缩放、面方向/拓扑/体积与模拟预算审计；不调用引擎 |
 | `modeling_flow/reduction.py` | 明确阈值的模拟用数值微屑清理与 PyMeshLab 保拓扑 QEM；保留原展示几何，不承担语义识别 |
@@ -44,6 +52,13 @@ QQ 和结构化 pipeline 保持 Python 3.9+。可选 MLX worker 采用独立 App
 `pipeline_capabilities.image_modeling` 来自当前任务 runtime pin，区分是否 configured、提供者、generative fidelity 和明确尺度/材料要求。configured 只是安装配置已准入，不表示实际 GPU 推理或图像质量通过。
 
 `modeling_from_image` 只接受当前事件唯一匹配的 image_id 与有界物理/采样参数；宿主验证附件 bytes/hash 并提供受限相对路径。适配器再检查图片与配置快照哈希，按 request/image/runtime/modeling-stage 摘要分配任务内尝试目录。来信不选解释器、模型目录、revision、shell 或网络。
+
+`modeling_preview_from_image` 使用相同的事件图片准入和运行时 pin，但请求 schema 为
+`modeling-flow-preview-request/1`，目的为 `model_preview`。默认 `model_unit` 保留生成坐标的
+相对比例，不要求材料、密度或绝对物理尺度。只有用户明确给出 physical_extent_m 时才
+应用并记录显式米制比例。预览返回当前任务 model_ref、display audit 与生成假设，
+`ready_to_preview=true` 与 `ready_to_simulate=false` 分开表示；它不生成可交给物理场景的
+mesh_ref，不暗示单实体、闭合或自交门通过。
 
 这些 image ID 可来自 QQ 当前/同群引用附件、宿主提取的文档页面/Office 嵌入图片或已准入的公开参考图。
 PDF/Office/文本阅读用于获取说明与约束，不能替代对实际图片的识别；识图用于确认参考对象，
@@ -68,6 +83,12 @@ shape inference 使用固定 Hunyuan3D-2mini flow matching 权重和 source comm
 单图不能确定物理尺度、密度、壁厚、隐面或材料系数。`physical_extent_m` 是用户指定的生成 mesh 最大 bounding-box extent（QQ 路径）；uniform scale 保持形状比例，原点移到 bbox center，保留生成坐标朝向。模型轴不自动成为摄影/重力轴。mass_estimate 只是在明确 homogeneous solid 假设下以 volume × declared density 得到，不是测量质量。
 
 ## 展示网格、减面与双重几何门
+
+独立模型展示保存完整 GLB / OBJ / mesh JSON、来源和生成回执，保留生成的所有连通
+组件、面和拓扑记录。它不经过模拟微屑清理、QEM 或原引擎的单实体验收，不以删除
+部件或连接表面制造一个“可模拟”物体。渲染只做相机取景和 360° 旋转，源几何保持。
+有界坐标/三角索引、工件完整性、来源绑定与呈现门仍须通过；非有限或越界数据不会
+因用途是预览而被接受。展示成功的含义是可呈现该生成模型，物理资格仍独立未验证。
 
 生成 geometry 先保留为 display.glb / display.obj / display_mesh.json，展示不等同于物理资格。OBJ 使用有界纯 v/f 三角解析，不读取 mtllib 或外部引用；对不支持多边形等明确拒绝。单独 simulation.obj / simulation_mesh.json 最多 4096 顶点、8192 面。
 
@@ -109,6 +130,8 @@ PyMeshLab 采用 [GPL-3.0](https://github.com/cnr-isti-vclab/PyMeshLab/blob/main
 
 | 结果 | 实际含义 |
 |---|---|
+| `modeling_preview_from_image ok=true / ready_to_preview=true` | 当前事件完整展示资产与来源绑定有效；默认 model_unit，无模拟资格声明 |
+| `modeling_preview_render ok=true` | 展示 MP4 / 模型 ZIP 通过对应呈现和导出检查；没有模拟、质量估计或测量 |
 | 本机 flow worker `ready_to_simulate=true` | bounded simulation mesh 通过该 worker 的 topology/budget gate；没有完整 scene |
 | QQ `modeling_from_image ok=true / geometry_verified=true` | mesh 经原引擎 geometry audit 并存 task mesh_ref；`ready_to_simulate=false` |
 | `physics_prepare ok=true / ready_to_simulate=true` | mesh 已进入 authored full scene，边界/运动/质量/材料/查询/预算及固定 pipeline plan 准备通过 |
@@ -135,6 +158,8 @@ contracts/mesh/scale/receipt/foreground/decimation 测试不下载权重或初�
 
 新增质量、模型或 provider 要更新实际实现、pin/许可、能力发现、typed 参数、receipt 和对应验收。生成训练属于后续研究：当前 worker 调用公开预训练权重，没有训练/数据集流水线，也不宣称复刻商业服务的私有算法。
 
-本轮源构建版本为 modeling 0.2.1、完整 pipeline 0.2.2；simulation/rendering 保持 0.2.0，
-physics 引擎保持 1.4.7。当前文档属于 modeling 包摘要，修改后须重新构建和发布新组合，
-旧任务 pin 不切换。本轮文档记录源码与隔离验收；本机部署尚待完成，未验证真实 QQ 交付。
+本轮展示源码候选为 modeling 0.3.0、rendering 0.3.0、完整 pipeline 0.3.0；simulation
+保持冻结的 0.2.0，physics 引擎保持 1.4.7。预览不调用 simulation，物理路径的原质量门
+和完整场景准备保持。当前文档属于 modeling 包摘要，修改后须重新构建和发布新组合，
+旧任务 pin 不切换。新参考图的真实完整展示流程、安装副本与 QQ 回执待最终验收记录，
+不能用先前物理失败网格的复测或健康检查代替。

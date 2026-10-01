@@ -31,6 +31,19 @@ With an agent connected, requests can look like this:
 
 The external agent turns mechanical requests into scene configurations. Examples are starting points; the API also supports building scenes from entities, constraints, force fields, and meshes. PCB requests use a separate [thermal model](docs/pcb-thermal-design.md) within the same toolbox.
 
+## Mac image-to-model turntables
+
+The optional offline Hunyuan3D-2mini/MLX modeling worker can reconstruct a
+single-image shape and generate a 360-degree H.264 model presentation on Apple
+Silicon. The 0.3.0 [composed pipeline](toolboxes/pipeline/README.md) preserves the
+whole original mesh and exports GLB, OBJ, JSON, source references and licenses.
+This route needs no invented physical scale or material and runs no simulation.
+Images/PDF reading, public-reference search and messaging are external-host
+features; [HOST-INTEGRATION.md](toolboxes/pipeline/HOST-INTEGRATION.md) documents
+the separate admission, verification and delivery contracts. Generated hidden
+surfaces are approximations; textures, calibrated mechanics and exact CAD are
+not supplied by the shape model.
+
 ## From prompt to result
 
 ```text

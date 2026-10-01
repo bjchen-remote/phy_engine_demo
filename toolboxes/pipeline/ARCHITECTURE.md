@@ -1,10 +1,15 @@
-# 三阶段组合内部架构
+# 建模、模拟与渲染组合内部架构
 
-`physics-pipeline` 0.2.0 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
+`physics-pipeline` 0.3.0 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。新增独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling/rendering 为 0.3.0；simulation 0.2.0 和 physics 1.4.7 保持冻结快照。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
 
 ```text
 宿主 inbox pin → task.json → adapter.main
    → verify_bundle + 当前任务 bundle-lock + execution.lock
+   → 展示 api：当前 image_id → display-only 推理 → 完整 model_ref
+       → 核验完整展示资产/图片/runtime/module pins
+       → rendering worker.model_preview → 原三角面的 360° 相机旋转
+       → 视频全帧解码 + 完整模型 ZIP → model-preview-result/1
+       （无 simulation、物理轨迹或测量；默认 model_unit）
    → api：参数/几何/图片资产 → prepare → 冻结 plan
    → run：校验 plan
        → modeling worker → 模型 bundle → 封存 checkpoint
@@ -23,9 +28,10 @@
 | `bundle.py` | 严格 JSON、路径隔离、目录摘要、stage 格式和完整组合验证 |
 | `worker.py` | 固定 argv 单阶段进程入口；按 module role 调用相应 Python 实现，失败写结构化响应 |
 | `image_modeling.py` | 可选 Mac 本地图片建模：当前事件图片 ID、可信运行时 pin、生成回执和网格资产 |
+| `model_preview.py` | 成功展示 model_ref 的来源/工件 pin 核验、固定 rendering action、完整模型 ZIP 和 typed preview 交付清单 |
 | `../build_pipeline.py` | 生成独立 stage 包，复制固定引擎与组件，写组合锁和 v1 toolbox manifest |
 | `../pipeline_stages/` | 建模、模拟和不可覆盖的模型/数据工件辅助函数 |
-| `../pipeline_presentation/` | 独立读取保存结果、完整 ZIP 导出、科学渲染和呈现回执 |
+| `../pipeline_presentation/` | 独立完整网格相机展示，或读取保存数值结果；分别导出模型/数值 ZIP、视频和呈现回执 |
 | `manual/<role>/` | 每个版本随模块维护的 Skill 和内部架构说明 |
 
 QQ 宿主不导入这些领域实现；适配器与 worker 可以导入被组合固定的引擎。阶段进程不是客户端工具，也不能给 QQ 发消息。传输、权限、模型提供方配置、令牌和聊天记录不属于公开组件包。
@@ -44,13 +50,36 @@ QQ 宿主不导入这些领域实现；适配器与 worker 可以导入被组合
 
 `engine_contract=physics-python/1` 固定接口兼容，不等同于所有引擎版本数值结果相同。摘要证明包身份；本机操作者仍负责评估发布代码。独立 `stage-module` 不能在 QQ 直接激活，必须构建新组合。旧任务继续使用原组合；旧版本自动 GC 尚未实现。
 
-可选本地流匹配运行时另由宿主保存 runtime/config pin，权重和 Python 运行时不塞进反复计算摘要的 QQ 组合包。其任务推理没有网络下载权限。语言模型只选当前事件 `image_id` 与物理假设；私有输入路径和解释器由可信宿主/适配器分配。图片生成成功后仍需插入 authored scene 并 prepare，生成回执本身不是模拟准备或数值验证。
+上表是既有物理三阶段格式。独立预览只在 modeling 与 rendering 均声明 `model_preview`
+时才由组合 manifest 公开新操作；它不生成假的 `pipeline-simulation/1`。simulation
+仍在锁中固定，但不在预览路径执行。展示请求、模型工件与渲染请求分别绑定其当前组件
+摘要；更换组件仍构建新组合并仅用于新事件。
+
+可选本地流匹配运行时另由宿主保存 runtime/config pin，权重和 Python 运行时不塞进反复计算摘要的 QQ 组合包。其任务推理没有网络下载权限。语言模型只选当前事件 `image_id`、有界采样和任务目的；物理假设只用于明确的物理请求。私有输入路径和解释器由可信宿主/适配器分配。物理图片生成成功后仍需插入 authored scene 并 prepare，生成回执本身不是模拟准备或数值验证。展示默认使用 model_unit，不要求为预览编造密度或实际尺寸。
 
 ## API、prepare 与设置
 
 `main` 验证 task v1 固定工作/产物目录、network=false、字节限额和可空时间预算，然后以非阻塞文件锁 `work/pipeline/.execution.lock` 串行处理当前任务调用。
 
 适配器增加 `pipeline_capabilities`、`pipeline_configure`、`pipeline_status`、`pipeline_render_prepare`，兼容已有领域工具，并提供可选的 `modeling_from_image`。能力返回实际安装的阶段和质量；当前标准建模、visual/strict 模拟与 preview/standard 渲染互相独立。未安装 high/deep 显式失败，不能静默降档。
+
+### 独立模型展示 API
+
+`modeling_preview_from_image(image_id, bounded sampling)` 使用
+`modeling-flow-preview-request/1` 与 `purpose=model_preview`。默认 model_unit，不接收
+材料/密度；仅显式用户尺度可以选择米制比例。模型 worker 保存全部展示 GLB/OBJ/mesh
+JSON、生成来源和回执，保留每个连通组件，不执行模拟微屑清理或 QEM。成功返回
+`ready_to_preview=true`、当前任务 model_ref 与 `ready_to_simulate=false`。
+
+`modeling_preview_render(model_ref, bounded camera parameters)` 核验成功 display-only
+回执、当前图片/runtime 配置、展示工件与 rendering pin，再以固定 argv 调用 rendering
+`model_preview` action。渲染对完整源三角面作等比例相机取景和 360° 旋转，源模型不变。
+最终 MP4 全帧解码、帧数/时长和可见表面门通过后，组合导出全部模型和来源资料；
+ZIP 包含逐成员摘要与许可。现有 v1 单 MP4 / 单 ZIP envelope 用 typed 结果分支交付。
+
+有效重复调用重新校验全部 source/output pins 后复用；未封存的非空目录保留证据并
+明确要求恢复，不盲目覆盖或重跑。预览没有普通物理 prepare、solver run 或数值 checkpoint，
+不能填补未通过物理门的结果。用户转而要求模拟时，应走下一节既有 prepare 合同。
 
 普通 prepare 由固定引擎执行，成功后 `freeze` 保存 `pipeline-plan/1`：规范化 prepared 模型摘要、完整组合摘要、质量设置、预计耗时和 mode；`plan_id` 绑定这些字段。`check_plan` 在执行前重算，不接受过期准备或修改后的设置。修改模型、patch、example、system 或配置使准备失效。
 
@@ -83,6 +112,16 @@ QQ 宿主不导入这些领域实现；适配器与 worker 可以导入被组合
 
 ## 最终结果与交付边界
 
+独立展示写 `result_schema=model-preview-result/1`、`result_kind=model-preview`。
+verification 要求 passed=true，但 numerical_passed=false、simulation_performed=false；
+输出 role 为 model_preview_video，ZIP role 为 data 且自身携带 result_kind=model-preview。
+数据内 `archive-manifest.json` 使用 `model-preview-data/1`，明确无模拟/定量可用性，并
+逐成员绑定原展示 GLB、OBJ、mesh JSON、来源图片、生成/渲染回执和固定许可。
+宿主用独立 typed validator 重新验证这些来源、原三角索引、ZIP CRC/成员哈希和视频全帧，
+才允许 qq_video 释放 held 计划及工件。展示通过不写物理成功、测量或实验认证。
+
+下述数值 result-manifest 合同继续用于物理路径，其质量要求、产物 allowlist 和恢复保持。
+
 导出在渲染前完成；超限 data.zip 明确失败，不能为了发送而隐式丢弃数据。最终成功前再验证模拟 checkpoint 和 MP4 / ZIP 摘要，写 v1 `result-manifest.json`，包括：
 
 - 单一 MP4 output 和至多一个 ZIP attachment；
@@ -96,5 +135,9 @@ QQ 宿主不导入这些领域实现；适配器与 worker 可以导入被组合
 ## 验证与扩展规则
 
 组合/阶段回归分别在 `toolboxes/tests/test_pipeline_bundle.py`、`test_pipeline_stages.py`、`test_pipeline_presentation.py`；真实无网络沙箱 smoke 由 `pipeline_smoke.py` 完成。物理求解与渲染测试另在根 `tests/`，QQ 授权/交付回归在客户端。GPU 实际推理及平台真实回执需要独立证据。
+
+新模型展示还须分别验证 display-only 推理、完整多组件渲染、typed 宿主合同、源/许可/
+ZIP 篡改拒绝、完整解码与 held 事务。新图全流程、安装副本和平台回执的最终数字留在
+实际验收记录；源码架构、构建或 health 不能代替它们。
 
 新增阶段质量或能力必须同时更新：模块实现、module metadata、组合能力发现、Skill、内部架构和对应真实回归。不能增加未实现的 capability、绕过既有数值/视频门，或让呈现代码拥有再积分权限。内部说明见 [建模](manual/modeling/architecture.md)、[模拟](manual/simulation/architecture.md) 与 [渲染](manual/rendering/architecture.md)。

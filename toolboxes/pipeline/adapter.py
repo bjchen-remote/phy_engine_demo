@@ -153,6 +153,11 @@ def capabilities(lock: dict, runtime: dict | None = None) -> dict:
                 "operation": "modeling_from_image", "network": False,
                 "physical_scale_required": True, "material_assumption_required": True,
                 "fidelity": "generative_approximation"},
+            "model_preview": {"available": runtime is not None and all(
+                lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering')),
+                "modeling_operation": "modeling_preview_from_image", "render_operation": "modeling_preview_render",
+                "physical_scale_required": False, "material_assumption_required": False,
+                "simulation_performed": False, "full_geometry_retained": True},
             "simulation_qualities": ["visual", "strict"],
             "rendering_qualities": ["preview", "standard"],
             "providers": [{"id": "local-scientific", "network": False,
@@ -176,6 +181,16 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         result = capabilities(lock, task.get('modeling_runtime'))
     elif operation == 'modeling_from_image':
         result = image_module(root).generate_image_model(root, job, task, lock, arguments, atomic, object_hash)
+    elif operation in ('modeling_preview_from_image', 'modeling_preview_render'):
+        if not capabilities(lock, task.get('modeling_runtime'))['model_preview']['available']:
+            raise ValueError('model preview requires compatible pinned modeling and rendering modules')
+        if not delivery_ready(task):
+            raise ValueError('data_delivery_unavailable: model preview requires video and model ZIP delivery')
+        if operation == 'modeling_preview_from_image':
+            result = image_module(root).generate_image_model(root, job, task, lock, arguments, atomic, object_hash, preview=True)
+        else:
+            from model_preview import render_preview
+            result = render_preview(root, engine, job, task, lock, arguments, atomic, object_hash, stage)
     elif operation == "pipeline_configure":
         if set(arguments) - set(DEFAULT_SETTINGS):
             raise ValueError("unknown pipeline setting")

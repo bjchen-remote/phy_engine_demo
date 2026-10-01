@@ -404,3 +404,67 @@ export the full PyMeshLab GPL-3.0 text; a missing license fails the export.
 Do not edit published package bytes to add the dependency or a license.
 Install the exact pinned worker dependencies separately, publish a fresh module,
 and preserve each accepted task's component and runtime pins.
+
+## Typed original-model preview (0.3.0)
+
+`modeling_preview_from_image` accepts the admitted current-task `image_id` and
+bounded sampling parameters. An optional explicit `physical_extent_m` sets an
+external dimension; absent dimensions mean `model_unit`. Material/density are
+forbidden. The distinct `modeling-flow-preview-request/1` disables decimation
+and produces original display assets plus a receipt, no simulation mesh or mass.
+`configuration_file_sha256` binds the receipt to the exact task configuration
+snapshot; the existing canonical configuration hash also remains diagnostic.
+
+`modeling_preview_render` accepts its 64-hex `model_ref` plus optional bounded
+`width`, `height`, `fps`, `duration_seconds`, `pitch_degrees`, and
+`start_yaw_degrees`. It runs only the separately pinned renderer. Defaults are
+640x640, 15 fps, 6 seconds. Both module metadata and bundle lock must declare
+`model_preview:true`; a legacy module cannot acquire the capability merely from
+a newer composer. Inspect `pipeline_capabilities.model_preview.available`.
+
+The API writes `artifacts/result-manifest.json` with `schema_version:1`,
+`result_schema:"model-preview-result/1"`, `result_kind:"model-preview"`,
+`status:"succeeded"`, exact `task_id`, one MP4 output (`role:model_preview_video`)
+and one ZIP attachment (`role:data`, `result_kind:model-preview`). Each pin has
+confined relative `path`, actual `sha256`, `size_bytes`, and `media_type`.
+`verification` has `passed:true`, `numerical_passed:false`,
+`simulation_performed:false` and `video_decode` for codec, dimensions, duration,
+frame count and complete decoding. This must never be admitted as a physics
+result or stored as a physical experiment.
+
+`provenance` binds exact toolbox and modeling module id/version/digest,
+`runtime_config_sha256`, `model_ref`, and task-relative pins for `image`,
+`receipt`, `display_mesh`, `display_glb`, and `render_receipt`. The image id and
+source receipt must still match current host admission. The modeling receipt
+must bind the image/runtime and its original assets. Renderer proof binds the
+source JSON, all original vertex/triangle counts, unchanged canonical triangle
+index hashes, no geometry mutation, visible surface pixels per frame, no physics
+and no inferred physical scale. The host independently rehashes sources and
+fully decodes the delivered video with fixed local FFmpeg/FFprobe; do not trust
+an `ftyp` header or the producer's declared successful decode.
+
+The ZIP has `archive-manifest.json`, `schema_version:"model-preview-data/1"`,
+`result_kind:"model-preview"`, `simulation_performed:false`,
+`numerical_usable:false`, and a complete list of `{path,role,sha256,size_bytes}`
+for every other member. Required roles are `display_glb`, `display_mesh_data`,
+`modeling_receipt`, `reference_image`, and every license from the immutable
+modeling module. Include the original OBJ, rendering receipt and reference
+source receipt when present. Match original-model/image/source hashes to outer
+provenance. Stream full CRC/size/hash checks without extraction or execution.
+
+Only this separately typed format additionally permits inert `.md`, `.png`,
+`.jpg`, `.jpeg`, `.webp` source files, alongside `.json`, `.txt`, `.glb`, `.obj`.
+Keep the old physical ZIP extension rules unchanged. Reject symlinks, executable
+permissions, unsafe/duplicate paths, encryption and external GLB resources.
+Retain bounded compressed/expanded bytes, members and media. The host releases
+held reference images, video and data atomically only after every check, then
+rechecks bytes before each send and records separate image/video/file receipts.
+A OneBot host should use the controlled `model-{12 lowercase hex}-data.zip`
+name in addition to its legacy `simulation-...` name; a sender that only accepts
+the latter rejects the new package. Missing or unknown file receipts are never
+replayed. A local capture API acceptance does not prove real platform delivery.
+
+Each model/render reference keeps a separate sealed result manifest. Cache reuse
+checks original sources, source receipt and artifacts, and validates the fixed
+public response before atomically republishing the task's selected manifest.
+One legitimate rendering must not invalidate another rendering's cache.

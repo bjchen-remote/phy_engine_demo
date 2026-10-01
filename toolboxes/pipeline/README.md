@@ -1,6 +1,6 @@
 # QQ modeling / simulation / rendering pipeline
 
-`physics-pipeline` 0.2.2 composes independently versioned modeling 0.2.1, simulation 0.2.0 and rendering 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_from_image`; it does not train a new model or replace the solver.
+`physics-pipeline` 0.3.0 composes independently versioned modeling/rendering 0.3.0 and simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
 
 The messaging bridge is installed separately; this repository publishes the engine and composable modules. The public [host integration contract](HOST-INTEGRATION.md) describes image admission, runtime pins and complete data delivery.
 
@@ -61,12 +61,37 @@ For transparent object references, supplied alpha is preserved. For opaque photo
 
 `pipeline_capabilities({})` dynamically reports `image_modeling.configured`, provider notice, operation name, scale/material requirements and generative fidelity from this task's runtime pin. Configured means admitted installation configuration, not proven inference, image fidelity or complete scene readiness.
 
+## Original-model turntable delivery
+
+When a user asks only for a reconstructed shape and a 360-degree model video,
+call `modeling_preview_from_image({"image_id":"CURRENT_TASK_ID"})`, then
+`modeling_preview_render({"model_ref":"RETURNED_MODEL_REF"})`. A compatible
+external host independently verifies the typed result before its `qq_video`
+handoff queues the reference image, MP4 and complete model ZIP with separate
+receipts. The public package does not include that messaging client.
+
+No physical size, density or material is invented. Missing dimensions mean
+`model_unit`; an explicitly supplied `physical_extent_m` is an external size
+assumption. Original vertices, faces and disconnected components remain intact;
+this path runs no solver, cleanup or decimation. It renders neutral untextured
+surfaces through the pinned native drawer, rotates the camera, verifies visible
+surfaces and decodes every H.264 frame. The ZIP retains GLB/OBJ/mesh JSON,
+model/render receipts, reference/source receipt, provider notice and all pinned
+third-party licenses. It cannot claim numerical usability or measurement.
+
+Preview operations are advertised only when both pinned modeling and rendering
+modules declare support. Mixing a legacy stage disables only those operations.
+For maintenance that preserves the deployed solver and simulation bytes,
+explicitly pass `--engine` and `--simulation-module /absolute/frozen/simulation`.
+Unspecified stages are rebuilt from current source; shared worker changes can
+change their content digest even with the same module version string.
+
 ## Agent workflow and readiness
 
 The host must support v1 data ZIP attachments and explicitly enable OneBot `send_file`; the required-data package otherwise fails before modeling/execution. See [host integration and data delivery](HOST-INTEGRATION.md). A first host code/config upgrade is distinct from subsequent module hot swaps.
 
 1. Read `help({"topic":"pipeline"})` and `pipeline_capabilities({})`. Set independent modeling/simulation/rendering qualities with `pipeline_configure` before final prepare.
-2. For structured requests, use the existing mechanical or PCB model tools. For image reconstruction, require an admitted current-event `image_id`, explicit maximum physical extent in metres and material name/density, then call `modeling_from_image`. Sampling parameters are bounded, not shell or path arguments.
+2. For structured requests, use the existing mechanical or PCB model tools. For image-guided physical simulation, require an admitted current-event `image_id`, explicit maximum physical extent in metres and material name/density, then call `modeling_from_image`. Sampling parameters are bounded, not shell or path arguments.
 3. A passing image operation returns a task-owned `mesh_ref`, receipt/display references and audit; its `ready_to_simulate` remains **false** because it only verified geometry. Insert `mesh_ref` into an authored scene through `physics_patch`, choose motion/boundaries/initial conditions and mass assumptions, and declare numerical queries. Single photos cannot infer absolute scale, density, hidden geometry or calibrated mechanics.
 4. Call `physics_prepare` or `pcb_prepare` for the complete scene and require both `ok` and `ready_to_simulate`. This freezes normalized model, settings and the component combination. A worker's mesh eligibility does not bypass full scene/budget validation.
 5. Call `physics_simulate`, then `qq_video` for host handoff. The host queues verified MP4 and ZIP together and records separate receipts. Only actual receipts prove delivery.
