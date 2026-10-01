@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 
-from bundle import ROLES, inside, read_json, sha256, verify_bundle
+from bundle import ROLES, inside, read_json, sha256, supports_model_preview, verify_bundle
 
 
 DEFAULT_SETTINGS = {"modeling_quality": "standard", "simulation_quality": "inherit",
@@ -146,6 +146,9 @@ def check_plan(job: Path, lock: dict) -> tuple[dict, dict]:
 
 
 def capabilities(lock: dict, runtime: dict | None = None) -> dict:
+    cleanup = (all(lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering'))
+               and lock['modules']['modeling'].get('display_cleanup') == 'bounded-floaters/1'
+               and lock['modules']['rendering'].get('preview_geometry_scope') == 'render_input')
     return {"ok": True, "protocol": "qq-pipeline-compat/1", "engine": lock["engine"],
             "modules": lock["modules"], "modeling_qualities": ["standard"],
             "image_modeling": {"configured": runtime is not None,
@@ -153,11 +156,18 @@ def capabilities(lock: dict, runtime: dict | None = None) -> dict:
                 "operation": "modeling_from_image", "network": False,
                 "physical_scale_required": True, "material_assumption_required": True,
                 "fidelity": "generative_approximation"},
-            "model_preview": {"available": runtime is not None and all(
-                lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering')),
+            "model_preview": {"available": runtime is not None and supports_model_preview(lock),
                 "modeling_operation": "modeling_preview_from_image", "render_operation": "modeling_preview_render",
                 "physical_scale_required": False, "material_assumption_required": False,
-                "simulation_performed": False, "full_geometry_retained": True},
+                "simulation_performed": False, "full_geometry_retained": True,
+                "geometry_scope": "render_input" if cleanup else "generated_mesh",
+                "raw_geometry_preserved": True,
+                "display_cleanup": {"available": cleanup,
+                    "policy": "bounded-floaters/1" if cleanup else None,
+                    "default": "conservative" if cleanup else "none",
+                    "options": ["conservative", "none"] if cleanup else ["none"],
+                    "semantic_fidelity_verified": False,
+                    "physics_repair": False}},
             "simulation_qualities": ["visual", "strict"],
             "rendering_qualities": ["preview", "standard"],
             "providers": [{"id": "local-scientific", "network": False,
@@ -183,7 +193,8 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         result = image_module(root).generate_image_model(root, job, task, lock, arguments, atomic, object_hash)
     elif operation in ('modeling_preview_from_image', 'modeling_preview_render'):
         if not capabilities(lock, task.get('modeling_runtime'))['model_preview']['available']:
-            raise ValueError('model preview requires compatible pinned modeling and rendering modules')
+            raise ValueError('model preview requires compatible pinned modeling and rendering modules; '
+                             'display cleanup needs a renderer declaring preview_geometry_scope=render_input')
         if not delivery_ready(task):
             raise ValueError('data_delivery_unavailable: model preview requires video and model ZIP delivery')
         if operation == 'modeling_preview_from_image':

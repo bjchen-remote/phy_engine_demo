@@ -18,8 +18,13 @@ Require an explicit physical extent in metres and declared material density
 before preparing a physics asset. A visual shape uses the separate
 `modeling-flow-preview-request/1`: only an image is required, material is forbidden,
 decimation is disabled, and missing dimensions mean `model_unit`. Export the
-original GLB/OBJ/JSON, reference and licenses; retain all components for the
-turntable without creating a simulation mesh, mass or numerical result. Explain
+raw GLB/OBJ/JSON, display assets, cleanup receipt, reference and licenses.
+The compatible preview defaults to `display_cleanup: conservative`; its fixed
+`bounded-floaters/1` policy may remove only eligible whole tiny disconnected
+components from the display. `none` keeps all generated components in the video.
+Keep the raw normalized mesh intact and explain that geometric thresholds do
+not guarantee semantic identity. Neither mode creates a simulation mesh, mass
+or numerical result. Explain
 that a physical extent and density are assumptions if supplied later; never
 describe them as values recovered from the image. Prefer an isolated foreground
 image. This worker preserves provided alpha and applies EXIF orientation.

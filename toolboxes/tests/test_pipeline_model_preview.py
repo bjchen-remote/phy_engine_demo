@@ -70,6 +70,8 @@ class PreviewModuleCompositionTests(unittest.TestCase):
                 # A capability declaration is the compatibility boundary. This
                 # explicit fixture has the older role contract, no preview bit.
                 metadata.pop("model_preview")
+                metadata.pop("display_cleanup", None)
+                metadata.pop("preview_geometry_scope", None)
                 metadata["version"] = "0.2.0"
                 write(legacy / "module.json", metadata)
                 toolbox = bundle.read_json(legacy / "toolbox.json")
@@ -79,6 +81,7 @@ class PreviewModuleCompositionTests(unittest.TestCase):
                 self.assertEqual(bundle.verify_bundle(package), lock)
                 capabilities = ADAPTER.capabilities(lock, {"provider_notice": "explicit test fixture"})
                 self.assertFalse(capabilities["model_preview"]["available"])
+                self.assertFalse(capabilities["model_preview"]["display_cleanup"]["available"])
                 self.assertTrue(capabilities["image_modeling"]["configured"])
                 operations = bundle.read_json(package / "toolbox.json")["agent_api"]["operations"]
                 self.assertIn("physics_prepare", operations)
@@ -95,6 +98,86 @@ class PreviewModuleCompositionTests(unittest.TestCase):
         write(package / "bundle-lock.json", lock)
         with self.assertRaisesRegex(ValueError, "preview capability mismatch"):
             bundle.verify_bundle(package)
+
+    def test_cleanup_capability_requires_both_independently_pinned_features(self):
+        package = self.root / "cleanup-modern"
+        lock = build(self.engine, package)
+        preview = ADAPTER.capabilities(lock, {})["model_preview"]
+        self.assertTrue(preview["display_cleanup"]["available"])
+        self.assertEqual(preview["display_cleanup"]["default"], "conservative")
+        self.assertEqual(preview["display_cleanup"]["options"], ["conservative", "none"])
+        self.assertEqual(preview["geometry_scope"], "render_input")
+        for role, field in (("modeling", "display_cleanup"), ("rendering", "preview_geometry_scope")):
+            with self.subTest(role=role):
+                changed = copy.deepcopy(lock)
+                changed["modules"][role].pop(field)
+                self.assertEqual(ADAPTER.capabilities(changed, {})["model_preview"]["available"],
+                                 role == "modeling")
+                self.assertFalse(ADAPTER.capabilities(changed, {})["model_preview"]["display_cleanup"]["available"])
+                write(package / "bundle-lock.json", changed)
+                with self.assertRaisesRegex(ValueError, "preview feature mismatch"):
+                    bundle.verify_bundle(package)
+
+    def test_legacy_preview_modules_remain_compatible_without_cleanup_advertisement(self):
+        modules = {}
+        for role in ("modeling", "rendering"):
+            module = self.root / ("preview-030-" + role)
+            metadata = build_module(role, module)
+            metadata["version"] = "0.3.0"
+            metadata.pop("display_cleanup", None)
+            metadata.pop("preview_geometry_scope", None)
+            write(module / "module.json", metadata)
+            toolbox = bundle.read_json(module / "toolbox.json")
+            write(module / "toolbox.json", {**toolbox, "version": "0.3.0"})
+            modules[role] = module
+        package = self.root / "preview-legacy"
+        lock = build(self.engine, package, modules)
+        self.assertEqual(bundle.verify_bundle(package), lock)
+        preview = ADAPTER.capabilities(lock, {})["model_preview"]
+        self.assertTrue(preview["available"])
+        self.assertFalse(preview["display_cleanup"]["available"])
+        self.assertEqual(preview["display_cleanup"]["options"], ["none"])
+        self.assertEqual(preview["geometry_scope"], "generated_mesh")
+
+    def test_new_modeling_with_legacy_preview_renderer_fails_before_inference(self):
+        renderer = self.root / "legacy-renderer-030"
+        metadata = build_module("rendering", renderer)
+        metadata.pop("preview_geometry_scope")
+        metadata["version"] = "0.3.0"
+        write(renderer / "module.json", metadata)
+        toolbox = bundle.read_json(renderer / "toolbox.json")
+        write(renderer / "toolbox.json", {**toolbox, "version": "0.3.0"})
+        package = self.root / "incompatible-preview-mix"
+        lock = build(self.engine, package, {"rendering": renderer})
+        self.assertEqual(bundle.verify_bundle(package), lock)
+        self.assertFalse(ADAPTER.capabilities(lock, {})["model_preview"]["available"])
+        operations = bundle.read_json(package / "toolbox.json")["agent_api"]["operations"]
+        self.assertNotIn("modeling_preview_from_image", operations)
+        self.assertNotIn("modeling_preview_render", operations)
+        job = self.root / "mixed-job"
+        (job / "work").mkdir(parents=True)
+        write(job / "work/toolbox-call.json", {"operation": "modeling_preview_from_image", "arguments": {}})
+        with mock.patch.object(ADAPTER, "image_module", side_effect=AssertionError("inference must not start")):
+            with self.assertRaisesRegex(ValueError, "preview_geometry_scope=render_input"):
+                ADAPTER.api(package, package / "engine", job, {"modeling_runtime": {}}, lock)
+
+    def test_legacy_modeling_with_new_renderer_keeps_original_geometry_preview(self):
+        modeling = self.root / "legacy-modeling-030"
+        metadata = build_module("modeling", modeling)
+        metadata.pop("display_cleanup")
+        metadata["version"] = "0.3.0"
+        write(modeling / "module.json", metadata)
+        toolbox = bundle.read_json(modeling / "toolbox.json")
+        write(modeling / "toolbox.json", {**toolbox, "version": "0.3.0"})
+        package = self.root / "compatible-preview-mix"
+        lock = build(self.engine, package, {"modeling": modeling})
+        self.assertEqual(bundle.verify_bundle(package), lock)
+        preview = ADAPTER.capabilities(lock, {})["model_preview"]
+        self.assertTrue(preview["available"])
+        self.assertFalse(preview["display_cleanup"]["available"])
+        operations = bundle.read_json(package / "toolbox.json")["agent_api"]["operations"]
+        self.assertIn("modeling_preview_from_image", operations)
+        self.assertIn("modeling_preview_render", operations)
 
 
 @unittest.skipUnless(NATIVE_AVAILABLE, "real native package/export checks need Mac runtime dependencies")
@@ -140,9 +223,11 @@ class NativePreviewPackageTests(unittest.TestCase):
         self.faces = tetra + [[index + 4 for index in face] for face in tetra] + [[0, 8, 9]]
         self.trimesh = trimesh
 
-    def seal_model(self, seed=0):
+    def seal_model(self, seed=0, cleanup_mode=None):
         request = {"schema_version": "modeling-flow-preview-request/1", "image_path": str(self.image),
                    "scale_axis": "max", "seed": seed}
+        if cleanup_mode is not None:
+            request['display_cleanup'] = cleanup_mode
         reference = ADAPTER.object_hash({"request": request, "image_sha256": bundle.sha256(self.image),
             "runtime_sha256": self.task["modeling_runtime"]["config_sha256"], "module": self.lock["modules"]["modeling"]})
         directory = self.job / "work/modeling-images" / reference
@@ -153,9 +238,18 @@ class NativePreviewPackageTests(unittest.TestCase):
                 "vertices": self.vertices, "faces": self.faces,
                 "image_sha256": bundle.sha256(self.image), "physical_accuracy": "unverified",
                 "fixture": "post-inference triangles, not neural inference"}
+        cleanup = None
+        if cleanup_mode is not None:
+            from modeling_flow.display_cleanup import clean_display_mesh
+            cleaned, cleanup = clean_display_mesh({key: mesh[key] for key in ('vertices', 'faces')}, cleanup_mode)
+            write(assets / 'raw_mesh.json', mesh)
+            write_obj(assets / 'raw.obj', {key: mesh[key] for key in ('vertices', 'faces')}, 'model_unit')
+            self.trimesh.Trimesh(vertices=mesh['vertices'], faces=mesh['faces'], process=False).export(str(assets / 'raw.glb'), file_type='glb')
+            write(assets / 'cleanup-receipt.json', cleanup)
+            mesh = {**mesh, **cleaned}
         write(assets / "display_mesh.json", mesh)
-        write_obj(assets / "display.obj", {"vertices": self.vertices, "faces": self.faces}, "model_unit")
-        self.trimesh.Trimesh(vertices=self.vertices, faces=self.faces, process=False).export(
+        write_obj(assets / "display.obj", {key: mesh[key] for key in ('vertices', 'faces')}, "model_unit")
+        self.trimesh.Trimesh(vertices=mesh['vertices'], faces=mesh['faces'], process=False).export(
             str(assets / "display.glb"), file_type="glb")
         receipt = {"schema_version": "modeling-flow-receipt/1", "purpose": "model_preview",
             "display_only": True, "simulation_performed": False, "numerical_usable": False,
@@ -163,6 +257,8 @@ class NativePreviewPackageTests(unittest.TestCase):
             "image": {"sha256": bundle.sha256(self.image)}, "fixture": True,
             "artifacts": [{"path": path.name, "sha256": bundle.sha256(path), "bytes": path.stat().st_size}
                           for path in assets.iterdir()]}
+        if cleanup is not None:
+            receipt.update(raw_geometry_preserved=True, display_geometry_modified=cleanup['applied'])
         write(assets / "receipt.json", receipt)
         public = {"ok": True, "result_kind": "model-preview", "ready_to_preview": True,
                   "ready_to_simulate": False, "model_ref": reference}
@@ -220,6 +316,34 @@ class NativePreviewPackageTests(unittest.TestCase):
         with mock.patch.object(ADAPTER, "stage") as stage, self.assertRaisesRegex(ValueError, "original model was modified"):
             self.render(reference)
         stage.assert_not_called()
+
+    def test_clean_display_video_and_archive_preserve_raw_mesh(self):
+        tetra = [[0, 2, 1], [0, 1, 3], [1, 2, 3], [2, 0, 3]]
+        self.vertices = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1],
+                         [2, 0, 0], [2.001, 0, 0], [2, .001, 0], [2, 0, .001]]
+        self.faces = tetra + [[index + 4 for index in face] for face in tetra]
+        reference, assets = self.seal_model(cleanup_mode='conservative')
+        raw_sha = bundle.sha256(assets / 'raw_mesh.json')
+        clean = bundle.read_json(assets / 'display_mesh.json')
+        self.assertEqual(len(clean['faces']), 4)
+        result = self.render(reference)
+        self.assertTrue(result['display_geometry_modified'])
+        self.assertTrue(result['raw_geometry_preserved'])
+        self.assertEqual(result['geometry_scope'], 'render_input')
+        manifest = bundle.read_json(self.job / 'artifacts/result-manifest.json')
+        self.assertEqual(manifest['result_schema'], 'model-preview-result/2')
+        self.assertEqual(manifest['provenance']['raw_mesh']['sha256'], raw_sha)
+        proof = bundle.read_json(self.job / manifest['provenance']['render_receipt']['path'])
+        self.assertEqual(proof['original_triangles'], len(clean['faces']))
+        self.assertEqual(proof['source_mesh_sha256'], bundle.sha256(assets / 'display_mesh.json'))
+        self.assertEqual(proof['geometry_scope'], 'render_input')
+        with zipfile.ZipFile(result['data_path']) as archive:
+            data = json.loads(archive.read('archive-manifest.json'))
+            self.assertEqual(data['schema_version'], 'model-preview-data/2')
+            self.assertEqual(archive.read('model/raw_mesh.json'), (assets / 'raw_mesh.json').read_bytes())
+            self.assertEqual(archive.read('model/display_mesh.json'), (assets / 'display_mesh.json').read_bytes())
+            self.assertTrue({'raw_glb','raw_obj','raw_mesh_data','cleanup_receipt'} <= {x['role'] for x in data['members']})
+        self.assertEqual(self.render(reference), result)
 
     def test_changed_cached_video_is_rejected(self):
         reference, _ = self.seal_model()

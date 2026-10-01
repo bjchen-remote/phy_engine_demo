@@ -9,13 +9,13 @@ from pathlib import Path
 import sys
 
 from registry import manifest, publish, write_json
-from pipeline.bundle import FORMATS, ROLES, digest_tree, validate_module, verify_bundle
+from pipeline.bundle import FORMATS, ROLES, digest_tree, supports_model_preview, validate_module, verify_bundle
 
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
-COMPOSED_VERSION = "0.3.0"
-ROLE_VERSIONS = {"modeling": "0.3.0", "rendering": "0.3.0"}
+COMPOSED_VERSION = "0.3.1"
+ROLE_VERSIONS = {"modeling": "0.3.1", "rendering": "0.3.1"}
 
 
 def copy_tree(source: Path, target: Path) -> None:
@@ -49,6 +49,10 @@ def build_module(role: str, output: Path) -> dict:
         "engine_contract": "physics-python/1", "network": False}
     if role in ('modeling', 'rendering'):
         info['model_preview'] = True
+    if role == 'modeling':
+        info['display_cleanup'] = 'bounded-floaters/1'
+    if role == 'rendering':
+        info['preview_geometry_scope'] = 'render_input'
     write_json(output / "module.json", info)
     # Stage packages can use the existing content-addressed registry as storage.
     write_json(output / "toolbox.json", {"schema_version": 1, "id": info["id"],
@@ -87,6 +91,9 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
             "path": "modules/" + role, "digest": digest_tree(target)}
         if info.get('model_preview') is True:
             lock['modules'][role]['model_preview'] = True
+        for feature in ('display_cleanup', 'preview_geometry_scope'):
+            if feature in info:
+                lock['modules'][role][feature] = info[feature]
     for filename in ("adapter.py", "bundle.py", "image_modeling.py", "model_preview.py"):
         shutil.copyfile(PIPELINE / filename, output / filename)
     write_json(output / "bundle-lock.json", lock)
@@ -94,7 +101,7 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
     api["operations"] = sorted(set(api.get("operations", [])) | {
         "pipeline_capabilities", "pipeline_configure", "pipeline_status", "pipeline_render_prepare",
         "modeling_from_image"})
-    if all(lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering')):
+    if supports_model_preview(lock):
         api['operations'] = sorted(set(api['operations']) | {'modeling_preview_from_image', 'modeling_preview_render'})
         api['model_preview_render_operation'] = 'modeling_preview_render'
     api["execution_operation"] = "physics_simulate"
@@ -116,7 +123,12 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         "explicit physical_extent_m and material assumptions; it returns a task-owned mesh_ref. "
         "For shape-only reconstruction and a 360-degree model video, use modeling_preview_from_image "
         "with image_id, then modeling_preview_render with its model_ref, then qq_video using video_path. "
-        "This path preserves the full display geometry and exports GLB/OBJ/JSON/reference/license ZIP. "
+        "When capabilities advertise bounded-floaters/1, display_cleanup defaults to conservative; "
+        "use none to retain every generated component in the video. The fixed conservative policy "
+        "removes only eligible whole tiny disconnected components, discloses every removal, "
+        "and retains raw GLB/OBJ/JSON alongside the display mesh and cleanup receipt in the ZIP. "
+        "The video preserves its complete display input; cleanup does not certify object semantics or physics. "
+        "Legacy preview modules without this capability preserve their original geometry. "
         "It needs no physical dimensions or density; never invent them. No simulation is performed. "
         "Never replace unavailable image inference with guessed geometric primitives. "
         "model-selected visual/strict simulation and standard faithful rendering. For numerical questions "

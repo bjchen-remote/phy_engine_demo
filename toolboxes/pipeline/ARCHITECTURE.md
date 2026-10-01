@@ -1,14 +1,14 @@
 # 建模、模拟与渲染组合内部架构
 
-`physics-pipeline` 0.3.0 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。新增独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling/rendering 为 0.3.0；simulation 0.2.0 和 physics 1.4.7 保持冻结快照。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
+`physics-pipeline` 0.3.1 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。新增独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling/rendering 为 0.3.1；simulation 0.2.0 和 physics 1.4.7 保持冻结快照。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
 
 ```text
 宿主 inbox pin → task.json → adapter.main
    → verify_bundle + 当前任务 bundle-lock + execution.lock
-   → 展示 api：当前 image_id → display-only 推理 → 完整 model_ref
+   → 展示 api：当前 image_id → 原始网格推理 → 保留 raw + 有界展示碎块清理 → model_ref
        → 核验完整展示资产/图片/runtime/module pins
-       → rendering worker.model_preview → 原三角面的 360° 相机旋转
-       → 视频全帧解码 + 完整模型 ZIP → model-preview-result/1
+       → rendering worker.model_preview → 全部 display 输入三角面的 360° 相机旋转
+       → 视频全帧解码 + raw/display 模型 ZIP → model-preview-result/2
        （无 simulation、物理轨迹或测量；默认 model_unit）
    → api：参数/几何/图片资产 → prepare → 冻结 plan
    → run：校验 plan
@@ -67,13 +67,17 @@ QQ 宿主不导入这些领域实现；适配器与 worker 可以导入被组合
 
 `modeling_preview_from_image(image_id, bounded sampling)` 使用
 `modeling-flow-preview-request/1` 与 `purpose=model_preview`。默认 model_unit，不接收
-材料/密度；仅显式用户尺度可以选择米制比例。模型 worker 保存全部展示 GLB/OBJ/mesh
-JSON、生成来源和回执，保留每个连通组件，不执行模拟微屑清理或 QEM。成功返回
+材料/密度；仅显式用户尺度可以选择米制比例。0.3.1 默认 `display_cleanup=conservative`，
+先保存原始规范化 raw GLB/OBJ/mesh JSON，再按固定 `bounded-floaters/1` 生成独立 display
+资产和清理回执；`none` 保留全部组件。清理只移除同时通过全部阈值的独立微小完整分量，
+不平滑、补洞、减面、重新居中或缩放。它与物理路径的模拟微屑清理和 QEM 分开。成功返回
 `ready_to_preview=true`、当前任务 model_ref 与 `ready_to_simulate=false`。
 
 `modeling_preview_render(model_ref, bounded camera parameters)` 核验成功 display-only
 回执、当前图片/runtime 配置、展示工件与 rendering pin，再以固定 argv 调用 rendering
-`model_preview` action。渲染对完整源三角面作等比例相机取景和 360° 旋转，源模型不变。
+`model_preview` action。渲染对完整 display 输入三角面作等比例相机取景和 360° 旋转，输入模型不变。
+`geometry_scope=render_input` 与 `input_geometry_retained=true` 限定完整保留的范围；
+原始 raw 网格另以 `raw_geometry_preserved=true` 和独立 pins 证明保存，不能混淆两种声明。
 最终 MP4 全帧解码、帧数/时长和可见表面门通过后，组合导出全部模型和来源资料；
 ZIP 包含逐成员摘要与许可。现有 v1 单 MP4 / 单 ZIP envelope 用 typed 结果分支交付。
 
@@ -112,12 +116,14 @@ ZIP 包含逐成员摘要与许可。现有 v1 单 MP4 / 单 ZIP envelope 用 ty
 
 ## 最终结果与交付边界
 
-独立展示写 `result_schema=model-preview-result/1`、`result_kind=model-preview`。
+0.3.1 独立展示写 `result_schema=model-preview-result/2`、`result_kind=model-preview`；
+无清理的兼容旧模块继续支持原 v1 合同。
 verification 要求 passed=true，但 numerical_passed=false、simulation_performed=false；
 输出 role 为 model_preview_video，ZIP role 为 data 且自身携带 result_kind=model-preview。
-数据内 `archive-manifest.json` 使用 `model-preview-data/1`，明确无模拟/定量可用性，并
-逐成员绑定原展示 GLB、OBJ、mesh JSON、来源图片、生成/渲染回执和固定许可。
-宿主用独立 typed validator 重新验证这些来源、原三角索引、ZIP CRC/成员哈希和视频全帧，
+数据内 `archive-manifest.json` 使用 `model-preview-data/2`，明确无模拟/定量可用性，并
+分别绑定 raw 与 display GLB、OBJ、mesh JSON、cleanup receipt、来源图片、生成/渲染回执
+和固定许可。宿主用独立 typed validator 重新计算完整组件的资格与总量预算，核验保留
+顶点/三角面是 raw 的精确子集，再检查渲染输入索引、ZIP CRC/成员哈希和视频全帧，
 才允许 qq_video 释放 held 计划及工件。展示通过不写物理成功、测量或实验认证。
 
 下述数值 result-manifest 合同继续用于物理路径，其质量要求、产物 allowlist 和恢复保持。
@@ -141,3 +147,20 @@ ZIP 篡改拒绝、完整解码与 held 事务。新图全流程、安装副本�
 实际验收记录；源码架构、构建或 health 不能代替它们。
 
 新增阶段质量或能力必须同时更新：模块实现、module metadata、组合能力发现、Skill、内部架构和对应真实回归。不能增加未实现的 capability、绕过既有数值/视频门，或让呈现代码拥有再积分权限。内部说明见 [建模](manual/modeling/architecture.md)、[模拟](manual/simulation/architecture.md) 与 [渲染](manual/rendering/architecture.md)。
+
+## 展示清理的独立能力与可追溯性
+
+建模 module metadata/lock 声明 `display_cleanup=bounded-floaters/1`，渲染声明
+`preview_geometry_scope=render_input`。两项都与原 `model_preview` 位匹配才广告清理能力；
+不接受在 lock 中虚构或删改 feature。旧模块缺少新字段仍可验证。新建模搭配旧渲染时，
+预览操作在 manifest 与 capabilities 中禁用，直接调用也在推理前拒绝；旧建模搭配新渲染
+继续原 v1 无清理展示。
+
+固定清理策略的阈值与代码由 modeling tree digest 绑定，回执另记录 policy 字典和 SHA。
+需同时符合主表面占比、单组件尺寸/面数/面积/绝对体积、到主表面的有界间隔，以及总损失
+限额；只能移除整个断开组件。没有合格主表面或证据不足时不删除。该策略无语义识别能力，
+不能保证极小眼睛/饰件一定保留，用户可用 `none` 和完整 raw 备份比较恢复。任何清理不赋予
+物理可用性，也不能为压缩 ZIP 放宽阈值或丢弃 raw。
+
+清理候选还须闭合、一致朝向且正体积，无退化面；存在未引用顶点、数值歧义或超出固定
+三角距离检查/节点访问预算时保留完整 raw 为 display，不能通过推测距离继续删除。

@@ -14,6 +14,14 @@ FORMATS = {
 }
 
 
+def supports_model_preview(lock: dict) -> bool:
+    modules = lock['modules']
+    return (all(modules[role].get('model_preview') is True for role in ('modeling', 'rendering'))
+            and (not modules['modeling'].get('display_cleanup')
+                 or (modules['modeling'].get('display_cleanup') == 'bounded-floaters/1'
+                     and modules['rendering'].get('preview_geometry_scope') == 'render_input')))
+
+
 def read_json(path: Path, limit: int = 1_000_000) -> dict:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > limit:
         raise ValueError("invalid or oversized JSON file")
@@ -97,4 +105,7 @@ def verify_bundle(root: Path) -> dict:
             raise ValueError("pinned module integrity mismatch: " + role)
         if (pin.get('model_preview') is True) != (info.get('model_preview') is True):
             raise ValueError('pinned preview capability mismatch: ' + role)
+        for feature in ('display_cleanup', 'preview_geometry_scope'):
+            if pin.get(feature) != info.get(feature):
+                raise ValueError('pinned preview feature mismatch: ' + role + '/' + feature)
     return lock

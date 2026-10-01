@@ -135,7 +135,13 @@ explicit extent, forbids material and decimation, and otherwise normalizes the
 maximum extent to one `model_unit`; no physical dimensions are inferred. Its
 receipt records `purpose: model_preview`, no simulation, and null material/mass.
 The QQ route is `modeling_preview_from_image` → `modeling_preview_render` →
-`qq_video`, preserving all original display components. Simulation topology
+`qq_video`. In the 0.3.1 preview, `display_cleanup` defaults to `conservative`;
+`none` keeps all components in the display. Both retain untouched normalized
+raw GLB/OBJ/JSON plus display assets and a fixed-policy cleanup receipt. Only
+whole tiny disconnected components meeting every `bounded-floaters/1` bound
+can be removed; retained coordinates/winding are exact, without smoothing,
+filling holes, decimation, recentering or rescaling. This is reversible display
+processing, with no semantic fidelity guarantee. Simulation topology
 gates apply only to the physical route. `configuration_file_sha256` binds the
 receipt to the exact runtime snapshot; `configuration_sha256` records the
 validated configuration with defaults. Prefer an isolated object with a meaningful

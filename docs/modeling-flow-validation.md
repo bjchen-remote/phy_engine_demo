@@ -119,3 +119,55 @@ private host. See the typed [host contract](../toolboxes/pipeline/HOST-INTEGRATI
 Final independent public toolbox discovery: 189 checks, 188 passed and one
 optional private-host SDK integration skipped. No client, weights, credentials
 or private task records are published by this repository.
+
+## Bounded display cleanup verification (0.3.1)
+
+A preview may separately derive a cleaned display from an already generated raw
+model; this does not rerun or establish fresh neural inference. The fixed
+bounded-floaters/1 policy and exact-subset proof preserve original normalized
+coordinates, winding and complete raw GLB/OBJ/JSON backups. Future image previews
+use the same audited processing after inference. Unfiltered mode is available.
+
+Acceptance must distinguish synthetic policy/adversarial tests, current-model
+postprocessing, fresh model-to-video/archive flow, installed external-host checks
+and real platform receipts. A small disconnected semantic feature may satisfy
+geometric bounds; cleanup cannot certify image identity, hidden surfaces or
+physical eligibility. Actual artifact statistics and release evidence belong
+in a dated acceptance record, not an inferred claim from code or health.
+
+## Fresh cleanup flow acceptance (2026-10-02)
+
+A new isolated external-agent event read a PDF, searched public references,
+downloaded and visually inspected the Chinese meme Naiwa reference, ran fresh
+offline Hunyuan MLX inference and automatically applied conservative cleanup.
+Seed0, 30 steps, octree128 and chunks2000 generated 29,892 raw vertices and
+59,684 faces across 26 components. The fixed policy removed 25 eligible detached
+components (150 vertices, 200 faces); display retained 29,742 vertices and 59,484
+faces in one component. Removed surface area was 0.013933% of the raw total;
+removed absolute volume was 0.000053057% of the raw total. Retained geometry was
+verified as an exact subset, and raw GLB/OBJ/JSON remained in the complete archive.
+These geometry ratios do not establish semantic accuracy or physics readiness.
+
+Fresh inference took 139.455 seconds and the complete isolated event 203.063
+seconds on the tested 16 GB Mac. The 640x640, 15 fps turntable contained 90 fully
+decoded H.264 frames over 6 seconds. The separately installed host accepted the
+v2 raw/display/cleanup proof, independently decoded video and verified archive
+members/licenses before releasing reference image, video and model ZIP through
+a local capture API with independent receipts. No real platform network was used
+for those sends; this acceptance does not prove delivery to a QQ group.
+
+The complete toolbox suite ran 212 tests successfully; the separately maintained
+host ran 709 tests with 707 passing and two optional CLI tests skipped. Cleanup
+policy tests covered 19 cases. Adversarial verification checks included altered
+raw pins, partial-body deletion, changed retained coordinates, relaxed policies,
+changed OBJ/GLB geometry, accessor bounds and float32 quantization, coordinate
+system mismatches, omitted raw/cleanup members, false modification disclosures,
+wrong renderer scope, empty/transformed scene graphs and incomplete video data.
+These host checks remain outside the public repository's implementation.
+
+Pipeline/modeling/rendering 0.3.1 was deployed to the operator's external host
+with frozen simulation 0.2.0 and physics 1.4.7 content preserved. Existing queues,
+unknown actions, runtime configuration and credentials were retained; no old
+request or unknown receipt was replayed. Deployment and health checks are
+separate from platform-delivery acceptance. The single-image model remains
+untextured, with cropped anatomy and invisible surfaces inferred.

@@ -1,6 +1,6 @@
 # QQ modeling / simulation / rendering pipeline
 
-`physics-pipeline` 0.3.0 composes independently versioned modeling/rendering 0.3.0 and simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
+`physics-pipeline` 0.3.1 composes independently versioned modeling/rendering 0.3.1 and frozen simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
 
 The messaging bridge is installed separately; this repository publishes the engine and composable modules. The public [host integration contract](HOST-INTEGRATION.md) describes image admission, runtime pins and complete data delivery.
 
@@ -61,7 +61,7 @@ For transparent object references, supplied alpha is preserved. For opaque photo
 
 `pipeline_capabilities({})` dynamically reports `image_modeling.configured`, provider notice, operation name, scale/material requirements and generative fidelity from this task's runtime pin. Configured means admitted installation configuration, not proven inference, image fidelity or complete scene readiness.
 
-## Original-model turntable delivery
+## Raw-preserving model turntable delivery
 
 When a user asks only for a reconstructed shape and a 360-degree model video,
 call `modeling_preview_from_image({"image_id":"CURRENT_TASK_ID"})`, then
@@ -72,15 +72,23 @@ receipts. The public package does not include that messaging client.
 
 No physical size, density or material is invented. Missing dimensions mean
 `model_unit`; an explicitly supplied `physical_extent_m` is an external size
-assumption. Original vertices, faces and disconnected components remain intact;
-this path runs no solver, cleanup or decimation. It renders neutral untextured
+assumption. The normalized raw mesh preserves every original component. In the
+compatible 0.3.1 combination, display_cleanup defaults to conservative, using
+the fixed bounded-floaters/1 policy to remove only eligible whole tiny detached
+components from the display. Choose display_cleanup:none for an unfiltered
+turntable. Retained coordinates and face winding remain exact; there is no
+smoothing, filling holes, recentering, rescaling, solver or decimation. It renders neutral untextured
 surfaces through the pinned native drawer, rotates the camera, verifies visible
-surfaces and decodes every H.264 frame. The ZIP retains GLB/OBJ/mesh JSON,
+surfaces and decodes every H.264 frame. The video and exported display bind the
+same mesh. The ZIP retains separate raw and display GLB/OBJ/JSON, cleanup and
 model/render receipts, reference/source receipt, provider notice and all pinned
 third-party licenses. It cannot claim numerical usability or measurement.
 
 Preview operations are advertised only when both pinned modeling and rendering
-modules declare support. Mixing a legacy stage disables only those operations.
+modules declare support. New cleanup-capable modeling requires a renderer with
+preview_geometry_scope:render_input; mixing it with a legacy renderer disables
+preview before inference. Legacy modeling with a new renderer keeps its v1
+uncleaned preview. Cleanup does not identify semantic parts or repair physics.
 For maintenance that preserves the deployed solver and simulation bytes,
 explicitly pass `--engine` and `--simulation-module /absolute/frozen/simulation`.
 Unspecified stages are rebuilt from current source; shared worker changes can
@@ -117,3 +125,13 @@ Stage checkpoints bind metadata and file hashes. Changed preparations archive th
 QQ currently accepts one MP4 plus one ZIP, default 16 MiB each. Oversized complete data fails rather than silently dropping fields. Unknown platform receipts are never resent. OneBot may run without fixed timeouts; other transports retain their configured task deadline. The executor has output/queue limits but no hard aggregate memory or temporary-disk quota. An extra artistic video needs the future multi-artifact protocol and explicit provider capability/authorization before cloud generation can be enabled.
 
 Large complete ZIPs may use lossless DEFLATE when the stored form exceeds the delivery limit. Every original member and its hash is retained; small archives keep their previous bytes. Host validation streams CRC under the independent expanded-size cap without extracting or executing model files. The adapter also removes indentation from legacy task-owned model files that would otherwise exceed the engine's existing 1 MB admission limit, preserving every value and insertion order where legacy mesh references require it. The engine snapshot is unchanged.
+
+## Conservative display fragment cleanup
+
+`bounded-floaters/1` is a reversible display policy, separate from the numerical micro-component policy used for simulation. It requires a dominant surface and checks each disconnected candidate’s extent, triangle count, surface area, absolute volume and certified gap to that surface, plus aggregate removal budgets. It removes only complete eligible components, preserves every retained coordinate and face winding, and performs no smoothing, hole filling, decimation, recentering or rescaling. Thresholds are fixed in the pinned modeling code; QQ arguments cannot loosen them. The receipt records policy values/hash, component statistics and exact removed face indices.
+
+Small detached features may be intentional. The policy does not identify eyes, accessories or anatomy, and geometry passing it does not establish semantic fidelity. Raw assets remain available for comparison and recovery; `display_cleanup:"none"` disables this processing. A multi-part object without a qualifying dominant surface is retained. Remaining fragments that fail any threshold also remain.
+
+Capability discovery requires the modeling cleanup declaration and a rendering module declaring `preview_geometry_scope:"render_input"`. New modeling with a legacy renderer does not expose or start the preview operations; legacy modeling with a new renderer remains compatible as an uncleaned v1 preview. The host independently checks original raw pins, exact retained faces/vertices and whole-component eligibility before accepting the v2 archive or video. No cleanup result is promoted to physics readiness.
+
+Candidates must also be closed, consistently oriented, positive-volume and free of degenerate faces. Unreferenced vertices, numerical ambiguity or exhaustion of fixed triangle-check/node-visit budgets keep the complete raw mesh as display.

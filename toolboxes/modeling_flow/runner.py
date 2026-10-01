@@ -367,6 +367,13 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
             scale = {key: value for key, value in scale.items() if key != "physical_extent_m"}
             scale.update(units=units, normalized_extent=1.0, physical_extent_m=None)
         mesh, flipped = orient_outward(mesh)
+        raw_mesh = mesh
+        raw_audit = audit_mesh(raw_mesh)
+        cleanup = None
+        if preview:
+            from .display_cleanup import clean_display_mesh
+            mesh, cleanup = clean_display_mesh(raw_mesh, request["display_cleanup"])
+            assumptions.append("Display cleanup removes only bounded detached micro-components; the normalized original mesh is retained.")
         display_audit = audit_mesh(mesh)
         # Only now create output. Dependency, image and inference failures leave
         # no misleading successful artifacts behind.
@@ -381,6 +388,21 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
                                  "image_sha256": image_sha256,
                                  "geometry_origin": "generated_single_image_approximation",
                                  "physical_accuracy": "unverified", "assumptions": assumptions})
+        raw_artifacts = []
+        if preview:
+            raw_obj, raw_glb, raw_json = root / "raw.obj", root / "raw.glb", root / "raw_mesh.json"
+            write_obj(raw_obj, raw_mesh, units)
+            trimesh.Trimesh(vertices=raw_mesh["vertices"], faces=raw_mesh["faces"], process=False).export(str(raw_glb), file_type="glb")
+            write_json(raw_json, {"schema_version": "modeling-flow-display/1", "units": units, **raw_mesh,
+                                 "scale": scale, "audit": raw_audit, "image_sha256": image_sha256,
+                                 "geometry_origin": "generated_single_image_approximation",
+                                 "geometry_scope": "normalized_pre_cleanup", "physical_accuracy": "unverified",
+                                 "assumptions": assumptions})
+            write_json(root / "cleanup-receipt.json", cleanup)
+            raw_artifacts = [artifact(raw_glb, root, "raw_glb", "model/gltf-binary"),
+                             artifact(raw_obj, root, "raw_obj", "model/obj"),
+                             artifact(raw_json, root, "raw_mesh_data", "application/json"),
+                             artifact(root / "cleanup-receipt.json", root, "cleanup_receipt", "application/json")]
         # Round-trip through the bounded importer before a mesh reaches physics.
         verified = import_obj(display_obj)
         rejection = None
@@ -402,7 +424,7 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
             simulation_flipped = False
         artifacts = [artifact(display_glb, root, "display_mesh", "model/gltf-binary"),
                      artifact(display_obj, root, "display_mesh_source", "model/obj"),
-                     artifact(display_json, root, "display_mesh_data", "application/json")]
+                     artifact(display_json, root, "display_mesh_data", "application/json")] + raw_artifacts
         result = {"schema_version": RESULT_SCHEMA, "ready_to_simulate": rejection is None,
                   "display_only": preview, "ready_to_preview": preview,
                   "display_mesh_path": str(display_glb), "display_obj_path": str(display_obj),
@@ -455,7 +477,10 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
             receipt["simulation_rejection"] = {"code": rejection.code, "error": str(rejection)}
         if preview:
             receipt.update(simulation_preparation="not_requested", simulation_performed=False,
-                           numerical_usable=False, mass_estimate_kg=None)
+                           numerical_usable=False, mass_estimate_kg=None,
+                           raw_audit=raw_audit, raw_geometry_preserved=True,
+                           display_geometry_modified=cleanup["applied"],
+                           display_cleanup={key: cleanup[key] for key in ("mode", "applied", "policy_id", "summary")})
         write_json(root / "receipt.json", receipt)
         result["artifacts"] = artifacts + [artifact(root / "receipt.json", root, "modeling_receipt", "application/json")]
         if preview:

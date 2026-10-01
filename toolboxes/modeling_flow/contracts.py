@@ -234,7 +234,7 @@ def load_request(source: str | Path | dict) -> dict:
     optional = {"seed", "scale_axis", "num_inference_steps", "guidance_scale",
                 "octree_resolution", "num_chunks", "allow_decimation"}
     if preview:
-        optional.add("physical_extent_m")
+        optional.update({"physical_extent_m", "display_cleanup"})
     _keys(value, required, optional, "request")
     if value["schema_version"] not in (REQUEST_SCHEMA, PREVIEW_REQUEST_SCHEMA):
         raise FlowError("invalid_request", "Unsupported flow request schema")
@@ -270,7 +270,11 @@ def load_request(source: str | Path | dict) -> dict:
     if type(value["allow_decimation"]) is not bool:
         raise FlowError("invalid_request", "allow_decimation must be a boolean")
     if preview and value["allow_decimation"]:
-        raise FlowError("invalid_request", "Display-only modeling preserves the full generated geometry")
+        raise FlowError("invalid_request", "Display previews do not decimate generated geometry")
+    if preview:
+        value["display_cleanup"] = value.get("display_cleanup", "conservative")
+        if value["display_cleanup"] not in ("conservative", "none"):
+            raise FlowError("invalid_request", "display_cleanup must be conservative or none")
     return value
 
 

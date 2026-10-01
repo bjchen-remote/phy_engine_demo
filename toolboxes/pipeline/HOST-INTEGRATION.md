@@ -405,66 +405,117 @@ Do not edit published package bytes to add the dependency or a license.
 Install the exact pinned worker dependencies separately, publish a fresh module,
 and preserve each accepted task's component and runtime pins.
 
-## Typed original-model preview (0.3.0)
+## Typed raw-preserving model preview (0.3.1)
 
 `modeling_preview_from_image` accepts the admitted current-task `image_id` and
-bounded sampling parameters. An optional explicit `physical_extent_m` sets an
-external dimension; absent dimensions mean `model_unit`. Material/density are
-forbidden. The distinct `modeling-flow-preview-request/1` disables decimation
-and produces original display assets plus a receipt, no simulation mesh or mass.
-`configuration_file_sha256` binds the receipt to the exact task configuration
-snapshot; the existing canonical configuration hash also remains diagnostic.
+bounded sampling parameters. An optional explicit `physical_extent_m` supplies
+an external dimension; absent dimensions mean `model_unit`. Material/density
+are forbidden. The distinct `modeling-flow-preview-request/1` disables decimation
+and produces shape assets plus receipts, no simulation mesh or mass.
+`configuration_file_sha256` binds the exact task configuration snapshot; the
+canonical configuration hash remains diagnostic.
 
-`modeling_preview_render` accepts its 64-hex `model_ref` plus optional bounded
-`width`, `height`, `fps`, `duration_seconds`, `pitch_degrees`, and
-`start_yaw_degrees`. It runs only the separately pinned renderer. Defaults are
-640x640, 15 fps, 6 seconds. Both module metadata and bundle lock must declare
-`model_preview:true`; a legacy module cannot acquire the capability merely from
-a newer composer. Inspect `pipeline_capabilities.model_preview.available`.
+For the compatible cleanup combination, optional `display_cleanup` is
+`conservative` (default) or `none`. `bounded-floaters/1` removes only entire tiny
+disconnected components satisfying every immutable gate. It requires a dominant
+surface, bounds component extent, faces, surface area and absolute volume,
+checks a certified triangle-to-triangle surface gap and caps aggregate losses.
+Candidates must be closed, consistently oriented, positive-volume and free of
+degenerate faces. Unreferenced vertices, ambiguous numeric geometry or exhausted
+fixed triangle-check/node-visit budgets preserve the complete raw mesh as display.
+There is no smoothing, filling holes, simplification, recentering or rescaling.
+Small detached features may be intentional; this policy cannot identify semantic
+parts. `none` preserves every generated component in display as well as raw.
 
-The API writes `artifacts/result-manifest.json` with `schema_version:1`,
-`result_schema:"model-preview-result/1"`, `result_kind:"model-preview"`,
-`status:"succeeded"`, exact `task_id`, one MP4 output (`role:model_preview_video`)
-and one ZIP attachment (`role:data`, `result_kind:model-preview`). Each pin has
-confined relative `path`, actual `sha256`, `size_bytes`, and `media_type`.
-`verification` has `passed:true`, `numerical_passed:false`,
-`simulation_performed:false` and `video_decode` for codec, dimensions, duration,
-frame count and complete decoding. This must never be admitted as a physics
-result or stored as a physical experiment.
+The worker first saves `raw_mesh.json`, `raw.glb` and `raw.obj` at the declared
+normalized or explicit scale. It then writes separate `display_mesh.json`,
+`display.glb`, `display.obj` and `cleanup-receipt.json`. The cleanup receipt uses
+`modeling-display-cleanup/1`, records mode, immutable policy values/hash, component
+statistics, sorted removed face indices, exact raw/display geometry hashes and
+summary. Only whole components are removable. Every retained vertex coordinate,
+face order and winding remains an exact subset of raw; compacted vertex indexing
+is deterministic. Raw preservation is distinct from unchanged display.
 
-`provenance` binds exact toolbox and modeling module id/version/digest,
-`runtime_config_sha256`, `model_ref`, and task-relative pins for `image`,
-`receipt`, `display_mesh`, `display_glb`, and `render_receipt`. The image id and
-source receipt must still match current host admission. The modeling receipt
-must bind the image/runtime and its original assets. Renderer proof binds the
-source JSON, all original vertex/triangle counts, unchanged canonical triangle
-index hashes, no geometry mutation, visible surface pixels per frame, no physics
-and no inferred physical scale. The host independently rehashes sources and
-fully decodes the delivered video with fixed local FFmpeg/FFprobe; do not trust
-an `ftyp` header or the producer's declared successful decode.
+`modeling_preview_render` takes its 64-hex `model_ref` and optional bounded
+`width`, `height`, `fps`, `duration_seconds`, `pitch_degrees`, `start_yaw_degrees`.
+Defaults are 640x640, 15 fps, 6 seconds. Both metadata/lock must declare
+`model_preview:true`; cleanup modeling also declares
+`display_cleanup:"bounded-floaters/1"`, while rendering declares
+`preview_geometry_scope:"render_input"`. Missing/mismatched declarations never
+acquire a capability from a newer composer. New modeling with an older renderer
+exposes no preview operations and rejects direct calls before inference. Old
+modeling with a new renderer retains the v1 uncleaned route. Inspect
+`pipeline_capabilities.model_preview` and its cleanup options before use.
 
-The ZIP has `archive-manifest.json`, `schema_version:"model-preview-data/1"`,
+New raw-preserving results use the v1 task envelope with
+`result_schema:"model-preview-result/2"`, `result_kind:"model-preview"`,
+`status:"succeeded"`, exact `task_id`, one MP4 (`role:model_preview_video`) and
+one ZIP (`role:data`, `result_kind:model-preview`). Pins have confined relative
+`path`, actual `sha256`, `size_bytes`, and appropriate `media_type`.
+`verification` requires `passed:true`, `numerical_passed:false`,
+`simulation_performed:false`, `raw_geometry_preserved:true`, and an accurate
+`display_geometry_modified` value, plus complete `video_decode` metadata.
+Outer verification identifies `geometry_scope:"display_mesh"`; the renderer's
+`geometry_scope:"render_input"`, `input_geometry_retained:true` and
+`full_geometry_retained:true` mean every display input triangle was rendered,
+not that no generated fragment was removed before rendering. Keep typed v1
+compatibility for legacy uncleaned results; never pass an unknown typed version
+through a physical-result fallback.
+
+`provenance` binds exact toolbox/modeling module id/version/digest, runtime
+configuration, model_ref, the current host-admitted image and source receipt,
+modeling receipt, display mesh/GLB/OBJ, raw mesh/GLB/OBJ, cleanup receipt and
+rendering receipt. Rehash exact sources and compare bytes, sizes and paths.
+Do not trust role labels, a removal boolean or a producer-supplied hash alone.
+
+The host independently recomputes the fixed policy using a trusted local verifier
+with no heavy ML imports: reconstruct connected components from raw faces,
+check whole-component eligibility, triangle surface-distance bounds and aggregate
+budgets, derive the expected retained vertex/face mapping and compare the exact
+display geometry and cleanup report. It must reject arbitrary face deletion,
+modified retained coordinates/winding, insufficient gap, changed thresholds or
+an incomplete/raw-missing proof. Module tree pins bind immutable implementation;
+a user cannot loosen policy through task parameters. A host may maintain an
+audited standard-library verifier; importing a producer's mutable script and
+trusting its own result does not establish independent verification.
+
+Independent v2 artifact checks also parse OBJ and embedded GLB geometry without
+loading model packages or executing assets. OBJ coordinates and positive triangle
+indices must match geometry JSON exactly. GLB positions must match the exact
+float32 quantization, with bounded embedded accessor offsets/strides and unsigned
+index types. Reject an empty or different mesh, extra primitives, transforms,
+unreachable/repeated scene nodes, external resources, textures, animations,
+skins, morphs and extension decoders. Valid file hashes cannot excuse geometry
+that differs from the raw or display JSON it claims to represent.
+
+The renderer proof binds exported display JSON, actual vertex/triangle counts,
+canonical input/drawer index hashes, visible surface pixels per frame and no
+physics. The host independently fully decodes the delivered video using fixed
+local FFmpeg/FFprobe and checks codec, dimensions, duration and frame count;
+`ftyp` or the producer's declared decode pass is insufficient. Camera fitting,
+neutral shading and rotation provide presentation, not measurements or texture.
+
+The ZIP has `archive-manifest.json`, `schema_version:"model-preview-data/2"`,
 `result_kind:"model-preview"`, `simulation_performed:false`,
-`numerical_usable:false`, and a complete list of `{path,role,sha256,size_bytes}`
-for every other member. Required roles are `display_glb`, `display_mesh_data`,
-`modeling_receipt`, `reference_image`, and every license from the immutable
-modeling module. Include the original OBJ, rendering receipt and reference
-source receipt when present. Match original-model/image/source hashes to outer
-provenance. Stream full CRC/size/hash checks without extraction or execution.
+`numerical_usable:false`, and `{path,role,sha256,size_bytes}` for every member.
+Keep required display GLB/OBJ/JSON, raw GLB/OBJ/JSON, modeling/cleanup/render
+receipts, reference image and source receipt, provider notice and every full
+license from the pinned modeling module. Match all model/source pins to outer
+provenance. Stream full CRC/size/hash checks without extracting or executing.
+Never omit raw, components or fields merely to satisfy archive delivery size.
+Legacy v1 archives keep their uncleaned contract and member requirements.
 
-Only this separately typed format additionally permits inert `.md`, `.png`,
-`.jpg`, `.jpeg`, `.webp` source files, alongside `.json`, `.txt`, `.glb`, `.obj`.
-Keep the old physical ZIP extension rules unchanged. Reject symlinks, executable
-permissions, unsafe/duplicate paths, encryption and external GLB resources.
-Retain bounded compressed/expanded bytes, members and media. The host releases
-held reference images, video and data atomically only after every check, then
-rechecks bytes before each send and records separate image/video/file receipts.
-A OneBot host should use the controlled `model-{12 lowercase hex}-data.zip`
-name in addition to its legacy `simulation-...` name; a sender that only accepts
-the latter rejects the new package. Missing or unknown file receipts are never
-replayed. A local capture API acceptance does not prove real platform delivery.
+Only the typed preview format additionally permits inert `.md`, `.png`, `.jpg`,
+`.jpeg`, `.webp` source files alongside `.json`, `.txt`, `.glb`, `.obj`. Physical
+ZIP rules remain unchanged. Reject symlinks, executable permissions, unsafe or
+duplicate paths, encryption and external GLB resources. Keep independent caps
+for compressed/expanded bytes, members and media. Release held references,
+video and archive together only after every check, recheck before sending and
+track independent receipts. Missing or unknown receipts are never replayed;
+local capture API acceptance does not prove platform delivery.
 
-Each model/render reference keeps a separate sealed result manifest. Cache reuse
-checks original sources, source receipt and artifacts, and validates the fixed
-public response before atomically republishing the task's selected manifest.
-One legitimate rendering must not invalidate another rendering's cache.
+Per-model/render references keep separately sealed manifests. Cache reuse
+rechecks all raw/display sources, cleanup/source receipts, artifact pins and the
+fixed public response before atomically republishing the selected task manifest.
+A preview is neither a physical experiment nor simulation readiness. Existing
+physical preparation, topology, solver and numerical-quality gates remain.

@@ -22,6 +22,8 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
                'guidance_scale', 'octree_resolution', 'num_chunks'}
     if not preview:
         allowed.add('material')
+    else:
+        allowed.add('display_cleanup')
     if set(arguments) - allowed:
         raise ValueError('image modeling accepts attachment IDs and physical parameters only')
     images = [image for image in task['request'].get('input_images', [])
@@ -97,6 +99,9 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
                   'ready_to_preview': True, 'ready_to_simulate': False,
                   'display_geometry_available': True, 'simulation_performed': False,
                   'units': display['units'], 'audit': receipt.get('display_audit'),
+                  'display_cleanup': receipt.get('display_cleanup'),
+                  'raw_geometry_preserved': receipt.get('raw_geometry_preserved', True),
+                  'display_geometry_modified': receipt.get('display_geometry_modified', False),
                   'inference_seconds': round(time.monotonic() - started, 3),
                   'assumptions': receipt.get('assumptions', []),
                   'next_action': {'tool': 'modeling_preview_render', 'model_ref': reference}}

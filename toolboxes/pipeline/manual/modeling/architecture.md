@@ -8,8 +8,8 @@
 当前事件图片 ID + 模型展示目的
   → 宿主图片/runtime/modeling pin → modeling_preview_from_image
   → dedicated worker：alpha 或 U2Net CPU → MLX Metal shape
-  → 完整 display GLB / OBJ / mesh JSON + 来源与生成回执
-     （默认 model_unit，保留全部组件，无模拟减面/微屑清理）
+  → 保留完整 raw GLB / OBJ / mesh JSON → bounded-floaters/1 → display + cleanup receipt
+     （默认 model_unit/conservative；可选 none；无模拟减面）
   → model_ref → modeling_preview_render → 360° MP4 + 模型 ZIP → qq_video
      （simulation 阶段跳过；ready_to_simulate=false）
 
@@ -158,8 +158,25 @@ contracts/mesh/scale/receipt/foreground/decimation 测试不下载权重或初�
 
 新增质量、模型或 provider 要更新实际实现、pin/许可、能力发现、typed 参数、receipt 和对应验收。生成训练属于后续研究：当前 worker 调用公开预训练权重，没有训练/数据集流水线，也不宣称复刻商业服务的私有算法。
 
-本轮展示源码候选为 modeling 0.3.0、rendering 0.3.0、完整 pipeline 0.3.0；simulation
+本轮碎块清理源码候选为 modeling 0.3.1、rendering 0.3.1、完整 pipeline 0.3.1；simulation
 保持冻结的 0.2.0，physics 引擎保持 1.4.7。预览不调用 simulation，物理路径的原质量门
 和完整场景准备保持。当前文档属于 modeling 包摘要，修改后须重新构建和发布新组合，
 旧任务 pin 不切换。新参考图的真实完整展示流程、安装副本与 QQ 回执待最终验收记录，
 不能用先前物理失败网格的复测或健康检查代替。
+
+## 展示碎块清理
+
+`bounded-floaters/1` 默认以 `display_cleanup=conservative` 开启，只用于 model-preview；
+`none` 禁用。原始生成结果先完成原单位规范化/记录，raw GLB/OBJ/JSON 再独立保存。
+清理不重新归一化，保留每个留下的原坐标与面序/绕向；输出 display 是精确子集。
+候选须为整个断开组件，并同时通过主表面占比、尺寸、面数、面积、绝对体积、到主表面
+的有界间隔和总损失阈值；没有合格主表面或证据不足时不删除。具体固定值由代码和 module
+摘要绑定，回执记录 policy SHA、组件统计和 removed face indices，来信不能改阈值。
+
+这不是 largest-component 筛选，也无平滑、补洞、简化或语义识别。尺寸很小的合法饰件也
+可能符合阈值；raw 备份和 `none` 保留可检查/恢复的选择。策略不改变模拟微屑政策，不保证
+闭合、单实体、自交或物理校准。新 v2 preview 合同让宿主独立复核组件与精确子集，不能只
+相信 worker 的 `modified` 布尔值。渲染和导出的 display 指向同一 SHA，raw 另存。
+
+清理候选还须闭合、一致朝向且正体积，无退化面；存在未引用顶点、数值歧义或超出固定
+三角距离检查/节点访问预算时保留完整 raw 为 display，不能通过推测距离继续删除。

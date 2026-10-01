@@ -71,9 +71,9 @@ Mac 本地公开流匹配后端属于可选建模运行时，代码与权重由�
 
 新奶蛙参考图的两次真实生成均未通过模拟门，保留展示模型并拒绝完整物理交付。既有网格后处理恢复成功与新图生成成功分别验收；不能把恢复后的复测视频算作新图的视频。宿主输入、固定运行时与交付边界见 [宿主集成说明](../toolboxes/pipeline/HOST-INTEGRATION.md)。
 
-## 0.3.0 independent model presentation
+## Historical 0.3.0 independent model presentation
 
-The current maintenance combination upgrades modeling/rendering to 0.3.0 while
+The preceding maintenance combination upgraded modeling/rendering to 0.3.0 while
 reusing frozen physics 1.4.7 and simulation 0.2.0. The separately typed preview
 path is admitted image → offline original shape → native camera turntable →
 verified MP4 + original model/reference/license ZIP. It uses model_unit when no
@@ -90,3 +90,36 @@ without the declared capability cannot advertise preview operations.
 Read [acceptance and limitations](modeling-flow-validation.md) and the public
 [typed host contract](../toolboxes/pipeline/HOST-INTEGRATION.md). Capture API
 acceptance and an installed host health pass do not prove real group delivery.
+
+## 0.3.1 raw-preserving display cleanup
+
+The source adds fixed bounded-floaters/1 cleanup to the independent model preview,
+with conservative as the default and none for an unfiltered display. Raw geometry
+retains every normalized generated component; display removes only whole tiny
+detached components passing every closed/oriented, size, face, area, volume and
+surface-gap gate and aggregate budget. Remaining coordinates and face winding
+are exact. No smoothing, filling holes, re-scaling or physical repair is performed.
+
+Pipeline/modeling/rendering use 0.3.1 while maintenance must explicitly reuse
+frozen simulation 0.2.0 and physics 1.4.7. New modeling with an older renderer
+cannot advertise/start preview. Legacy uncleaned modeling remains compatible
+with a new renderer through its v1 result. The v2 result and archive bind raw,
+display and cleanup independently. Renderer geometry preservation is scoped to
+render_input. A separately installed host independently verifies whole-component
+policy eligibility, exact retained faces/vertices, source/license archive bytes
+and complete video decoding before delivery. Semantics and physics readiness
+are not established by geometric cleanup.
+
+Processing an existing generated model, fresh inference, host deployment and
+real platform delivery are separate acceptance layers. Source/build support
+alone proves none of the latter. See the transport-neutral
+[host contract](../toolboxes/pipeline/HOST-INTEGRATION.md) for v2 verification.
+
+The 2026-10-02 fresh isolated PDF → public search/reference → local inference →
+conservative cleanup → video/archive flow completed in 203.063 seconds, removing
+25 eligible components while preserving raw geometry. Independent capture API
+image/video/archive receipts passed. The external host deployed 0.3.1 while
+preserving the frozen engine/simulation and existing state; real QQ delivery
+remains unverified. The full toolbox suite passed 212 tests; the separate host
+passed 707 of 709 with two optional CLI checks skipped. Detailed limits and
+metrics are in the dated [acceptance record](modeling-flow-validation.md).
