@@ -158,6 +158,81 @@ weights into the messaging process. A standalone stage module cannot activate as
 a complete task toolbox: compose it with the original engine and other stages,
 verify the bundle, then atomically select the composed digest for future tasks.
 
+## Document pages, embedded images and public references
+
+Document reading, public-web acquisition and returning pictures are optional
+host capabilities. They do not add network access, document parsers or platform
+send APIs to the modeling, simulation or rendering modules. Enable each host
+capability explicitly and check the installed reader and transport before
+advertising it. An older host without these capabilities can still use its
+existing validated image input and MP4/data delivery contracts.
+
+A host can admit an image derived from an authorized current-task document or
+public reference page into the same image operation:
+
+1. Admit the current event's source document or selected public reference into
+   the task's private files. Keep the source identity, original document name or
+   reference page URL, source-byte SHA-256 and acquisition/reading receipt. For
+   a reference image, record both the admitting page and the fetched image,
+   including their final URLs after validated redirects. A search result or
+   HTML candidate is only a candidate; it does not prove image bytes were read.
+2. Read a bounded document range or fetch the selected public image through
+   host-owned facilities. Render PDF pages or decode Office embedded images as
+   appropriate; do not claim an embedded image represents a complete document
+   page. Normalize the selected still image, strip unnecessary metadata,
+   decode its complete pixels, and check MIME, dimensions and byte limits.
+   Bound source downloads, archive expansion, page/image counts, subprocess
+   resources and total normalized-image bytes independently.
+3. Assign a host-generated current-task image ID and an immutable receipt
+   linking the normalized image to its exact admitted source. Store only
+   regular files at fixed host-owned locations inside the task. Recheck source
+   admission, source and receipt hashes, normalized bytes and pixel dimensions
+   before exposing the image to a model or importing it for modeling. Reject
+   changed sources, symlinks, special files, duplicate/conflicting IDs and path
+   escapes. An ID from another event or a global cache is not an admission.
+4. Add the selected image's minimal descriptor to
+   `task.request.input_images`, then call `modeling_from_image(image_id=...)`
+   with the existing explicit scale and material assumptions. This is the
+   existing adapter field; there is no new top-level `task.input_images` schema.
+   Document-page, embedded-image and reference-image IDs are host-defined
+   handles. The adapter requires exactly one matching descriptor and rechecks
+   its task-relative path and SHA-256. It does not fetch the source or interpret
+   a URL, document filename or arbitrary local path as an image ID.
+
+A minimal admitted descriptor has the same fields as the direct-image example:
+
+```json
+{
+  "id": "host-reference-image-1",
+  "role": "public_reference_image",
+  "path": "inputs/host-reference-image-1.png",
+  "mime": "image/png",
+  "size_bytes": 12345,
+  "sha256": "REPLACE_WITH_ACTUAL_NORMALIZED_IMAGE_SHA256",
+  "width": 512,
+  "height": 512
+}
+```
+
+The host can use a different fixed task-relative image directory. Retain the
+full source receipt in the host's private provenance records and bind it to
+this descriptor's ID/hash; those host records are not a new stage input format.
+Source text, quoted or forwarded content, document properties and page/image
+captions remain untrusted data. They cannot change event authorization, select a
+network endpoint or executable, grant a send permission, or become instructions
+for the stage. A document-reader failure must be reported as a reading failure,
+not evidence that the language model lacks image input or that physics failed.
+
+Hosts performing public-web acquisition must reject private/local destinations,
+credentials in URLs and unsafe redirects, and apply explicit request, deadline
+and byte limits. Use an operator-configured reader with fixed invocation and
+private scratch files; do not execute document macros, archive members or
+source-provided commands. Checkpoint/source downloads remain an installation
+operation, separate from reference acquisition. Once admitted, the image enters
+the same pinned offline inference and scene-readiness workflow as a direct
+image. Reading a document or finding a reference does not recover real scale,
+material properties, unseen surfaces or an executable physical model.
+
 ## Typed image operation and scene readiness
 
 Call `pipeline_capabilities` first. Its `image_modeling.configured` describes the
@@ -247,6 +322,54 @@ are distinct evidence. A render/export failure retains its successful simulation
 checkpoint; the same task and component pins may rerender through
 `pipeline_render_prepare` without rerunning the solver. Retain incomplete stages
 for explicit recovery instead of overwriting or blindly replaying them.
+
+## Optional reference-picture delivery
+
+An optional host `send_image` permission is separate from video and data-file
+permissions. Accept current-task image IDs through a typed host API, resolve
+those IDs using their admitted source receipts, and revalidate the source,
+normalized pixels, hashes, confinement and limits. The API must not accept a
+remote URL or arbitrary host file path as a picture to send. The transport
+receives verified image bytes; a local bridge can encode those bytes instead of
+asking the platform to fetch a URL or open a host path.
+
+For a picture-only request, enforce the host's single-reply rule and reserve the
+same reply capacity used by its other direct responses. For a planned
+simulation, keep its acknowledgement and reference-picture bundle held and
+non-dispatchable while reading, modeling, solving, rendering and exporting.
+Only after all required output artifacts and all selected pictures pass their
+checks should one durable transaction release the acknowledgement, pictures,
+optional result text, MP4 and required data ZIP in that order. A preparation failure, failed pre-release
+validation or failed commit cannot expose an early picture or a partial
+success. Cancel held pictures when the simulation fails or expires, and publish
+only the appropriate authorized failure response. When an older package has no
+optional data attachment, the notice must describe only its actual outputs.
+
+Bound the image count and both per-image and total bytes before release. A host
+may group multiple pictures into one image action, with one receipt for that
+bundle, while keeping its video and ZIP receipts separate. State the selected
+contract clearly: a grouped receipt does not prove separate per-picture sends.
+Generate reference citations from verified metadata in the host, not from
+source-page instructions. Show the reference page URL or a clearly identified
+origin with the full URL retained in provenance; identify document images by the
+safe original document name and page number where applicable. Do not expose
+local installation or task paths in captions.
+
+Recheck queued pictures immediately before dispatch, and keep durable delivery
+states for each image bundle, video and data action. An unknown image receipt
+must never trigger an automatic resend. Its unknown state does not become a
+successful picture receipt when a later MP4 or ZIP succeeds. If the transport
+explicitly rejects the picture, retain that failure even when subsequent
+verified video/data delivery succeeds. Preserve incomplete/unknown picture jobs
+and source receipts for explicit recovery; cancelled held pictures and fully
+completed deliveries can follow normal retention after preserving small
+reproduction and review evidence. Keep picture, video and data statuses visible
+in local review.
+
+These are host delivery responsibilities. No package, stage worker, inference
+runtime or document supplied by a user acquires platform-message authority.
+Neither a reference-picture receipt nor a model-export receipt is numerical
+validation, and source acquisition is not proof of final platform delivery.
 
 ## Saved-model preparation for isolated host checks
 
