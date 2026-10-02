@@ -105,7 +105,9 @@ class PreviewModuleCompositionTests(unittest.TestCase):
         preview = ADAPTER.capabilities(lock, {})["model_preview"]
         self.assertTrue(preview["display_cleanup"]["available"])
         self.assertEqual(preview["display_cleanup"]["default"], "conservative")
-        self.assertEqual(preview["display_cleanup"]["options"], ["conservative", "none"])
+        self.assertEqual(preview["display_cleanup"]["options"], ["conservative", "none", "surface"])
+        self.assertTrue(preview["surface_filtering"]["available"])
+        self.assertFalse(preview["surface_filtering"]["automatic_back_identification"])
         self.assertEqual(preview["geometry_scope"], "render_input")
         for role, field in (("modeling", "display_cleanup"), ("rendering", "preview_geometry_scope")):
             with self.subTest(role=role):
@@ -117,6 +119,19 @@ class PreviewModuleCompositionTests(unittest.TestCase):
                 write(package / "bundle-lock.json", changed)
                 with self.assertRaisesRegex(ValueError, "preview feature mismatch"):
                     bundle.verify_bundle(package)
+
+    def test_surface_filter_requires_its_own_pinned_feature(self):
+        package = self.root / "surface-modern"
+        lock = build(self.engine, package)
+        changed = copy.deepcopy(lock)
+        changed['modules']['modeling'].pop('surface_cleanup')
+        preview = ADAPTER.capabilities(changed, {})['model_preview']
+        self.assertTrue(preview['display_cleanup']['available'])
+        self.assertFalse(preview['surface_filtering']['available'])
+        self.assertEqual(preview['display_cleanup']['options'], ['conservative', 'none'])
+        write(package / 'bundle-lock.json', changed)
+        with self.assertRaisesRegex(ValueError, 'preview feature mismatch'):
+            bundle.verify_bundle(package)
 
     def test_legacy_preview_modules_remain_compatible_without_cleanup_advertisement(self):
         modules = {}
@@ -187,6 +202,16 @@ class NativePreviewPackageTests(unittest.TestCase):
         cls.package_temp = tempfile.TemporaryDirectory(prefix="native-preview-package-")
         cls.package = Path(cls.package_temp.name).resolve() / "package"
         cls.lock = build(ROOT / "physics", cls.package)
+        legacy = Path(cls.package_temp.name).resolve() / 'legacy-modeling-contract'
+        metadata = build_module('modeling', legacy)
+        metadata['version'] = '0.3.0'
+        metadata.pop('display_cleanup')
+        metadata.pop('surface_cleanup')
+        write(legacy / 'module.json', metadata)
+        declaration = bundle.read_json(legacy / 'toolbox.json')
+        write(legacy / 'toolbox.json', {**declaration, 'version': '0.3.0'})
+        cls.legacy_package = Path(cls.package_temp.name).resolve() / 'legacy-package'
+        cls.legacy_lock = build(ROOT / 'physics', cls.legacy_package, {'modeling': legacy})
 
     @classmethod
     def tearDownClass(cls):
@@ -224,6 +249,12 @@ class NativePreviewPackageTests(unittest.TestCase):
         self.trimesh = trimesh
 
     def seal_model(self, seed=0, cleanup_mode=None):
+        # Old v1 geometry fixtures carry an actual no-cleanup module contract;
+        # a current cleanup-capable pin cannot omit raw and downgrade to v1.
+        if cleanup_mode is None:
+            self.package, self.lock = type(self).legacy_package, type(self).legacy_lock
+            write(self.job / 'toolbox-pin.json', {'id': 'physics-pipeline', 'version': '0.3.2',
+                                                'digest': bundle.digest_tree(self.package)})
         request = {"schema_version": "modeling-flow-preview-request/1", "image_path": str(self.image),
                    "scale_axis": "max", "seed": seed}
         if cleanup_mode is not None:
@@ -240,8 +271,13 @@ class NativePreviewPackageTests(unittest.TestCase):
                 "fixture": "post-inference triangles, not neural inference"}
         cleanup = None
         if cleanup_mode is not None:
-            from modeling_flow.display_cleanup import clean_display_mesh
-            cleaned, cleanup = clean_display_mesh({key: mesh[key] for key in ('vertices', 'faces')}, cleanup_mode)
+            if cleanup_mode == 'surface':
+                from modeling_flow.surface_cleanup import clean_surface_mesh
+                cleaner = clean_surface_mesh
+            else:
+                from modeling_flow.display_cleanup import clean_display_mesh
+                cleaner = clean_display_mesh
+            cleaned, cleanup = cleaner({key: mesh[key] for key in ('vertices', 'faces')}, cleanup_mode)
             write(assets / 'raw_mesh.json', mesh)
             write_obj(assets / 'raw.obj', {key: mesh[key] for key in ('vertices', 'faces')}, 'model_unit')
             self.trimesh.Trimesh(vertices=mesh['vertices'], faces=mesh['faces'], process=False).export(str(assets / 'raw.glb'), file_type='glb')
@@ -259,6 +295,9 @@ class NativePreviewPackageTests(unittest.TestCase):
                           for path in assets.iterdir()]}
         if cleanup is not None:
             receipt.update(raw_geometry_preserved=True, display_geometry_modified=cleanup['applied'])
+            if cleanup_mode == 'surface':
+                receipt.update(display_vertices_modified=cleanup['summary']['moved_vertices'] > 0,
+                               semantic_fidelity_verified=False)
         write(assets / "receipt.json", receipt)
         public = {"ok": True, "result_kind": "model-preview", "ready_to_preview": True,
                   "ready_to_simulate": False, "model_ref": reference}
@@ -343,6 +382,30 @@ class NativePreviewPackageTests(unittest.TestCase):
             self.assertEqual(archive.read('model/raw_mesh.json'), (assets / 'raw_mesh.json').read_bytes())
             self.assertEqual(archive.read('model/display_mesh.json'), (assets / 'display_mesh.json').read_bytes())
             self.assertTrue({'raw_glb','raw_obj','raw_mesh_data','cleanup_receipt'} <= {x['role'] for x in data['members']})
+        self.assertEqual(self.render(reference), result)
+
+    def test_surface_video_and_archive_bind_vertex_changes_and_raw_geometry(self):
+        self.vertices = [[x / 10, y / 10, .02 * ((x + y) % 2)]
+                         for y in range(11) for x in range(11)]
+        self.faces = []
+        for y in range(10):
+            for x in range(10):
+                a = y * 11 + x
+                self.faces.extend([[a, a + 1, a + 12], [a, a + 12, a + 11]])
+        reference, assets = self.seal_model(cleanup_mode='surface')
+        cleanup = bundle.read_json(assets / 'cleanup-receipt.json')
+        self.assertGreater(cleanup['summary']['moved_vertices'], 0)
+        result = self.render(reference)
+        self.assertTrue(result['display_vertices_modified'])
+        self.assertFalse(result['semantic_fidelity_verified'])
+        manifest = bundle.read_json(self.job / 'artifacts/result-manifest.json')
+        self.assertEqual(manifest['result_schema'], 'model-preview-result/3')
+        self.assertTrue(manifest['verification']['raw_geometry_preserved'])
+        with zipfile.ZipFile(result['data_path']) as archive:
+            declaration = json.loads(archive.read('archive-manifest.json'))
+            self.assertEqual(declaration['schema_version'], 'model-preview-data/3')
+            for name in ('raw_mesh.json', 'display_mesh.json', 'cleanup-receipt.json'):
+                self.assertEqual(archive.read('model/' + name), (assets / name).read_bytes())
         self.assertEqual(self.render(reference), result)
 
     def test_changed_cached_video_is_rejected(self):

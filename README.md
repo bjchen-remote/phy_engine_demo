@@ -35,12 +35,18 @@ The external agent turns mechanical requests into scene configurations. Examples
 
 The optional offline Hunyuan3D-2mini/MLX modeling worker can reconstruct a
 single-image shape and generate a 360-degree H.264 model presentation on Apple
-Silicon. The 0.3.1 [composed pipeline](toolboxes/pipeline/README.md) preserves the
+Silicon. The 0.3.2 [composed pipeline](toolboxes/pipeline/README.md) preserves the
 whole raw model and exports raw/display GLB, OBJ, JSON, source references and
 licenses. Its optional conservative display cleanup removes only tiny detached
 components meeting every fixed bound; an unfiltered mode retains them. The
 video uses the exact exported display mesh, with a verifiable cleanup receipt.
 This route needs no invented physical scale or material and runs no simulation.
+The opt-in `surface` mode also smooths eligible vertices under fixed displacement
+and topology bounds, with independent v3 raw-to-display verification. Existing
+models in the same task can use CPU-only `modeling_preview_cleanup`, preserving
+the original model and its pins. Initial image previews keep the conservative
+default. Paired local inspection found modest smoothing while large back ridges
+remained; see [surface validation and limits](docs/modeling-surface-cleanup-validation.md).
 Images/PDF reading, public-reference search and messaging are external-host
 features; [HOST-INTEGRATION.md](toolboxes/pipeline/HOST-INTEGRATION.md) documents
 the separate admission, verification and delivery contracts. Generated hidden

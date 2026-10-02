@@ -39,9 +39,12 @@
 display-only 生成回执、来源图片摘要、全部展示工件和 rendering module pin，按模型/
 参数/模块摘要分配独立输出；不能导入旧物理失败任务、任意路径或跨事件模型。
 
-渲染保留全部输入 display 顶点、三角索引与断开的组件。0.3.1 的 `geometry_scope=render_input`
+渲染保留全部输入 display 顶点、三角索引与断开的组件。0.3.2 沿用 `geometry_scope=render_input`
 和 `input_geometry_retained=true` 限定该承诺，不宣称建模阶段未清理生成碎块。raw 几何
-与 fixed-policy cleanup receipt 另在 v2 ZIP/provenance 中绑定。有限坐标、索引、空间范围
+与 fixed-policy cleanup receipt 另在 v2 或 surface 的 v3 ZIP/provenance 中绑定。
+surface 的坐标变化在建模后处理发生，renderer 不再平滑或删面；v3 宿主从 raw 精确
+重算有界删除、映射、位移和保留拓扑。完整 display 输入保留不等于 raw/display 坐标不变。
+有限坐标、索引、空间范围
 和独立预算仍严格准入；相机归一化只在呈现副本内等比例居中/取景。渲染没有额外组件
 删除、减面、碰撞、积分器或模拟时间轴。默认 `model_unit` 不解释为米，显式
 用户尺度另有来源；质量、密度、材料和测量均不由此估计。
@@ -58,7 +61,7 @@ raw/display mesh JSON、清理/生成/渲染回执、来源与许可，逐文件
 
 模型可展示不证明可模拟；原物理 gate 保持。生成或渲染失败必须具体报告，不能将空白视频、
 截取参考图、单张图片平移或未知工件当作三维模型旋转展示。完整原始网格和来源工件在
-发布前复核不变；预览不改写原模拟 checkpoint。新 0.3.1 的真实新图完整验收由最终记录
+发布前复核不变；预览不改写原模拟 checkpoint。0.3.2 的真实新图完整验收由最终记录
 另行确认，不以实现完成、构建或 health 代替实际工件证据。
 
 ## 输入身份与数值质量

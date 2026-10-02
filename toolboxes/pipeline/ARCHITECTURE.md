@@ -1,14 +1,15 @@
 # 建模、模拟与渲染组合内部架构
 
-`physics-pipeline` 0.3.1 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。新增独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling/rendering 为 0.3.1；simulation 0.2.0 和 physics 1.4.7 保持冻结快照。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
+当前源码的 `physics-pipeline` 0.3.2 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling 为 0.3.2；rendering 0.3.1、simulation 0.2.0 和 physics 1.4.7 保持冻结快照。新增可选 `surface` 展示后处理及 v3 精确校验；默认仍是 conservative。源码、包构建、安装激活和真实 QQ 交付分别验收。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
 
 ```text
 宿主 inbox pin → task.json → adapter.main
    → verify_bundle + 当前任务 bundle-lock + execution.lock
-   → 展示 api：当前 image_id → 原始网格推理 → 保留 raw + 有界展示碎块清理 → model_ref
+   → 展示 api：当前单张 image_id → 原始网格推理 → 保留 raw + 可选展示后处理 → model_ref
        → 核验完整展示资产/图片/runtime/module pins
        → rendering worker.model_preview → 全部 display 输入三角面的 360° 相机旋转
-       → 视频全帧解码 + raw/display 模型 ZIP → model-preview-result/2
+       → 视频全帧解码 + raw/display 模型 ZIP
+         （conservative/none：model-preview-result/2；surface：model-preview-result/3）
        （无 simulation、物理轨迹或测量；默认 model_unit）
    → api：参数/几何/图片资产 → prepare → 冻结 plan
    → run：校验 plan
@@ -28,6 +29,7 @@
 | `bundle.py` | 严格 JSON、路径隔离、目录摘要、stage 格式和完整组合验证 |
 | `worker.py` | 固定 argv 单阶段进程入口；按 module role 调用相应 Python 实现，失败写结构化响应 |
 | `image_modeling.py` | 可选 Mac 本地图片建模：当前事件图片 ID、可信运行时 pin、生成回执和网格资产 |
+| `model_cleanup.py` | 当前任务封存 model_ref 的无 NN 展示后处理；从 raw 派生新 ref，来源/pin 不变，原目录保留 |
 | `model_preview.py` | 成功展示 model_ref 的来源/工件 pin 核验、固定 rendering action、完整模型 ZIP 和 typed preview 交付清单 |
 | `../build_pipeline.py` | 生成独立 stage 包，复制固定引擎与组件，写组合锁和 v1 toolbox manifest |
 | `../pipeline_stages/` | 建模、模拟和不可覆盖的模型/数据工件辅助函数 |
@@ -67,10 +69,16 @@ QQ 宿主不导入这些领域实现；适配器与 worker 可以导入被组合
 
 `modeling_preview_from_image(image_id, bounded sampling)` 使用
 `modeling-flow-preview-request/1` 与 `purpose=model_preview`。默认 model_unit，不接收
-材料/密度；仅显式用户尺度可以选择米制比例。0.3.1 默认 `display_cleanup=conservative`，
+材料/密度；仅显式用户尺度可以选择米制比例。0.3.2 仍默认 `display_cleanup=conservative`，
 先保存原始规范化 raw GLB/OBJ/mesh JSON，再按固定 `bounded-floaters/1` 生成独立 display
 资产和清理回执；`none` 保留全部组件。清理只移除同时通过全部阈值的独立微小完整分量，
-不平滑、补洞、减面、重新居中或缩放。它与物理路径的模拟微屑清理和 QEM 分开。成功返回
+不平滑、补洞、减面、重新居中或缩放。若当前 modeling pin 明确声明
+`surface_cleanup=bounded-surface/1` 且 rendering 保留完整 `render_input`，可以显式选择
+`display_cleanup=surface`：固定几何策略可移除合格的完整独立微小开放/平片分量，并
+对保留网格的合格顶点作有界平滑。它不识别背面、发型或人体，不删除保留连通面、不填孔，
+也不生成隐藏表面。锐边、细长结构、边界及异常拓扑邻域受到保护，尖锐噪声可能因此保留。
+位移、朝向、面积和工作量阈值均写在固定 policy 回执内；预算 no-op 必须披露未执行。
+所有展示处理与物理路径的模拟微屑清理和 QEM 分开。成功返回
 `ready_to_preview=true`、当前任务 model_ref 与 `ready_to_simulate=false`。
 
 `modeling_preview_render(model_ref, bounded camera parameters)` 核验成功 display-only
@@ -84,6 +92,14 @@ ZIP 包含逐成员摘要与许可。现有 v1 单 MP4 / 单 ZIP envelope 用 ty
 有效重复调用重新校验全部 source/output pins 后复用；未封存的非空目录保留证据并
 明确要求恢复，不盲目覆盖或重跑。预览没有普通物理 prepare、solver run 或数值 checkpoint，
 不能填补未通过物理门的结果。用户转而要求模拟时，应走下一节既有 prepare 合同。
+
+若当前任务已有封存的 model_ref，组合可另广告
+`model_preview.cleanup_operation=modeling_preview_cleanup`。调用
+`modeling_preview_cleanup({model_ref,display_cleanup:"surface"})` 从该结果的保留 raw
+派生新 model_ref，只执行 CPU 几何后处理/导出，不加载 NN 权重或再次从图片生成。
+原引用和源目录保持不变；新引用仍需 render、实际帧检查与 typed 视频/ZIP 交付。
+仅当前任务、相同图片/runtime/module pin 可复用；跨任务引用、任意路径导入、旧 pin
+自动升级均拒绝。该单独 cleanup 操作默认 surface，初次图片预览的默认仍为 conservative。
 
 普通 prepare 由固定引擎执行，成功后 `freeze` 保存 `pipeline-plan/1`：规范化 prepared 模型摘要、完整组合摘要、质量设置、预计耗时和 mode；`plan_id` 绑定这些字段。`check_plan` 在执行前重算，不接受过期准备或修改后的设置。修改模型、patch、example、system 或配置使准备失效。
 
@@ -116,14 +132,19 @@ ZIP 包含逐成员摘要与许可。现有 v1 单 MP4 / 单 ZIP envelope 用 ty
 
 ## 最终结果与交付边界
 
-0.3.1 独立展示写 `result_schema=model-preview-result/2`、`result_kind=model-preview`；
-无清理的兼容旧模块继续支持原 v1 合同。
+0.3.2 的 conservative/none 独立展示保持 `result_schema=model-preview-result/2`；
+显式 surface 写 `model-preview-result/3`，两者的 `result_kind` 均为 `model-preview`。
+无清理的兼容旧模块继续支持原 v1 合同，不把 v2 精确子网格关系解释成坐标可变许可。
 verification 要求 passed=true，但 numerical_passed=false、simulation_performed=false；
 输出 role 为 model_preview_video，ZIP role 为 data 且自身携带 result_kind=model-preview。
-数据内 `archive-manifest.json` 使用 `model-preview-data/2`，明确无模拟/定量可用性，并
+数据内 `archive-manifest.json` 对应使用 `model-preview-data/2` 或 surface 的
+`model-preview-data/3`，明确无模拟/定量可用性，并
 分别绑定 raw 与 display GLB、OBJ、mesh JSON、cleanup receipt、来源图片、生成/渲染回执
-和固定许可。宿主用独立 typed validator 重新计算完整组件的资格与总量预算，核验保留
-顶点/三角面是 raw 的精确子集，再检查渲染输入索引、ZIP CRC/成员哈希和视频全帧，
+和固定许可。宿主使用独立 typed validator；v2 重新计算完整组件的资格与总量预算，
+核验保留顶点/三角面是 raw 的坐标不变精确子集。v3 则使用宿主可信 `surface_cleanup.py`
+镜像从 raw 独立重算完整 fixed-policy 算法，精确比较删除列表、顶点映射、实际坐标、
+位移和保留拓扑；worker 摘要或自报 `ok` 不能授权平滑。两者再检查渲染输入索引、
+ZIP CRC/成员哈希和视频全帧，
 才允许 qq_video 释放 held 计划及工件。展示通过不写物理成功、测量或实验认证。
 
 下述数值 result-manifest 合同继续用于物理路径，其质量要求、产物 allowlist 和恢复保持。
@@ -150,8 +171,9 @@ ZIP 篡改拒绝、完整解码与 held 事务。新图全流程、安装副本�
 
 ## 展示清理的独立能力与可追溯性
 
-建模 module metadata/lock 声明 `display_cleanup=bounded-floaters/1`，渲染声明
-`preview_geometry_scope=render_input`。两项都与原 `model_preview` 位匹配才广告清理能力；
+建模 module metadata/lock 声明 `display_cleanup=bounded-floaters/1`，0.3.2 另声明
+`surface_cleanup=bounded-surface/1`；渲染声明 `preview_geometry_scope=render_input`。
+基础两项都与原 `model_preview` 位匹配才广告清理能力；surface 另需其明确的建模 feature。
 不接受在 lock 中虚构或删改 feature。旧模块缺少新字段仍可验证。新建模搭配旧渲染时，
 预览操作在 manifest 与 capabilities 中禁用，直接调用也在推理前拒绝；旧建模搭配新渲染
 继续原 v1 无清理展示。
@@ -164,3 +186,10 @@ ZIP 篡改拒绝、完整解码与 held 事务。新图全流程、安装副本�
 
 清理候选还须闭合、一致朝向且正体积，无退化面；存在未引用顶点、数值歧义或超出固定
 三角距离检查/节点访问预算时保留完整 raw 为 display，不能通过推测距离继续删除。
+
+上两段的闭合/正体积与坐标不变要求属于原 conservative 策略。可选 surface 使用独立
+`bounded-surface/1`，允许有界整分量开放/平片删除及受约束坐标变化，原始 raw 从不覆盖。
+其回执保存原始面删除列表、原顶点到输出顶点的映射、移动原顶点 ID、最大/RMS 位移、
+保护/移动顶点统计和保留拓扑；主连通面不删、不补孔。超过固定表面工作量预算时完整保留
+源网格并报告 `surface_operation_budget_exceeded`，不能把未移动/未处理说成去噪成功。
+这些几何门不认证语义部件、表面保真或自交消除；需查看真实前后帧，尤其是受保护的毛刺。

@@ -135,7 +135,7 @@ explicit extent, forbids material and decimation, and otherwise normalizes the
 maximum extent to one `model_unit`; no physical dimensions are inferred. Its
 receipt records `purpose: model_preview`, no simulation, and null material/mass.
 The QQ route is `modeling_preview_from_image` → `modeling_preview_render` →
-`qq_video`. In the 0.3.1 preview, `display_cleanup` defaults to `conservative`;
+`qq_video`. In the 0.3.2 source preview, `display_cleanup` still defaults to `conservative`;
 `none` keeps all components in the display. Both retain untouched normalized
 raw GLB/OBJ/JSON plus display assets and a fixed-policy cleanup receipt. Only
 whole tiny disconnected components meeting every `bounded-floaters/1` bound
@@ -158,6 +158,28 @@ accuracy. Missing/incompatible graphs, dependencies and invalid masks fail
 explicitly. No segmentation graph is downloaded at inference time. The image
 is decoded once with a 32 MiB / 16 megapixel budget and normalized EXIF
 orientation. A fully transparent foreground is rejected.
+
+The optional `display_cleanup: surface` requires the modeling module's explicit
+`surface_cleanup: bounded-surface/1` capability. Its fixed geometric policy can
+remove eligible whole detached open/flat micro-components and smooth eligible
+vertices under displacement, triangle-orientation and area limits. Boundary,
+nonmanifold, sharp and thin-feature neighborhoods are protected; some pointed
+noise can therefore remain. It does not identify the back side, recover hidden
+surfaces, delete retained connected patches, fill holes or generate images.
+Read the actual policy, removal/movement/protection statistics and maximum/RMS
+displacement in the cleanup receipt. An operation-budget no-op keeps the source
+and must be described as unprocessed. Raw normalized GLB/OBJ/JSON remain intact.
+Surface's `model-preview-result/3` and `model-preview-data/3` require independent
+exact host recomputation of mapping, removals and bounded coordinates; a v2
+unchanged-coordinate submesh proof or matching hashes cannot authorize smoothing.
+
+When the current task already holds a sealed `model_ref` and the pinned
+capabilities advertise `modeling_preview_cleanup`, that operation can derive a
+new display/model reference from raw using CPU geometry/export without loading
+neural weights. Use its returned reference for rendering and delivery; it does
+not render or send by itself. Source files and pins remain unchanged. Arbitrary
+paths, cross-task references and automatic pin promotion are unsupported. This
+separate cleanup operation defaults to surface; initial image preview remains conservative.
 
 `scale_axis` is `max` by default or `x`, `y`, `z` in the **generated mesh's**
 coordinate frame. Uniform scaling makes that extent equal the user-supplied

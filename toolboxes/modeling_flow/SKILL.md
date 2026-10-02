@@ -14,6 +14,16 @@ the modeling stage invokes, not a general shell tool or a simulation/rendering
 skill. Keep the existing structured modeling route for explicitly specified
 geometry.
 
+If a sealed preview `model_ref` already exists in the current task and the pinned
+capabilities advertise `model_preview.cleanup_operation:"modeling_preview_cleanup"`,
+use `modeling_preview_cleanup({model_ref,display_cleanup:"surface"})` for requested
+surface cleanup instead of rerunning image inference. That CPU geometry/export
+operation returns a new task-owned `model_ref`; render that exact new reference.
+It retains the original raw/source artifacts, does not load neural weights and
+does not render or send by itself. It cannot import a model from another task,
+promote old module pins, or accept paths. The cleanup operation defaults to
+surface when omitted; the initial image-preview operation still defaults to conservative.
+
 Require an explicit physical extent in metres and declared material density
 before preparing a physics asset. A visual shape uses the separate
 `modeling-flow-preview-request/1`: only an image is required, material is forbidden,
@@ -22,8 +32,24 @@ raw GLB/OBJ/JSON, display assets, cleanup receipt, reference and licenses.
 The compatible preview defaults to `display_cleanup: conservative`; its fixed
 `bounded-floaters/1` policy may remove only eligible whole tiny disconnected
 components from the display. `none` keeps all generated components in the video.
+For an explicit request to reduce scattered debris, rough ridges or surface noise,
+check the pinned modeling module's `surface_cleanup: bounded-surface/1` capability
+and use `display_cleanup: surface`. This optional 0.3.2 mode removes only bounded
+whole detached micro-components, including eligible open/flat debris, and smooths
+eligible vertices under fixed displacement and triangle-orientation limits.
+It preserves boundary, nonmanifold and sharp/thin feature neighborhoods; noisy
+sharp protrusions may therefore remain. It does not recognize the back side,
+complete hidden surfaces, delete connected patches or fill holes. Keep the
+conservative default unless surface processing was requested.
 Keep the raw normalized mesh intact and explain that geometric thresholds do
-not guarantee semantic identity. Neither mode creates a simulation mesh, mass
+not guarantee semantic identity. Surface output uses `model-preview-result/3`
+and `model-preview-data/3`: the host independently recomputes the fixed algorithm,
+vertex mapping, removals and displacements from raw geometry, then verifies the
+same display mesh used by the video and ZIP. Hashes alone are insufficient.
+Read the cleanup receipt's `applied`, `analysis_complete`, `skip_reason` and
+displacement/protection statistics. A budget no-op preserves raw geometry and
+must be described as unprocessed; zero moved vertices is not proof that the
+requested roughness was corrected. None of these display modes creates a simulation mesh, mass
 or numerical result. Explain
 that a physical extent and density are assumptions if supplied later; never
 describe them as values recovered from the image. Prefer an isolated foreground

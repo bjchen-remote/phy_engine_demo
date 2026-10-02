@@ -1,6 +1,6 @@
 # QQ modeling / simulation / rendering pipeline
 
-`physics-pipeline` 0.3.1 composes independently versioned modeling/rendering 0.3.1 and frozen simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
+`physics-pipeline` 0.3.2 composes independently versioned modeling 0.3.2, rendering 0.3.1 and frozen simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
 
 The messaging bridge is installed separately; this repository publishes the engine and composable modules. The public [host integration contract](HOST-INTEGRATION.md) describes image admission, runtime pins and complete data delivery.
 
@@ -73,7 +73,7 @@ receipts. The public package does not include that messaging client.
 No physical size, density or material is invented. Missing dimensions mean
 `model_unit`; an explicitly supplied `physical_extent_m` is an external size
 assumption. The normalized raw mesh preserves every original component. In the
-compatible 0.3.1 combination, display_cleanup defaults to conservative, using
+compatible 0.3.2 combination, display_cleanup defaults to conservative, using
 the fixed bounded-floaters/1 policy to remove only eligible whole tiny detached
 components from the display. Choose display_cleanup:none for an unfiltered
 turntable. Retained coordinates and face winding remain exact; there is no
@@ -93,6 +93,49 @@ For maintenance that preserves the deployed solver and simulation bytes,
 explicitly pass `--engine` and `--simulation-module /absolute/frozen/simulation`.
 Unspecified stages are rebuilt from current source; shared worker changes can
 change their content digest even with the same module version string.
+
+## Optional bounded surface processing (0.3.2)
+
+For requested surface-noise or detached-fragment cleanup, require
+`modules.modeling.surface_cleanup:"bounded-surface/1"` and
+`model_preview.surface_filtering.available:true` before explicitly choosing
+`display_cleanup:"surface"`. Initial image generation retains its conservative
+default. The fixed surface policy removes only eligible complete micro-components
+and applies six bounded Taubin smoothing pairs to eligible vertices. It protects
+boundaries, sharp/skinny features and abnormal topology, retains face order and
+winding, and checks orientation, area and displacement before each proposal.
+It does not fill holes, invent missing anatomy, or repair a physical model.
+
+When this task already has a sealed generated model and capability discovery
+advertises `model_preview.cleanup_operation:"modeling_preview_cleanup"`, call
+`modeling_preview_cleanup({"model_ref":"CURRENT_TASK_MODEL_REF", "display_cleanup":"surface"})`.
+The omitted cleanup mode defaults to surface. The operation verifies the sealed
+source, request, image, runtime and current module pins, then uses CPU geometry
+processing and export without loading neural weights. It keeps the original
+files and derives a new model reference; it does not render or send anything.
+Use the returned reference in `modeling_preview_render` and inspect real front
+and back frames before host handoff. Same-task and same-pin references are
+required; cross-task imports, arbitrary paths and pin promotion are unsupported.
+Incomplete work is retained, and cache reuse rechecks exact artifact bytes.
+
+Surface uses `model-preview-result/3`, `model-preview-data/3` and
+`modeling-surface-cleanup/1`. A compatible external host independently reproduces
+the exact raw-to-display geometry and report, including component removal,
+vertex mapping, coordinate movement and retained topology. It requires explicit
+`raw_geometry_preserved:true`, accurate display/vertex modification disclosures,
+and `semantic_fidelity_verified:false`. A checksum alone is insufficient;
+cleanup-capable results cannot downgrade to v1 to bypass validation.
+Conservative/none retain their unchanged-coordinate v2 proof, and legacy
+uncleaned modules retain their own v1 contract. All raw and display sources stay
+in the complete provenance/license ZIP, and rendering remains scoped to
+`render_input`.
+
+On one previously generated mesh, paired local inspection found modest smoothing
+of small bumps while large back ridges remained prominent. This is limited
+postprocessing evidence rather than a reconstruction-quality benchmark. See
+[surface validation](../../docs/modeling-surface-cleanup-validation.md) and the
+[typed host contract](HOST-INTEGRATION.md). Source publication, new inference,
+host activation and real platform delivery are separate acceptance layers.
 
 ## Agent workflow and readiness
 

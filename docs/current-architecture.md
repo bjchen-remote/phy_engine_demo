@@ -124,3 +124,26 @@ remains unverified. The maintained source toolbox suite passed 212 tests; this
 public branch passed 212 of 213 checks with its optional private-host SDK test
 skipped. The separate host passed 707 of 709 with two optional CLI checks skipped. Detailed limits and
 metrics are in the dated [acceptance record](modeling-flow-validation.md).
+
+## Optional bounded surface processing (0.3.2)
+
+The composed pipeline/modeling 0.3.2 adds opt-in `display_cleanup:surface` under
+fixed `bounded-surface/1`; initial image previews still default to conservative.
+It preserves raw geometry, removes only eligible complete detached fragments,
+and smooths eligible display vertices under fixed displacement, feature and
+topology guards. Surface uses independent exact raw-to-display v3 verification;
+conservative/none retain v2 unchanged-coordinate proof. A cleanup-capable pin
+cannot downgrade to v1, and semantic fidelity remains explicitly unverified.
+
+An already sealed model in the same task and with the same component/runtime
+pins can use `modeling_preview_cleanup`, a CPU-only geometry/export operation
+that keeps original files and loads no neural weights. Rendering and host
+handoff remain separate. It cannot import old tasks, promote old pins, or replay
+incomplete work. The simulation/engine interfaces remain unchanged.
+
+Paired local front/back inspection found modest smoothing of small bumps while
+large back ridges remained. Geometric roughness metrics alone do not establish
+visual identity, anatomical fidelity, printability or physical readiness.
+[The detailed surface validation record](modeling-surface-cleanup-validation.md)
+distinguishes this existing-mesh test from fresh inference, installed activation
+and real platform delivery; its private source images and meshes are not published.

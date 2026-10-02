@@ -149,6 +149,7 @@ def capabilities(lock: dict, runtime: dict | None = None) -> dict:
     cleanup = (all(lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering'))
                and lock['modules']['modeling'].get('display_cleanup') == 'bounded-floaters/1'
                and lock['modules']['rendering'].get('preview_geometry_scope') == 'render_input')
+    surface = cleanup and lock['modules']['modeling'].get('surface_cleanup') == 'bounded-surface/1'
     return {"ok": True, "protocol": "qq-pipeline-compat/1", "engine": lock["engine"],
             "modules": lock["modules"], "modeling_qualities": ["standard"],
             "image_modeling": {"configured": runtime is not None,
@@ -158,6 +159,8 @@ def capabilities(lock: dict, runtime: dict | None = None) -> dict:
                 "fidelity": "generative_approximation"},
             "model_preview": {"available": runtime is not None and supports_model_preview(lock),
                 "modeling_operation": "modeling_preview_from_image", "render_operation": "modeling_preview_render",
+                "cleanup_operation": "modeling_preview_cleanup" if cleanup else None,
+                "cleanup_needs_neural_inference": False,
                 "physical_scale_required": False, "material_assumption_required": False,
                 "simulation_performed": False, "full_geometry_retained": True,
                 "geometry_scope": "render_input" if cleanup else "generated_mesh",
@@ -165,9 +168,17 @@ def capabilities(lock: dict, runtime: dict | None = None) -> dict:
                 "display_cleanup": {"available": cleanup,
                     "policy": "bounded-floaters/1" if cleanup else None,
                     "default": "conservative" if cleanup else "none",
-                    "options": ["conservative", "none"] if cleanup else ["none"],
+                    "options": ["conservative", "none", "surface"] if surface else
+                               ["conservative", "none"] if cleanup else ["none"],
                     "semantic_fidelity_verified": False,
-                    "physics_repair": False}},
+                    "physics_repair": False},
+                "surface_filtering": {"available": surface,
+                    "policy": "bounded-surface/1" if surface else None,
+                    "mode": "surface" if surface else None,
+                    "coordinates_may_change": surface,
+                    "raw_geometry_preserved": True,
+                    "anatomy_recognition": False,
+                    "automatic_back_identification": False}},
             "simulation_qualities": ["visual", "strict"],
             "rendering_qualities": ["preview", "standard"],
             "providers": [{"id": "local-scientific", "network": False,
@@ -191,7 +202,7 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         result = capabilities(lock, task.get('modeling_runtime'))
     elif operation == 'modeling_from_image':
         result = image_module(root).generate_image_model(root, job, task, lock, arguments, atomic, object_hash)
-    elif operation in ('modeling_preview_from_image', 'modeling_preview_render'):
+    elif operation in ('modeling_preview_from_image', 'modeling_preview_render', 'modeling_preview_cleanup'):
         if not capabilities(lock, task.get('modeling_runtime'))['model_preview']['available']:
             raise ValueError('model preview requires compatible pinned modeling and rendering modules; '
                              'display cleanup needs a renderer declaring preview_geometry_scope=render_input')
@@ -199,6 +210,9 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
             raise ValueError('data_delivery_unavailable: model preview requires video and model ZIP delivery')
         if operation == 'modeling_preview_from_image':
             result = image_module(root).generate_image_model(root, job, task, lock, arguments, atomic, object_hash, preview=True)
+        elif operation == 'modeling_preview_cleanup':
+            from model_cleanup import cleanup_model
+            result = cleanup_model(root, job, task, lock, arguments, atomic, object_hash)
         else:
             from model_preview import render_preview
             result = render_preview(root, engine, job, task, lock, arguments, atomic, object_hash, stage)

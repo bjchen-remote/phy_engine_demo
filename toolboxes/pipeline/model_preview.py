@@ -42,7 +42,7 @@ def copy_exact(source: Path, target: Path, expected: str) -> None:
 
 
 def make_archive(target: Path, members: list[tuple[Path, str, str]], notice: str,
-                 max_bytes: int, *, cleaned: bool = False) -> None:
+                 max_bytes: int, *, cleaned: bool = False, surface: bool = False) -> None:
     if target.exists():
         raise ValueError('unsealed preview archive already exists')
     declarations = []
@@ -56,13 +56,18 @@ def make_archive(target: Path, members: list[tuple[Path, str, str]], notice: str
     note = (notice + '\n\nAI-generated single-image shape approximation. Hidden surfaces are inferred.\n'
             'No physics simulation or measurement is supplied. GLB/OBJ are untextured geometry.\n'
             'See display_mesh.json for units; model_unit does not establish real-world dimensions.\n').encode()
-    if cleaned:
+    if surface:
+        note += ('Display assets use bounded detached-debris removal and constrained surface smoothing.\n'
+                 'Coordinates may change; see cleanup-receipt.json for all removal and displacement diagnostics.\n'
+                 'Raw assets preserve the normalized pre-cleanup geometry. No anatomy recognition or hidden-surface accuracy is certified.\n').encode()
+    elif cleaned:
         note += ('Display assets use the bounded detached-component cleanup in cleanup-receipt.json.\n'
                  'Raw assets preserve the normalized pre-cleanup generated geometry. Cleanup is geometric, not semantic recognition.\n').encode()
     import hashlib
     declarations.append({'path': 'PROVIDER-NOTICE.txt', 'sha256': hashlib.sha256(note).hexdigest(),
                          'size_bytes': len(note), 'role': 'notice'})
-    manifest = {'schema_version': 'model-preview-data/2' if cleaned else 'model-preview-data/1', 'result_kind': 'model-preview',
+    manifest = {'schema_version': 'model-preview-data/3' if surface else
+                'model-preview-data/2' if cleaned else 'model-preview-data/1', 'result_kind': 'model-preview',
                 'simulation_performed': False, 'numerical_usable': False, 'members': declarations}
     descriptor, temporary = tempfile.mkstemp(prefix='.preview-zip-', dir=target.parent)
     os.close(descriptor)
@@ -120,13 +125,23 @@ def render_preview(root: Path, engine: Path, job: Path, task: dict, lock: dict,
     if any(not any(p['path'] == path.relative_to(job).as_posix() for p in pins) for path in sources.values()):
         raise ValueError('original model source was not sealed')
     receipt = read_json(sources['receipt'], 4_000_000)
+    request = read_json(directory / 'request.json')
     cleanup = read_json(sources['cleanup_receipt'], 4_000_000) if cleaned else None
-    if cleaned and (cleanup.get('schema_version') != 'modeling-display-cleanup/1'
+    surface = cleaned and cleanup.get('schema_version') == 'modeling-surface-cleanup/1'
+    moved = cleanup.get('summary', {}).get('moved_vertices') if surface and isinstance(cleanup.get('summary'), dict) else None
+    if surface and (lock['modules']['modeling'].get('surface_cleanup') != 'bounded-surface/1'
+                    or cleanup.get('policy_id') != 'bounded-surface/1'
+                    or cleanup.get('mode') != 'surface'
+                    or request.get('display_cleanup') != 'surface'
+                    or type(moved) is not int or moved < 0
+                    or receipt.get('display_vertices_modified') is not (moved > 0)
+                    or receipt.get('semantic_fidelity_verified') is not False):
+        raise ValueError('surface filtering requires pinned capability and explicit vertex-change disclosure')
+    if cleaned and (cleanup.get('schema_version') not in ('modeling-display-cleanup/1', 'modeling-surface-cleanup/1')
                     or receipt.get('raw_geometry_preserved') is not True
                     or receipt.get('display_geometry_modified') is not cleanup.get('applied')):
         raise ValueError('model preview lacks an explicit raw/clean geometry receipt')
     runtime = task['modeling_runtime']
-    request = read_json(directory / 'request.json')
     if (receipt.get('purpose') != 'model_preview' or receipt.get('display_only') is not True
             or receipt.get('simulation_performed') is not False
             or receipt.get('configuration_file_sha256') != runtime['config_sha256']
@@ -158,7 +173,9 @@ def render_preview(root: Path, engine: Path, job: Path, task: dict, lock: dict,
     name = 'model-preview-' + render_ref[:24]
     video, archive = artifacts / (name + '.mp4'), artifacts / (name + '.zip')
     summary = '参考图生成的三维模型旋转展示完成；附 GLB、OBJ、网格与来源资料。未进行物理模拟。'
-    if cleaned and cleanup.get('applied'):
+    if surface and cleanup.get('applied'):
+        summary += ' 已做有界表面过滤与平滑，原始模型及处理回执保存在模型包中；隐藏形状仍为生成估计。'
+    elif cleaned and cleanup.get('applied'):
         summary += ' 已保守清理悬浮微块，原始模型保存在模型包中。'
     def public_result():
         return {'ok': True, 'result_kind': 'model-preview', 'model_ref': reference,
@@ -166,6 +183,8 @@ def render_preview(root: Path, engine: Path, job: Path, task: dict, lock: dict,
                 'simulation_performed': False, 'full_geometry_retained': True,
                 **({'geometry_scope': 'render_input', 'raw_geometry_preserved': True,
                     'display_geometry_modified': cleanup['applied'], 'display_cleanup': cleanup['summary']} if cleaned else {}),
+                **({'display_vertices_modified': cleanup['summary']['moved_vertices'] > 0,
+                    'semantic_fidelity_verified': False} if surface else {}),
                 'provider_notice': runtime.get('provider_notice', ''), 'next_action': 'qq_video'}
     if response.exists():
         stored = read_json(response)
@@ -217,15 +236,19 @@ def render_preview(root: Path, engine: Path, job: Path, task: dict, lock: dict,
         if path.is_symlink() or not path.is_file():
             raise ValueError('invalid pinned modeling license')
         members.append((path, 'licenses/' + path.name, 'license'))
-    make_archive(archive, members, runtime.get('provider_notice', ''), task['delivery']['max_data_bytes'], cleaned=cleaned)
+    make_archive(archive, members, runtime.get('provider_notice', ''), task['delivery']['max_data_bytes'],
+                 cleaned=cleaned, surface=surface)
     media = proof['media']
     toolbox = read_json(job / 'toolbox-pin.json')
-    manifest = {'schema_version': 1, 'result_schema': 'model-preview-result/2' if cleaned else 'model-preview-result/1',
+    manifest = {'schema_version': 1, 'result_schema': 'model-preview-result/3' if surface else
+                'model-preview-result/2' if cleaned else 'model-preview-result/1',
         'result_kind': 'model-preview', 'status': 'succeeded', 'task_id': task['task_id'],
         'summary': summary,
         'verification': {'passed': True, 'numerical_passed': False, 'simulation_performed': False,
                          **({'raw_geometry_preserved': True, 'display_geometry_modified': cleanup['applied'],
                              'geometry_scope': 'display_mesh'} if cleaned else {}),
+                         **({'display_vertices_modified': cleanup['summary']['moved_vertices'] > 0,
+                             'semantic_fidelity_verified': False} if surface else {}),
                          'video_decode': {k: media[k] for k in
                          ('all_frames_decoded', 'codec', 'frame_count', 'width', 'height', 'duration_s')}},
         'outputs': [dict(pin(job, video, media_type='video/mp4', role='model_preview_video'), path=video.name)],

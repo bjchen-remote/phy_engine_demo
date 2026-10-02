@@ -26,6 +26,10 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
         allowed.add('display_cleanup')
     if set(arguments) - allowed:
         raise ValueError('image modeling accepts attachment IDs and physical parameters only')
+    if arguments.get('display_cleanup') == 'surface' and (
+            not preview or lock['modules']['modeling'].get('surface_cleanup') != 'bounded-surface/1'
+            or lock['modules']['rendering'].get('preview_geometry_scope') != 'render_input'):
+        raise ValueError('surface cleanup requires its explicitly pinned modeling capability and renderer')
     images = [image for image in task['request'].get('input_images', [])
               if image.get('id') == arguments.get('image_id')]
     if len(images) != 1:

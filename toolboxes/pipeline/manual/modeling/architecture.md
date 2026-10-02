@@ -8,8 +8,11 @@
 当前事件图片 ID + 模型展示目的
   → 宿主图片/runtime/modeling pin → modeling_preview_from_image
   → dedicated worker：alpha 或 U2Net CPU → MLX Metal shape
-  → 保留完整 raw GLB / OBJ / mesh JSON → bounded-floaters/1 → display + cleanup receipt
-     （默认 model_unit/conservative；可选 none；无模拟减面）
+  → 保留完整 raw GLB / OBJ / mesh JSON
+     → 默认 conservative：bounded-floaters/1 → display + cleanup receipt（v2）
+     → 显式 surface：bounded-surface/1 → 有界碎片删除/坐标平滑 + 精确重算回执（v3）
+     → none：display 保留原始生成网格（v2）
+     （默认 model_unit；无模拟减面；任何分支均保留 raw）
   → model_ref → modeling_preview_render → 360° MP4 + 模型 ZIP → qq_video
      （simulation 阶段跳过；ready_to_simulate=false）
 
@@ -31,9 +34,12 @@
 | `pipeline_stages/modeling.py` | standard 结构化机械/PCB prepare；固定引擎、预算和 canonical model bundle，不调用生成模型 |
 | `pipeline_stages/common.py` | 严格 JSON、canonical 摘要、不可覆盖工件、专用目录和 source_engine |
 | `pipeline/image_modeling.py` | 当前事件 image ID、任务路径隔离、runtime/config pin、固定 argv 推理和工件复用；独立展示返回 model_ref，物理分支另执行 engine mesh audit 并返回 task mesh_ref |
+| `pipeline/model_cleanup.py` | 从当前任务已封存 model_ref 的原始几何派生新 display/model_ref；固定 CPU 导出入口，不加载 NN 权重，不跨任务或升级 pin |
 | `modeling_flow/contracts.py` | 有界严格配置/请求、固定 source/checkpoint、权重和前景模型摘要、类型/数值范围 |
 | `modeling_flow/runner.py` | 离线运行时与依赖加载、图片处理、MLX/PyTorch shape inference、展示目的/物理目的分流和回执 |
 | `modeling_flow/segmentation.py` | 可选固定 U2Net ONNX 的 CPU 前景估计；保留提供的 alpha，记录掩膜假设 |
+| `modeling_flow/display_cleanup.py` | 原 `bounded-floaters/1` 展示策略；只删除满足全部阈值的完整闭合微小分量，保留剩余坐标 |
+| `modeling_flow/surface_cleanup.py` | 可选 `bounded-surface/1`；有界整分量删除与受约束 Taubin 平滑、顶点映射/位移/拓扑回执及确定性重算；不识别背面或解剖结构 |
 | `modeling_flow/meshes.py` | 三角网格导入、米制均匀缩放、面方向/拓扑/体积与模拟预算审计；不调用引擎 |
 | `modeling_flow/reduction.py` | 明确阈值的模拟用数值微屑清理与 PyMeshLab 保拓扑 QEM；保留原展示几何，不承担语义识别 |
 | QQ `modeling_runtime.py` | 本机操作者 runtime 选择、配置副本、独立锁、首次 disabled/enabled pin 及读取范围；无重建算法 |
@@ -70,6 +76,16 @@ PDF/Office/文本阅读用于获取说明与约束，不能替代对实际图片
 
 相同有效尝试可在重新核验全部 artifact_pins 后复用；存在未完成尝试目录返回 incomplete，保留证据而不重放。模型源/权重在独立可信 runtime 根内，配置和首次 disabled 状态按任务固定，任务重试不跟随新配置。权重不进入 QQ module digest 或 Git。
 
+当前任务若已有完整封存的 model_ref，且组合明确广告
+`model_preview.cleanup_operation=modeling_preview_cleanup`，可用
+`modeling_preview_cleanup({model_ref,display_cleanup:"surface"})` 从保留的 raw 派生新的
+display 与 model_ref。固定子进程只做标准库几何处理与 CPU Trimesh 导出，不加载
+生成模型或再次推理，原始来源和旧模型目录不改。新 model_ref 再走既有 render→交付。
+参数只接收当前任务模型引用与允许的清理模式，不接收路径；image/runtime/module pin
+必须与原封存结果一致，不能从另一任务拿网格或自动提升旧 pin。有效重复请求按源几何
+重新校验后复用；非空未完成目录保留失败证据。该后处理入口默认 surface，初次图片
+预览仍默认 conservative。
+
 推理环境显式禁用 Hugging Face/Transformers 网络和遥测，缓存只写当前任务，MPS CPU fallback 关闭。首选 MLX Metal；PyTorch MPS/CPU 必须由操作者明确选择，dtype 也固定。CPU 图片处理、U2Net 和 marching cubes 是披露的预后处理，不是偷偷切换 shape backend。
 
 ## 前景与单图生成假设
@@ -90,9 +106,27 @@ shape inference 使用固定 Hunyuan3D-2mini flow matching 权重和 source comm
 
 ## 展示网格、减面与双重几何门
 
-独立模型展示保存完整 GLB / OBJ / mesh JSON、来源和生成回执，保留生成的所有连通
-组件、面和拓扑记录。它不经过模拟微屑清理、QEM 或原引擎的单实体验收，不以删除
-部件或连接表面制造一个“可模拟”物体。渲染只做相机取景和 360° 旋转，源几何保持。
+独立模型展示先保存规范化的完整 raw GLB / OBJ / mesh JSON、来源和生成回执，raw 保留生成的所有连通
+组件、面和拓扑记录。默认 `conservative` 按 `bounded-floaters/1` 删除合格完整微小分量，
+`none` 保留全部生成几何。0.3.2 的可选 `surface` 由固定 `bounded-surface/1` 处理 display：
+允许删除通过尺寸/面积/面数、精确表面间隔和累计预算的完整独立微小分量，包括开放薄片；
+对其他保留面不删面、不补孔，固定 6 对 Taubin 平滑只移动合格顶点。位移同时限制为主表面
+最大尺寸和局部平均边长的固定比例，具体阈值由回执的 policy 记录；每步检查原非零三角面的朝向与面积。
+边界、非流形、不一致方向、退化面、重复面、锐边和细长三角形的一环邻域受保护，
+因此尖锐噪声也可能保留。该规则没有背面分割或人体语义，不能恢复看不到的表面。
+
+surface 处理预算为 150,000 顶点和 300,000 面；更大的有效原网格不建立邻接/BVH，
+保留 raw 为 display 并报告 `surface_operation_budget_exceeded`、`applied=false`、
+`analysis_complete=false`。不能把该 no-op 宣称为去噪完成。其他安全门也可冻结顶点或
+保留分量，须检查具体移除数、保护/移动顶点数和最大/RMS 位移，再查看真实前后渲染帧。
+
+surface 回执保存 raw/display canonical 摘要、原始面删除列表、顶点映射、移动的原顶点
+ID、位移和保留拓扑。`model-preview-result/3` / `model-preview-data/3` 由宿主可信镜像
+独立精确重算整个策略，再绑定视频使用的 display 和完整 ZIP；v2 仍只接受坐标不变的
+精确子网格。完整 raw 备份、坐标变化披露和 v3 校验不能互相替代。
+
+展示不经过模拟微屑清理、QEM 或原引擎的单实体验收，不以删除
+部件或连接表面制造一个“可模拟”物体。渲染只做相机取景和 360° 旋转，完整保留其 display 输入。
 有界坐标/三角索引、工件完整性、来源绑定与呈现门仍须通过；非有限或越界数据不会
 因用途是预览而被接受。展示成功的含义是可呈现该生成模型，物理资格仍独立未验证。
 
@@ -105,7 +139,8 @@ extent 相对主表面最大 extent，面积和绝对体积相对各分量对应
 逐个删除分量的顶点/面数、bbox、三种比例、阈值和剩余分量数写入 receipt。
 这是数值策略，没有识别“无关部件”；大薄片、洞腔、外部碎片、独立物体不会因体积小被移除。
 明显多个表面仍会失败；不按“仅保留最大组件”偷偷丢掉物体。禁用减面也禁用此清理。
-display 资产始终保持原生成几何，不被清理或低面数资产覆盖。
+物理请求的 display 资产保持原生成几何，不被模拟清理或低面数资产覆盖；展示请求的
+可选表面处理则生成独立 display，完整 raw 资产仍保留。
 
 过密 mesh 使用固定 `pymeshlab==2023.12.post3` 的
 `meshing_decimation_quadric_edge_collapse`，从**同一已审查模拟源网格**独立尝试

@@ -49,6 +49,12 @@ class PreviewRequestTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(FlowError):
                 load_request({**self.request, "physical_extent_m": value})
 
+    def test_surface_filter_is_an_explicit_preview_mode(self):
+        parsed = load_request({**self.request, 'display_cleanup': 'surface'})
+        self.assertEqual(parsed['display_cleanup'], 'surface')
+        with self.assertRaises(FlowError):
+            load_request({**self.request, 'display_cleanup': 'delete_rough_parts'})
+
 
 @unittest.skipUnless(DEPENDENCIES_AVAILABLE, "real GLB/PNG post-inference checks need numpy, trimesh and Pillow")
 class RealPreviewArtifactsTests(unittest.TestCase):
@@ -125,6 +131,34 @@ class RealPreviewArtifactsTests(unittest.TestCase):
         self.assertEqual(sum(len(mesh.faces) for mesh in exported), 9)
         for artifact in result["artifacts"]:
             self.assertEqual(file_digest(self.root / "output" / artifact["path"]), artifact["sha256"])
+
+    def test_surface_mode_exports_changed_vertices_and_original_mesh(self):
+        self.vertices = [[x / 10, y / 10, .02 * ((x + y) % 2)]
+                         for y in range(11) for x in range(11)]
+        self.faces = []
+        for y in range(10):
+            for x in range(10):
+                a = y * 11 + x
+                self.faces.extend([[a, a + 1, a + 12], [a, a + 12, a + 11]])
+        self.inference_fixture = self.trimesh.Trimesh(vertices=self.vertices, faces=self.faces, process=False)
+        result, display, receipt = self.generate({**self.request, 'display_cleanup': 'surface'})
+        raw = json.loads((self.root / 'output/raw_mesh.json').read_bytes())
+        cleanup = json.loads((self.root / 'output/cleanup-receipt.json').read_bytes())
+        self.assertNotEqual(display['vertices'], raw['vertices'])
+        self.assertEqual(display['faces'], raw['faces'])
+        self.assertEqual(cleanup['schema_version'], 'modeling-surface-cleanup/1')
+        self.assertTrue(receipt['display_vertices_modified'])
+        self.assertTrue(receipt['raw_geometry_preserved'])
+        self.assertFalse(receipt['semantic_fidelity_verified'])
+        self.assertFalse(receipt['simulation_performed'])
+        self.assertFalse(receipt['ready_to_simulate'])
+        from modeling_flow.surface_cleanup import validate_surface_cleanup
+        self.assertTrue(validate_surface_cleanup(
+            {k: raw[k] for k in ('vertices', 'faces')},
+            {k: display[k] for k in ('vertices', 'faces')}, cleanup))
+        exported = self.trimesh.load(result['display_mesh_path'], process=False)
+        parts = list(exported.geometry.values()) if hasattr(exported, 'geometry') else [exported]
+        self.assertEqual(sum(len(part.faces) for part in parts), len(self.faces))
 
     def test_supplied_metres_affect_scale_only_without_guessed_material(self):
         result, display, receipt = self.generate({**self.request, "physical_extent_m": .16})

@@ -105,7 +105,7 @@ def verify_bundle(root: Path) -> dict:
             raise ValueError("pinned module integrity mismatch: " + role)
         if (pin.get('model_preview') is True) != (info.get('model_preview') is True):
             raise ValueError('pinned preview capability mismatch: ' + role)
-        for feature in ('display_cleanup', 'preview_geometry_scope'):
+        for feature in ('display_cleanup', 'preview_geometry_scope', 'surface_cleanup'):
             if pin.get(feature) != info.get(feature):
                 raise ValueError('pinned preview feature mismatch: ' + role + '/' + feature)
     return lock

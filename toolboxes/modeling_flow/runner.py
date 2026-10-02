@@ -371,9 +371,14 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
         raw_audit = audit_mesh(raw_mesh)
         cleanup = None
         if preview:
-            from .display_cleanup import clean_display_mesh
-            mesh, cleanup = clean_display_mesh(raw_mesh, request["display_cleanup"])
-            assumptions.append("Display cleanup removes only bounded detached micro-components; the normalized original mesh is retained.")
+            if request["display_cleanup"] == "surface":
+                from .surface_cleanup import clean_surface_mesh
+                mesh, cleanup = clean_surface_mesh(raw_mesh)
+                assumptions.append("Display surface filtering may remove bounded detached debris and move vertices within fixed limits; the normalized original mesh is retained. Surface filtering does not identify anatomy or recover unseen geometry.")
+            else:
+                from .display_cleanup import clean_display_mesh
+                mesh, cleanup = clean_display_mesh(raw_mesh, request["display_cleanup"])
+                assumptions.append("Display cleanup removes only bounded detached micro-components; the normalized original mesh is retained.")
         display_audit = audit_mesh(mesh)
         # Only now create output. Dependency, image and inference failures leave
         # no misleading successful artifacts behind.
@@ -481,6 +486,9 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
                            raw_audit=raw_audit, raw_geometry_preserved=True,
                            display_geometry_modified=cleanup["applied"],
                            display_cleanup={key: cleanup[key] for key in ("mode", "applied", "policy_id", "summary")})
+            if request["display_cleanup"] == "surface":
+                receipt.update(display_vertices_modified=cleanup["summary"]["moved_vertices"] > 0,
+                               semantic_fidelity_verified=False)
         write_json(root / "receipt.json", receipt)
         result["artifacts"] = artifacts + [artifact(root / "receipt.json", root, "modeling_receipt", "application/json")]
         if preview:

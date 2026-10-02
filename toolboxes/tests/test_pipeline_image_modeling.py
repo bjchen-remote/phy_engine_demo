@@ -124,6 +124,18 @@ class ImageModelingGateTests(unittest.TestCase):
         self.assertEqual(result['code'], 'image_modeling_not_configured')
         execute.assert_not_called()
 
+    def test_surface_mode_needs_advertised_capability_before_inference(self):
+        self.lock['modules']['rendering'] = {'preview_geometry_scope': 'render_input'}
+        for feature in (None, 'invented-surface/1'):
+            with self.subTest(feature=feature):
+                self.lock['modules']['modeling']['surface_cleanup'] = feature
+                with patch.object(image_modeling.subprocess, 'run') as execute:
+                    with self.assertRaisesRegex(ValueError, 'explicitly pinned'):
+                        image_modeling.generate_image_model(self.root, self.job, self.task, self.lock,
+                            {'image_id': 'image-1', 'display_cleanup': 'surface'},
+                            save, object_hash, preview=True)
+                execute.assert_not_called()
+
     def test_attachment_change_is_rejected_before_execution(self):
         self.input.write_bytes(b'changed after admission')
         with patch.object(image_modeling.subprocess, 'run') as execute:

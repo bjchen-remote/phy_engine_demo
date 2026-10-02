@@ -519,3 +519,53 @@ rechecks all raw/display sources, cleanup/source receipts, artifact pins and the
 fixed public response before atomically republishing the selected task manifest.
 A preview is neither a physical experiment nor simulation readiness. Existing
 physical preparation, topology, solver and numerical-quality gates remain.
+
+## Opt-in bounded surface proof and CPU reuse (0.3.2)
+
+The conservative/none v2 contract above remains unchanged. A current pinned
+modeling module additionally declaring `surface_cleanup:"bounded-surface/1"`
+may advertise `surface` in `model_preview.display_cleanup.options` and
+`model_preview.surface_filtering.available:true`; its renderer must still declare
+`preview_geometry_scope:"render_input"`. Do not infer support from version strings
+or a newer composer. Initial image preview defaults to conservative.
+
+For `display_cleanup:"surface"`, require result/data schemas
+`model-preview-result/3` and `model-preview-data/3`, with the same task, source,
+raw/display export, video and complete ZIP bindings as v2. The cleanup receipt
+must be `modeling-surface-cleanup/1` under the exact pinned `bounded-surface/1`
+policy. Independently run an audited trusted standard-library implementation
+against raw geometry and compare the exact canonical display mesh and complete
+receipt. This includes detached-component eligibility/removals, explicit or
+budget-no-op identity vertex mapping, bounded coordinate changes, protected
+features, retained face order/winding/topology and all diagnostics. Oversized
+surface work may validly retain exact raw geometry with `analysis_complete:false`
+and an identity mapping; it is not a successful smoothing claim.
+
+Both the modeling receipt and outer verification must disclose
+`raw_geometry_preserved:true`, accurate `display_geometry_modified` and
+`display_vertices_modified`, and `semantic_fidelity_verified:false`. OBJ must
+match the expected coordinates/indices exactly; GLB must match exact float32
+quantization and its bounded embedded geometry. A producer-supplied hash, report,
+boolean or policy list cannot replace independent recomputation. Require v3 for
+surface receipts, reject cleanup-capable pins downgraded to v1, and reject any
+result/ZIP schema mismatch. Preserve valid v1 support for genuinely legacy
+uncleaned modules. The renderer proves retention of its display input, rather
+than preservation of every raw vertex.
+
+When capability discovery advertises `model_preview.cleanup_operation`, the
+same current task can call `modeling_preview_cleanup` with only `model_ref` and
+optional `display_cleanup` (default surface; only advertised modes are accepted).
+Validate its sealed original request/image/runtime/module and artifact bytes.
+The fixed CPU subprocess loads only geometry/export helpers using the task's
+pinned interpreter; it does not import the neural runner or load weights.
+It derives a new request/reference changing only cleanup mode and retains exact
+original raw JSON. A legacy source without a cleanup receipt can retain its
+sealed display mesh as raw; a processed source missing raw must fail. Return a
+reference for a separate `modeling_preview_render` call. It neither sends nor
+renders directly, cannot cross tasks or promote old pins, and does not replay
+incomplete attempts. Cached results must be revalidated before reuse.
+
+Smoothing neither measures invisible surfaces nor restores semantic detail.
+Paired inspection has shown only modest small-bump improvement on one mesh;
+large back ridges remained. Keep these limitations visible to agents and users.
+See [the local validation record](../../docs/modeling-surface-cleanup-validation.md).

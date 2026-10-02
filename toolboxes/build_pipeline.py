@@ -14,8 +14,8 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, supports_model_preview,
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
-COMPOSED_VERSION = "0.3.1"
-ROLE_VERSIONS = {"modeling": "0.3.1", "rendering": "0.3.1"}
+COMPOSED_VERSION = "0.3.2"
+ROLE_VERSIONS = {"modeling": "0.3.2", "rendering": "0.3.1"}
 
 
 def copy_tree(source: Path, target: Path) -> None:
@@ -51,6 +51,7 @@ def build_module(role: str, output: Path) -> dict:
         info['model_preview'] = True
     if role == 'modeling':
         info['display_cleanup'] = 'bounded-floaters/1'
+        info['surface_cleanup'] = 'bounded-surface/1'
     if role == 'rendering':
         info['preview_geometry_scope'] = 'render_input'
     write_json(output / "module.json", info)
@@ -91,10 +92,10 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
             "path": "modules/" + role, "digest": digest_tree(target)}
         if info.get('model_preview') is True:
             lock['modules'][role]['model_preview'] = True
-        for feature in ('display_cleanup', 'preview_geometry_scope'):
+        for feature in ('display_cleanup', 'preview_geometry_scope', 'surface_cleanup'):
             if feature in info:
                 lock['modules'][role][feature] = info[feature]
-    for filename in ("adapter.py", "bundle.py", "image_modeling.py", "model_preview.py"):
+    for filename in ("adapter.py", "bundle.py", "image_modeling.py", "model_preview.py", "model_cleanup.py"):
         shutil.copyfile(PIPELINE / filename, output / filename)
     write_json(output / "bundle-lock.json", lock)
     api = dict(engine_manifest.get("agent_api", {}))
@@ -104,6 +105,9 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
     if supports_model_preview(lock):
         api['operations'] = sorted(set(api['operations']) | {'modeling_preview_from_image', 'modeling_preview_render'})
         api['model_preview_render_operation'] = 'modeling_preview_render'
+        if (lock['modules']['modeling'].get('display_cleanup') == 'bounded-floaters/1'
+                and lock['modules']['rendering'].get('preview_geometry_scope') == 'render_input'):
+            api['operations'] = sorted(set(api['operations']) | {'modeling_preview_cleanup'})
     api["execution_operation"] = "physics_simulate"
     # Saved scenes must pass this composed adapter's preparation before probe.
     # Host-readable metadata does not change the original engine/stage bytes.
@@ -127,6 +131,13 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         "use none to retain every generated component in the video. The fixed conservative policy "
         "removes only eligible whole tiny disconnected components, discloses every removal, "
         "and retains raw GLB/OBJ/JSON alongside the display mesh and cleanup receipt in the ZIP. "
+        "When bounded-surface/1 is advertised, display_cleanup=surface also filters bounded detached "
+        "debris and smooths eligible vertices under displacement and face-orientation limits. "
+        "The original normalized geometry remains in the ZIP; vertex modification is disclosed "
+        "and never establishes correct unseen anatomy or simulation readiness. "
+        "For an already generated model in this same task, modeling_preview_cleanup with model_ref "
+        "and an advertised display_cleanup mode derives a new sealed model without neural inference; "
+        "then use modeling_preview_render on the returned model_ref. Never take references from other tasks. "
         "The video preserves its complete display input; cleanup does not certify object semantics or physics. "
         "Legacy preview modules without this capability preserve their original geometry. "
         "It needs no physical dimensions or density; never invent them. No simulation is performed. "

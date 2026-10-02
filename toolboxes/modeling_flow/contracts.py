@@ -273,8 +273,8 @@ def load_request(source: str | Path | dict) -> dict:
         raise FlowError("invalid_request", "Display previews do not decimate generated geometry")
     if preview:
         value["display_cleanup"] = value.get("display_cleanup", "conservative")
-        if value["display_cleanup"] not in ("conservative", "none"):
-            raise FlowError("invalid_request", "display_cleanup must be conservative or none")
+        if value["display_cleanup"] not in ("conservative", "none", "surface"):
+            raise FlowError("invalid_request", "display_cleanup must be conservative, surface or none")
     return value
 
 
