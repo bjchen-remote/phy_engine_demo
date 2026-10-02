@@ -1,6 +1,6 @@
 # Bounded surface cleanup validation
 
-The 0.3.2 modeling candidate adds optional `display_cleanup=surface` under
+The 0.3.2 modeling module adds optional `display_cleanup=surface` under
 `bounded-surface/1`. Image generation keeps its conservative default. A sealed
 model in the same task can be cleaned through `modeling_preview_cleanup` without
 loading neural weights, then rendered using its returned model reference.
@@ -67,6 +67,33 @@ Python 3.12.14 produced the final mesh and receipt; independent host Python 3.14
 recomputation matched both canonical objects exactly. The original source SHA-256
 is `e0074ed3e120690b479838b312d98afd54a04f8bcc892092ec3192e68481c7c6`.
 Private source pictures and meshes are retained only in local acceptance artifacts.
+
+## Fresh isolated flow acceptance, 2026-10-03
+
+A new isolated event used a previously admitted picture as test input. The
+four-panel screenshot was rejected before inference, and one 663 × 661 panel
+was admitted through the crop receipt. With seed 0, 30 inference steps, guidance
+5.0, octree resolution 128 and 2,000 chunks, the actual local MLX worker generated
+a new conservative model. The same-task CPU cleanup then derived a surface model
+without neural inference. Original asset hashes, raw JSON bytes, units, scale
+and image identity remained unchanged.
+
+The returned reference passed real native turntable rendering, full MP4 decoding,
+ZIP/provenance validation and independent host Python 3.14 v3 recomputation.
+Actual front/back frames were read and visually reviewed. Held acknowledgement,
+image, video and ZIP dispatch produced four captured receipts through an explicit
+fake API. The whole test took 167.3 seconds and did not send to live QQ, change
+live task pins or replay an original group task. These captured receipts establish
+the isolated integration flow; they are not platform-delivery receipts. Visual
+inspection still found substantial back ridges and edge artifacts.
+
+The client suite ran 919 tests successfully with two optional Bun checks skipped;
+the public toolbox suite ran 251 successfully with one optional private-host SDK
+check skipped. The composed 0.3.2 package was separately activated while the live
+queue was idle, preserving every event/action/inbox record, credentials and the
+unchanged physics 1.4.7, simulation 0.2.0 and rendering 0.3.1 component digests.
+Fresh bridge health was ready after activation. Health and this local acceptance
+do not establish live QQ delivery of a new v3 result.
 
 ## Reproducible checks
 
