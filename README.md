@@ -6,7 +6,7 @@ Agent Physics is a lightweight simulator built for AI agents. An agent describes
 
 The project focuses on **composable scenes, fast visual feedback, and reproducible experiments**. Python provides the interfaces and orchestration; C11 powers the numerical kernels. A standalone toolbox connects the simulator to different agents and applications.
 
-[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [Release notes](docs/release-1.2.4.md)
+[Quick start](#quick-start) · [Agent integration](#agent-integration) · [Examples](examples) · [Architecture](docs/architecture.md) · [Modeling–simulation–rendering pipeline](toolboxes/pipeline/README.md) · [Mac image-to-3D modeling](toolboxes/modeling_flow/README.md) · [PCB thermal design](docs/pcb-thermal-design.md) · [Current validation](docs/modeling-flow-validation.md)
 
 ## What it can simulate
 
@@ -19,6 +19,7 @@ The project focuses on **composable scenes, fast visual feedback, and reproducib
 | Meshes and soft bodies | Triangle-mesh construction, soft-body collisions, cloth draping, and insertion scenes |
 | Coupled scenes | Supported contact and two-way reactions between liquids, soft meshes, springs, and rigid bodies |
 | Quantitative experiments | Threshold times, distances, velocities, energies, and time-series queries |
+| PCB thermal maps (toolbox) | Prescribed component powers, board heat spreading, top/bottom convection, steady or transient temperature maps |
 
 With an agent connected, requests can look like this:
 
@@ -28,7 +29,29 @@ With an agent connected, requests can look like this:
 >
 > “Simulate two sliders separating and record when their gap first reaches a specified distance.”
 
-The external agent turns these requests into scene configurations. Examples are starting points; the API also supports building scenes from entities, constraints, force fields, and meshes.
+The external agent turns mechanical requests into scene configurations. Examples are starting points; the API also supports building scenes from entities, constraints, force fields, and meshes. PCB requests use a separate [thermal model](docs/pcb-thermal-design.md) within the same toolbox.
+
+## Mac image-to-model turntables
+
+The optional offline Hunyuan3D-2mini/MLX modeling worker can reconstruct a
+single-image shape and generate a 360-degree H.264 model presentation on Apple
+Silicon. The 0.3.2 [composed pipeline](toolboxes/pipeline/README.md) preserves the
+whole raw model and exports raw/display GLB, OBJ, JSON, source references and
+licenses. Its optional conservative display cleanup removes only tiny detached
+components meeting every fixed bound; an unfiltered mode retains them. The
+video uses the exact exported display mesh, with a verifiable cleanup receipt.
+This route needs no invented physical scale or material and runs no simulation.
+The opt-in `surface` mode also smooths eligible vertices under fixed displacement
+and topology bounds, with independent v3 raw-to-display verification. Existing
+models in the same task can use CPU-only `modeling_preview_cleanup`, preserving
+the original model and its pins. Initial image previews keep the conservative
+default. Paired local inspection found modest smoothing while large back ridges
+remained; see [surface validation and limits](docs/modeling-surface-cleanup-validation.md).
+Images/PDF reading, public-reference search and messaging are external-host
+features; [HOST-INTEGRATION.md](toolboxes/pipeline/HOST-INTEGRATION.md) documents
+the separate admission, verification and delivery contracts. Generated hidden
+surfaces are approximations; textures, calibrated mechanics and exact CAD are
+not supplied by the shape model.
 
 ## From prompt to result
 
@@ -42,7 +65,7 @@ The `visual` validation mode serves ordinary video requests; `strict` serves qua
 
 ## Quick start
 
-The complete video workflow currently targets **macOS** and requires **Python 3.9+** and **Xcode Command Line Tools**. Ordinary runs need no third-party Python packages or model API key. Native code is compiled on first use and cached for subsequent runs. The prebuilt toolbox targets Apple Silicon.
+The complete video workflow currently targets **macOS** and requires **Python 3.9+** and **Xcode Command Line Tools**. Mechanical runs need no third-party Python packages or model API key. The PCB thermal video path additionally requires `ffmpeg` on the host. Native code is compiled on first use and cached for subsequent runs. The prebuilt toolbox targets Apple Silicon.
 
 ```sh
 git clone https://github.com/bjchen-remote/phy_engine_demo.git
@@ -68,6 +91,7 @@ Twelve physics tools, scene schemas, and a topic-based Skill give agents access 
 
 - **Direct engine integration:** register the [tool definitions](agent/tools.json), supply the [Skill](agent/physics-simulation/SKILL.md), and call the engine through its CLI or Python API.
 - **Standalone module integration:** use the [physics toolbox](toolboxes/physics/README.md) and [task protocol](toolboxes/PROTOCOL.md). The host supplies a task directory and resource limits.
+- **PCB thermal integration:** the same active toolbox exposes `pcb_example`, `pcb_validate`, `pcb_prepare`, `pcb_inspect`, and `pcb_query`. It keeps the mechanical `scene-v1` solver unchanged and uses the [PCB workflow](agent/physics-simulation/references/pcb-thermal.md).
 
 Example tool call:
 
@@ -111,8 +135,14 @@ python3 -m unittest discover -s toolboxes/tests -v
 python3 toolboxes/build_physics.py --check
 ```
 
-The current toolbox version is **1.2.4**. The published version passed 389 engine tests and 13 module tests; details are in the [release notes](docs/release-1.2.4.md). Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
+The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares version **1.4.7**. Current image modeling and pipeline verification is recorded in [Mac validation](docs/modeling-flow-validation.md); earlier release notes remain historical records. The Python distribution in `pyproject.toml` has its own version. Run the commands above or check the the recorded local regression suite for validation of the current source; test counts change as coverage grows. Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
 
 ## License
 
 [MIT](LICENSE)
+
+## Local image-to-3D modeling
+
+The optional Mac backend runs public Hunyuan3D-2mini flow matching weights through a pinned MLX Metal implementation, with offline U2Net CPU foreground estimation for opaque images. It preserves detailed display GLB/OBJ and a separately audited physics mesh, explicit scale/material assumptions and provenance. Code/weight installation is separate from inference; model weights and private chat bridges are not part of this repository.
+
+See the [modeling backend and reproducible installer](toolboxes/modeling_flow/README.md), [composed pipeline](toolboxes/pipeline/README.md), [algorithm research](docs/modeling-flow-research.md), [Mac validation](docs/modeling-flow-validation.md), and [separately installed host interface](toolboxes/pipeline/HOST-INTEGRATION.md). The adopted engine snapshot is 1.4.7. No texture generation, CAD tolerances, calibrated toy mechanics or reproduction of Meshy's proprietary service is claimed.

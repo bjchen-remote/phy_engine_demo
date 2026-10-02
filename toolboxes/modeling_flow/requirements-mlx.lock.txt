@@ -1,0 +1,19 @@
+# Exact minimal inference closure observed in the Mac MLX runtime.
+# Install with --no-deps --only-binary=:all:; optional research/CUDA deps excluded.
+mlx==0.31.2
+mlx-metal==0.31.2
+numpy==2.2.6
+opencv-python==4.13.0.92
+pillow==12.3.0
+PyYAML==6.0.3
+safetensors==0.8.0
+scikit-image==0.25.2
+trimesh==4.12.2
+fast-simplification==0.1.13
+pymeshlab==2023.12.post3
+scipy==1.17.1
+imageio==2.38.0
+tifffile==2026.3.3
+networkx==3.7
+lazy-loader==0.6
+packaging==26.3

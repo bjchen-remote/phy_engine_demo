@@ -10,7 +10,7 @@ Input is one finite scene-v1 JSON object. Present invalid fields never become de
 |---|---|
 | Input scene | 1 MB, 20,000 values (mesh scenes 160,000), depth 32 |
 | Entities / point masses / colliders / fields | 128 / 64 / 64 / 8; nonempty unique target IDs |
-| Physical duration / macro dt | `(0,30]` s / `[0.0001,0.05]` s |
+| Physical duration / macro dt | `(0,60]` s / `[0.0001,0.05]` s |
 | Output FPS / per-run wall budget | Integer 1–60 / 1–300 s |
 | Particle spacing | 0.0001–0.5 m; sub-millimetre values require physically small bounds and a bounded capillary timestep |
 | Coordinate magnitude / world axis span / shape extent | 10,000 / 1,000 / 1,000 m |
@@ -58,7 +58,7 @@ Use a dedicated output directory containing only known run artifacts. Filesystem
 
 | Model | Supported interpretation | Outside its scope |
 |---|---|---|
-| Point mass | Softened N-body, standalone links, or opt-in collision-radius point in [coupling](coupling.md) | World gravity, resolved point spin, permanent stability proof |
+| Point mass | Softened N-body, standalone links with optional tensile spring failure, or opt-in collision-radius point in [coupling](coupling.md) | World gravity, resolved point spin, continuum fracture, permanent stability proof |
 | Liquid | Native DFSPH visual single-phase free surface; water/honey/glue/molten-lead presets and numerical diagnostics | Calibrated CFD/material data, density contrast, immiscibility, air/bubbles, wetting/splash thresholds, pressure/loads, non-Newtonian rheology, heat/phase change/chemistry |
 | Particle self-gravity | Native softened Barnes-Hut/direct gravity on fluid/granular particles; one shared reference density | Particle/point-mass gravity exchange, compressible gas, exact tree angular momentum or orbital-stability certification |
 | Sand/water-sand | Contacts, wetting, weakened cohesion and drag; qualitative erosion | Soil constitutive law, pore pressure, sediment rate, strength/scour prediction |

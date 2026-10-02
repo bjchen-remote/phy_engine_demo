@@ -1,7 +1,9 @@
 # Self-gravitating liquid and granular matter
 
-Liquid particles can attract one another. Use the ordinary native particle route,
-not a substitute point-mass orbit or a fixed radial field. Start with
+Liquid particles can attract one another when the request explicitly asks for
+particle self-gravity. It is a distinct physical model, not a way to make
+ordinary colliding drops merge or look cohesive. Use the ordinary native particle
+route, not a substitute point-mass orbit or a fixed radial field. Start with
 `physics_example(name="self_gravitating_liquid")` or author any collection of
 fluid/granular volumes and static colliders.
 
@@ -39,6 +41,15 @@ removed so it adds no net force to this equal-mass population. Fluid pressure,
 surface tension and contacts still act. Adaptive substeps resolve gravitational
 acceleration and transport, with the original wall deadline and full duration.
 `gravity_theta=0` computes direct softened forces for convergence checks.
+
+`plan.nbody_timestep_feasible` currently checks point-mass initial orbits, not
+particle self-gravity. Gravity-driven substeps can exceed the ordinary planned
+`max_substeps`. If measured `max_substeps_used` exceeds the planned value, or
+particle speed and occupied bounds jump sharply, compare full-duration runs at
+the prepared `world.dt` and half that dt before accepting the visual behavior.
+Keep mass, softening, spacing, initial velocities, force model and duration
+fixed for this comparison. A finite state and passing density checks alone do
+not establish timestep convergence.
 
 This is an incompressible visual matter model, not compressible stellar gas or
 calibrated astrophysical hydrodynamics. Tree forces do not exactly conserve angular

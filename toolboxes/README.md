@@ -3,11 +3,14 @@
 Toolboxes receive a text request, a task directory and resource limits. They return capability,
 progress and a verified result manifest. They have no dependency on a messaging bridge or user account.
 
-- `physics/`: the packaged macOS physics engine and its v1 task adapter.
+- `physics/`: the packaged macOS physics engine, isolated PCB thermal domain, and v1 task adapter.
 - `registry.py`: immutable publication, atomic activation and rollback by content digest.
 - `PROTOCOL.md`: the stable interface for hosts and module authors.
 - `smoke.py`: standalone execution in a macOS sandbox, with a verified MP4 output.
 - `tests/`: publication, protocol and result-integrity tests.
+- `pipeline/`: [QQ-compatible composition and three runtime skills](pipeline/README.md).
+- `build_pipeline.py`: compose independently versioned modeling, simulation and rendering modules with a pinned engine.
+- `pipeline_smoke.py`: real sandbox acceptance for MP4 + JSON/CSV ZIP and solver-free rerendering.
 
 Run these commands from the repository root:
 
@@ -21,6 +24,13 @@ The packaged native code currently targets macOS arm64. Use the local builder to
 supported Mac. The smoke executor requires macOS; it denies network access and writes only to the
 current task directory. It enforces a 30-second computation timeout and a 16 MiB deliverable limit,
 but does not impose a hard memory or total temporary-disk quota.
+
+PCB thermal videos also require `ffmpeg` and `ffprobe` on the local host. The PCB API uses
+`pcb_example`, `pcb_validate`, `pcb_prepare`, `pcb_inspect`, and `pcb_query`; the existing
+`physics_simulate` operation runs whichever tagged model was prepared. See the
+[model guide](../agent/physics-simulation/references/pcb-thermal.md) and
+[illustrative input](physics/pcb_thermal_demo.json). The integration test runs the complete
+PCB path in the same macOS sandbox as the host.
 
 Publishing and selecting a package do not restart its host:
 

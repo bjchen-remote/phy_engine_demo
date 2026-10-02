@@ -15,8 +15,10 @@ from physics_demo.limits import (
     MAX_COLLIDERS,
     MAX_ENTITIES,
     MAX_FRAME_PARTICLE_SAMPLES,
+    MAX_PHYSICAL_DURATION_S,
     MAX_FORCE_FIELDS,
     MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
+    NO_DEADLINE_WALL_TIME_S,
     MAX_PARTICLE_SPACING,
     MAX_SCENE_DEPTH,
     MAX_SCENE_NODES,
@@ -114,9 +116,18 @@ CAPABILITIES: dict[str, Any] = {
             "accuracy": "visual proxy; not a geotechnical constitutive model",
         },
         "rigid": {
-            "algorithm": "semi-implicit translation plus positional contacts",
+            "entity_type": "rigid",
+            "algorithm": "Python-reference semi-implicit translation and positional contacts; native particle runs use static rigid geometry",
             "use_for": ["static spheres and boxes", "Python-reference dynamic spheres"],
-            "accuracy": "native runs accept static rigid geometry; no rotational rigid-body solver",
+            "accuracy": "The legacy rigid entity has no rotational solver. Use rigid_body on the coupled backend for quaternion rotation and supported two-way contacts.",
+        },
+        "rigid_body": {
+            "entity_type": "rigid_body",
+            "route": "coupled",
+            "algorithm": "Shared-clock C11 rigid translation and quaternion rotation with finite-mass contact reactions",
+            "use_for": ["torque-free tumble", "gyroscope precession", "rigid-spring pendulum", "supported mixed contact"],
+            "limits": COUPLED_CAPABILITIES["limits"],
+            "scope": COUPLED_CAPABILITIES["scope"],
         },
         "force_field": {
             "algorithm": "targeted analytic acceleration evaluated in the native C11 hot loop",
@@ -151,13 +162,13 @@ CAPABILITIES: dict[str, Any] = {
         "max_force_fields": MAX_FORCE_FIELDS,
         "max_initial_particle_volume_overlap": MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
         "max_frame_particle_samples": MAX_FRAME_PARTICLE_SAMPLES,
-        "max_physical_duration_s": 30,
+        "max_physical_duration_s": MAX_PHYSICAL_DURATION_S,
         "max_wall_time_s": MAX_WALL_TIME_S,
     },
     "unsupported": [
         "engineering-grade multiphase CFD",
         "air-resolved splash thresholds",
-        "fracture or calibrated soil mechanics",
+        "continuum mesh or rigid-body fracture, and calibrated soil mechanics",
         "cloth/membrane water balloons",
         "general articulated joints",
         "continuous particle emitters or sinks",
@@ -370,7 +381,7 @@ def _effective_scene_choices(scene: dict[str, Any]) -> list[str]:
     return choices
 
 
-def normalize_and_validate(raw: Any) -> dict[str, Any]:
+def normalize_and_validate(raw: Any, *, allow_unlimited: bool = False) -> dict[str, Any]:
     errors: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     assumptions: list[str] = []
@@ -413,8 +424,8 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         bounds = world["bounds"] = {"min": [-3.0, 0.0, -3.0], "max": [3.0, 5.0, 3.0]}
     _unknown_fields(bounds, {"min", "max"}, "world.bounds", errors)
     _normalize_fields(bounds, {"min": [-3.0, 0.0, -3.0], "max": [3.0, 5.0, 3.0]}, "world.bounds", errors)
-    if not (0.0 < world["duration"] <= 30.0):
-        errors.append(_issue("duration_range", "world.duration", "duration must be in (0, 30] seconds.", "Use 2.0 for a short demo."))
+    if not (0.0 < world["duration"] <= MAX_PHYSICAL_DURATION_S):
+        errors.append(_issue("duration_range", "world.duration", f"duration must be in (0, {MAX_PHYSICAL_DURATION_S:g}] seconds.", "Use 2.0 for a short demo."))
     if not (1e-4 <= world["dt"] <= 0.05):
         errors.append(_issue("dt_range", "world.dt", "dt must be between 0.0001 and 0.05 seconds.", "Use 0.011111 for particle scenes."))
     if not (1.0 <= world["output_fps"] <= 60.0):
@@ -434,7 +445,7 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
     if not isinstance(budget, dict):
         errors.append(_issue("budget_type", "budget", "budget must be an object."))
         budget = scene["budget"] = {}
-    _unknown_fields(budget, {"wall_time_s", "quality", "backend", "validation"}, "budget", errors)
+    _unknown_fields(budget, {"wall_time_s", "quality", "backend", "validation", "unlimited_runtime"}, "budget", errors)
     _defaults(budget, {
         "wall_time_s": (55.0, "Used a 55 second wall-clock budget."),
         "quality": ("preview", "Used preview quality."),
@@ -447,7 +458,13 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("backend", "budget.backend", "backend must be auto, native, or python."))
     if "validation" in budget and budget["validation"] not in ("visual", "strict"):
         errors.append(_issue("validation_mode", "budget.validation", "validation must be visual or strict."))
-    if not (1.0 <= budget["wall_time_s"] <= MAX_WALL_TIME_S):
+    unlimited = budget.get("unlimited_runtime", False)
+    if type(unlimited) is not bool:
+        errors.append(_issue("unlimited_runtime", "budget.unlimited_runtime", "unlimited_runtime must be boolean."))
+    if unlimited is True and not allow_unlimited:
+        errors.append(_issue("unlimited_runtime_authorization", "budget.unlimited_runtime",
+                             "Only the host can authorize unlimited runtime."))
+    elif not (allow_unlimited and budget["wall_time_s"] == NO_DEADLINE_WALL_TIME_S and unlimited is True) and not (1.0 <= budget["wall_time_s"] <= MAX_WALL_TIME_S):
         errors.append(_issue("budget_range", "budget.wall_time_s", "wall_time_s must be in [1, 300]."))
 
     entities = scene.setdefault("entities", [])
@@ -564,6 +581,12 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
 
     if point_masses > 64:
         errors.append(_issue("body_limit", "entities", "At most 64 point masses are supported."))
+    if point_masses and not coupled_enabled(scene) and any(world["gravity"]):
+        warnings.append(_issue(
+            "point_mass_world_gravity_ignored", "world.gravity",
+            "world.gravity does not accelerate point_mass entities on non-coupled routes.",
+            "Use a targeted uniform force field to accelerate those point masses.",
+        ))
     native_only_preset = any(
         LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         if isinstance(entity, dict) and entity.get("type") == "fluid"
@@ -885,12 +908,17 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
                 if e["type"]=="rigid_body":
                     assumptions.append("Rigid body geometry/pivot: " + repr({k:e[k] for k in ("id","shape","pivot") if k in e}))
         elif scene.get("connections"):
-            assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots, fixed-length rods and inelastic tension-only ropes between point masses. No collision, bending, fracture or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
+            if any("break_tensile_strain" in link for link in scene["connections"]):
+                assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots and optional irreversible one-way tensile strain failure, fixed-length rods and inelastic tension-only ropes between point masses. Failure is sampled at t=0 and completed native substeps; strain is (length-rest_length)/rest_length and failure occurs strictly above break_tensile_strain. This is a link failure proxy, not continuum beam fracture. No collision, bending or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
+            else:
+                assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots, fixed-length rods and inelastic tension-only ropes between point masses. No collision, bending, fracture or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
             assumptions.append("Effective connections: " + repr(scene["connections"]) + "; requested solver settings: " + repr(scene["connection_settings"]))
         if any(e["type"] == "mesh" for e in entities):
             assumptions.append("Mesh model: elastic triangle surface with stretch/bending and closed global volume constraints; no calibrated solid stress, self-collision, cutting or general edge-edge CCD. Effective solver settings: " + repr(scene["mesh_settings"]))
             for e in (e for e in entities if e["type"] == "mesh"):
                 assumptions.append(f"Mesh provenance for {e['id']!r}: " + repr(e["mesh"]["metadata"].get("provenance")) + "; unseen image depth is a modeling assumption, not recovered geometry.")
+                for item in e["mesh"]["metadata"].get("model_assumptions", []):
+                    assumptions.append(f"Mesh scope for {e['id']!r}: {item}")
 
     return {
         "valid": not errors,

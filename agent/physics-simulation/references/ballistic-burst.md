@@ -39,7 +39,7 @@ a closed flat cone cap is not a crater opening.
 
 Limits: 1–24 parcels; source height/apex `(0,100]`, source/spread radius `[0,100]`,
 volume `[1e-9,100]`, spacing `[0.0001,0.5]`, gravity `[1e-9,250]`, duration
-`[0.0001,30]`, dt `[0.0001,0.05]`, integer FPS `[1,60]`, wall time `[1,300]`.
+`[0.0001,60]`, dt `[0.0001,0.05]`, integer FPS `[1,60]`, wall time `[1,300]`.
 Normal scene validation and resource planning still apply. Unknown fields, nonfinite
 numbers and executable text are rejected. Defaults are shown above except the factory
 wall-time default is 60 s and material default is water.

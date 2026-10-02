@@ -1,0 +1,36 @@
+{
+  "schema_version": "toolbox-contract/2",
+  "status": "design_only",
+  "id": "rendering-fast",
+  "role": "rendering",
+  "planned_version": "0.1.0",
+  "api_major": 2,
+  "entrypoint": "adapter.py (planned, not present)",
+  "input_schemas": [
+    "ModelBundle/1",
+    "SimulationBundle/1"
+  ],
+  "output_schemas": [
+    "RenderBundle/1"
+  ],
+  "operations": [
+    "rendering_capabilities",
+    "rendering_prepare",
+    "rendering_render",
+    "rendering_inspect"
+  ],
+  "skill_source": "../skills/physics-rendering/SKILL.md",
+  "packaged_skill_path": "manual/SKILL.md",
+  "isolation": {
+    "network": false,
+    "provider_broker": true
+  },
+  "capability_policy": "运行时仅公布已经实现且通过当前平台预检的能力。草案枚举与 high/deep 不代表本模块已经支持。",
+  "dependencies": [
+    "现有 macOS 渲染器；PCB ffmpeg/ffprobe，运行时版本需记录"
+  ],
+  "acceptance": [
+    "重渲染不改输入 hash，不重新调用 solver。",
+    "完整解码与时间映射通过；外部生成式结果单独标记。"
+  ]
+}

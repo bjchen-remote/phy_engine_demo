@@ -1,0 +1,92 @@
+{
+  "schema_version": "pipeline-request/2",
+  "intent": "示例：只换相机和灯光，不重新模拟。",
+  "model": {
+    "template_id": "pendulum-basic",
+    "parameters": {
+      "length_m": 1.0,
+      "mass_kg": 1.0,
+      "angle_rad": 0.05,
+      "gravity_m_s2": 9.81
+    },
+    "input_refs": [],
+    "geometry_tolerance_m": null,
+    "assumptions": [
+      "理想点质量、无质量杆、无阻尼；此处为协议示例。"
+    ]
+  },
+  "simulation": {
+    "physical_duration_s": 8.0,
+    "observation_interval_s": 0.01,
+    "queries": [
+      {
+        "id": "period",
+        "metric": "pendulum-period",
+        "entity_ids": [
+          "bob1"
+        ],
+        "unit": "s",
+        "parameters": {},
+        "absolute_tolerance": 0.01
+      }
+    ],
+    "state_export": "sampled_state",
+    "mode": "transient"
+  },
+  "render": {
+    "provider": "local-fast",
+    "width_px": 960,
+    "height_px": 540,
+    "fps": 30,
+    "playback_duration_s": 8.0,
+    "style": "scientific",
+    "fidelity": "trajectory_preserving",
+    "template_id": "scientific-default",
+    "parameters": {
+      "camera_azimuth_deg": 60.0,
+      "key_light_intensity": 1.5
+    }
+  },
+  "quality": {
+    "modeling": "standard",
+    "simulation": "strict",
+    "rendering": "standard"
+  },
+  "delivery": {
+    "required_roles": [
+      "video",
+      "data"
+    ],
+    "include_model": true,
+    "data_formats": [
+      "json",
+      "csv"
+    ],
+    "allow_partial": false
+  },
+  "requested_budget": {
+    "wall_time_seconds": 120,
+    "max_output_bytes": 33554432,
+    "max_cost": 0,
+    "currency": "CNY"
+  },
+  "allow_adjustments": [
+    "render_compression"
+  ],
+  "reuse": {
+    "model_ref": {
+      "artifact_ref": "example-model-001",
+      "schema": "ModelBundle/1",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "simulation_ref": {
+      "artifact_ref": "example-simulation-001",
+      "schema": "SimulationBundle/1",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "render_ref": null
+  },
+  "permitted_stages": [
+    "rendering"
+  ]
+}

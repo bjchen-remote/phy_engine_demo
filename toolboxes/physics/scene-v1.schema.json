@@ -36,7 +36,7 @@
         "duration": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "maximum": 30
+          "maximum": 60
         },
         "dt": {
           "type": "number",
@@ -174,7 +174,10 @@
       "type": "array",
       "maxItems": 256,
       "items": {
-        "$ref": "#/$defs/coupled_connection"
+        "anyOf": [
+          {"$ref": "#/$defs/connection"},
+          {"$ref": "#/$defs/coupled_connection"}
+        ]
       }
     },
     "connection_settings": {
@@ -656,6 +659,12 @@
               "minimum": 0,
               "maximum": 100000,
               "default": 0
+            },
+            "break_tensile_strain": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10,
+              "description": "Optional irreversible tensile failure threshold (length-rest_length)/rest_length; dimensionless. Standalone point-mass spring only."
             }
           }
         },
@@ -850,7 +859,8 @@
             "torus",
             "lathe",
             "extrusion",
-            "cloth"
+            "cloth",
+            "clothed_upper_torso"
           ]
         },
         "provenance": {
@@ -858,6 +868,57 @@
         },
         "units": {
           "const": "metres"
+        },
+        "pin_hints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "upper_back_seam",
+            "lower_back_seam"
+          ],
+          "properties": {
+            "upper_back_seam": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 24,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4095
+              }
+            },
+            "lower_back_seam": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 24,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4095
+              }
+            }
+          }
+        },
+        "model_assumptions": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": "Adult, non-explicit clothed outer-surface proxy; anatomy and skin are not represented."
+            },
+            {
+              "const": "Dimensions and front projections are caller-supplied modeling assumptions, not measurements or facts inferred from an image."
+            },
+            {
+              "const": "The mesh has one scene-level soft-body material; it has no tissue layers, medical meaning, or calibrated human material constants."
+            },
+            {
+              "const": "Pin hints are optional attachment suggestions and are not applied automatically."
+            }
+          ]
         }
       }
     },
@@ -1725,7 +1786,7 @@
             "hold_for": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30,
+              "maximum": 60,
               "default": 0
             }
           }
@@ -1747,6 +1808,42 @@
             },
             "metric": {
               "$ref": "#/$defs/query_metric"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "metric",
+            "reference_value",
+            "direction"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "type": {
+              "const": "period"
+            },
+            "metric": {
+              "$ref": "#/$defs/query_metric"
+            },
+            "reference_value": {
+              "type": "number",
+              "minimum": -1000000,
+              "maximum": 1000000
+            },
+            "direction": {
+              "enum": ["rising", "falling"]
+            },
+            "min_cycles": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 2
             }
           }
         },
@@ -1949,12 +2046,12 @@
             "start_time": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30
+              "maximum": 60
             },
             "end_time": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "maximum": 30
+              "maximum": 60
             }
           }
         },
@@ -1999,12 +2096,12 @@
             "start_time": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30
+              "maximum": 60
             },
             "end_time": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "maximum": 30
+              "maximum": 60
             }
           }
         },
@@ -2058,12 +2155,12 @@
             "start_time": {
               "type": "number",
               "minimum": 0,
-              "maximum": 30
+              "maximum": 60
             },
             "end_time": {
               "type": "number",
               "exclusiveMinimum": 0,
-              "maximum": 30
+              "maximum": 60
             }
           }
         }

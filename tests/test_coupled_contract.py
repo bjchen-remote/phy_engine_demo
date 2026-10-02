@@ -20,6 +20,14 @@ def example(name='torque_free_tumble'):
     return json.loads((ROOT/'examples'/(name+'.json')).read_text())
 
 class CoupledContractTests(unittest.TestCase):
+    def test_public_capabilities_distinguish_legacy_rigid_from_rotating_rigid_body(self):
+        engines = call_tool('physics_capabilities', {})['capabilities']['engines']
+        self.assertEqual(engines['rigid']['entity_type'], 'rigid')
+        self.assertEqual(engines['rigid_body']['entity_type'], 'rigid_body')
+        self.assertEqual(engines['rigid_body']['route'], 'coupled')
+        self.assertEqual(engines['rigid_body']['limits'], engines['coupled']['limits'])
+        self.assertEqual(prepare(example())['plan']['backend'], engines['rigid_body']['route'])
+
     def test_examples_prepare_with_one_shared_clock(self):
         for name in EXAMPLES:
             with self.subTest(name=name):

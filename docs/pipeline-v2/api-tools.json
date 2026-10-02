@@ -1,0 +1,235 @@
+{
+  "schema_version": "api-tools-design/2",
+  "status": "design_only",
+  "instructions": "这是接口设计目录，不是可直接注册的模型厂商 tool schema。发布时解析本地 $ref，按客户端工具格式生成；不要暴露尚未实现操作。",
+  "tools": [
+    {
+      "name": "pipeline_prepare",
+      "owner": "host",
+      "description": "协商全部阶段并冻结计划；不启动计算或付费作业。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_pipeline_prepare"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "pipeline_submit",
+      "owner": "host",
+      "description": "提交冻结的三阶段计划；返回原子持久化的作业引用。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_pipeline_submit"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": true
+    },
+    {
+      "name": "pipeline_status",
+      "owner": "host",
+      "description": "读取作业、阶段及交付状态；不创建副作用。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_pipeline_status"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "pipeline_cancel",
+      "owner": "host",
+      "description": "请求并核对取消；返回取消意图不等于已停止。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_pipeline_cancel"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": true
+    },
+    {
+      "name": "pipeline_deliver",
+      "owner": "host",
+      "description": "按冻结交付计划排队已验证文件，逐项跟踪回执。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_pipeline_deliver"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": true
+    },
+    {
+      "name": "modeling_capabilities",
+      "owner": "modeling",
+      "description": "读取真实可用的模型模板、格式、质量与限制。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_modeling_capabilities"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "modeling_template",
+      "owner": "modeling",
+      "description": "读取模板参数 schema、单位、范围和已披露默认值。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_modeling_template"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "modeling_prepare",
+      "owner": "modeling",
+      "description": "校验参数、来源和几何目标并冻结建模计划。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_modeling_prepare"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "modeling_build",
+      "owner": "modeling",
+      "description": "执行冻结建模计划；异步返回 job_id。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_modeling_build"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": true
+    },
+    {
+      "name": "modeling_inspect",
+      "owner": "modeling",
+      "description": "验证模型依赖与几何审计，报告真实精度。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_modeling_inspect"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "simulation_capabilities",
+      "owner": "simulation",
+      "description": "读取 domain、求解器、指标及状态保存能力。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_simulation_capabilities"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "simulation_prepare",
+      "owner": "simulation",
+      "description": "协商采样、数值门和状态量并冻结模拟计划。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_simulation_prepare"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "simulation_run",
+      "owner": "simulation",
+      "description": "执行冻结计划、保存数值 bundle，不依赖视频。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_simulation_run"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": true
+    },
+    {
+      "name": "simulation_query",
+      "owner": "simulation",
+      "description": "读取已声明且有效的数值查询；不从视频测量。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_simulation_query"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "simulation_inspect",
+      "owner": "simulation",
+      "description": "验证数据完整性、物理区间与数值门。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_simulation_inspect"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "rendering_capabilities",
+      "owner": "rendering",
+      "description": "读取 provider、状态要求、格式和渲染质量。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_rendering_capabilities"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "rendering_prepare",
+      "owner": "rendering",
+      "description": "验证依赖与可用缓存并冻结渲染计划。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_rendering_prepare"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    },
+    {
+      "name": "rendering_render",
+      "owner": "rendering",
+      "description": "读取不可变输入完成渲染；不重跑求解器。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_rendering_render"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": true
+    },
+    {
+      "name": "rendering_inspect",
+      "owner": "rendering",
+      "description": "核对视频解码、时间映射和输入 hash。",
+      "input_schema": {
+        "$ref": "contracts.schema.json#/$defs/args_rendering_inspect"
+      },
+      "output_schema": {
+        "$ref": "contracts.schema.json#/$defs/AgentResult"
+      },
+      "side_effect": false
+    }
+  ]
+}

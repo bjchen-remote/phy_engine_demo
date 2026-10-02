@@ -10,7 +10,7 @@ Every agent-tool response includes `ok`, `protocol_version`, `status` and `next_
 |---|---|
 | `physics_capabilities` | Capabilities/limits, canonical examples, workflow, native runtime, physics claims |
 | `physics_system` | Named system specification assembled into `scene` and serialized `scene_json`; does not integrate, prepare the returned scene before running |
-| `physics_mesh` | Audited `mesh_json`, `audit`, geometry provenance/model scope; `status=mesh_ready`; insert/patch the asset into a scene before prepare |
+| `physics_mesh` | Audited `mesh_json`, `audit`, geometry provenance/model scope; `clothed_upper_torso` also returns fixed assumptions, optional pin hints and suggested soft entity fields; `status=mesh_ready`; insert/patch the asset into a scene before prepare |
 | `physics_example` | `scene`, serialized `scene_json`, stable `common_patches`, uses/limitations and available customer assumptions |
 | `physics_patch` | Changed `scene`, matching `scene_json` and `validation`; operations are atomic; pass `scene_json` directly to prepare |
 | `physics_validate` | `valid`, errors/warnings, normalized scene, deterministic effective assumptions |
@@ -73,7 +73,7 @@ Video `duration_s` is encoded playback duration, `physical_duration_s` is the si
 
 ## Error recovery
 
-Apply an unambiguous structured correction at most twice and re-prepare after any scene change. Do not retry unsupported requests unchanged, fabricate success, or remove unrelated output files. Preserve errors/plan if failure occurred before result creation.
+Apply an unambiguous structured correction while each correction makes a concrete model change, and re-prepare after any scene change. Do not retry unsupported requests unchanged, fabricate success, or remove unrelated output files. Preserve errors/plan if failure occurred before result creation.
 
 | Signal | Action |
 |---|---|

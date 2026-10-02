@@ -64,7 +64,7 @@
         "duration": {
           "type": "number",
           "minimum": 0.0001,
-          "maximum": 30,
+          "maximum": 60,
           "default": 8
         },
         "dt": {
@@ -208,7 +208,7 @@
         "duration": {
           "type": "number",
           "minimum": 0.0001,
-          "maximum": 30,
+          "maximum": 60,
           "default": 3.2
         },
         "dt": {

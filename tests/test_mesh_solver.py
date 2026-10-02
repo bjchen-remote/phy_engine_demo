@@ -224,7 +224,9 @@ class MeshSolverTests(unittest.TestCase):
     def test_deadline_cannot_return_success(self):
         _load_library(time.monotonic()+20)
         definition = scene(duration=100, dt=.0004, fps=.01)
-        result = run_scene_mesh(definition, {"mesh_substeps": 32, "mesh_iterations": 24}, time.monotonic()+.05)
+        # Leave enough room for library lookup on cold CI runners while still
+        # forcing the much longer 100-second physical solve to hit its deadline.
+        result = run_scene_mesh(definition, {"mesh_substeps": 32, "mesh_iterations": 24}, time.monotonic()+1.0)
         self.assertFalse(result["diagnostics"]["completed"])
         self.assertEqual(result["diagnostics"]["native_status"], "timed_out")
         self.assertLess(result["diagnostics"]["simulated_time_s"], 100)
