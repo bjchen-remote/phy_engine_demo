@@ -76,6 +76,77 @@ class ForegroundModelPinTests(ForegroundFixture, unittest.TestCase):
             segmentation.verify_foreground_model(self.path, self.checksum)
         self.assertEqual(raised.exception.code, 'foreground_model_invalid')
 
+    def test_empty_graph_is_rejected_before_reading(self):
+        self.path.write_bytes(b'')
+        with patch.object(segmentation.os, 'fdopen') as reader:
+            with self.assertRaises(FlowError) as raised:
+                segmentation.verify_foreground_model(self.path, self.checksum)
+        self.assertEqual(raised.exception.code, 'foreground_model_invalid')
+        reader.assert_not_called()
+
+    def test_exact_graph_budget_preserves_all_bytes_and_closes_descriptor(self):
+        original = os.fdopen
+        descriptors, read_sizes = [], []
+
+        class Reader:
+            def __init__(self, descriptor, mode, **kwargs):
+                descriptors.append(descriptor)
+                self.source = original(descriptor, mode, **kwargs)
+
+            def __enter__(self):
+                return self
+
+            def read(self, size):
+                read_sizes.append(size)
+                return self.source.read(size)
+
+            def __exit__(self, *args):
+                self.source.close()
+
+        with patch.object(segmentation, 'MAX_MODEL_BYTES', len(self.content)), \
+                patch.object(segmentation.os, 'fdopen', side_effect=Reader):
+            content, metadata = segmentation._read_model(self.path, self.checksum)
+        self.assertEqual(content, self.content)
+        self.assertEqual(metadata['bytes'], len(self.content))
+        self.assertEqual(read_sizes, [len(self.content) + 1])
+        with self.assertRaises(OSError):
+            os.fstat(descriptors[0])
+
+    def test_growth_and_truncation_after_stat_fail_before_digest_or_inference(self):
+        original = os.fdopen
+        for changed in (self.content + b'growth', self.content[:-1]):
+            with self.subTest(size=len(changed)):
+                self.path.write_bytes(self.content)
+                descriptors = []
+
+                def changed_reader(descriptor, mode, **kwargs):
+                    descriptors.append(descriptor)
+                    self.path.write_bytes(changed)
+                    return original(descriptor, mode, **kwargs)
+
+                with patch.object(segmentation.os, 'fdopen', side_effect=changed_reader), \
+                        patch.object(segmentation.hashlib, 'sha256') as checksum:
+                    with self.assertRaises(FlowError) as raised:
+                        segmentation._read_model(self.path, self.checksum)
+                self.assertEqual(raised.exception.code, 'foreground_model_invalid')
+                checksum.assert_not_called()
+                with self.assertRaises(OSError):
+                    os.fstat(descriptors[0])
+
+    def test_read_failure_closes_descriptor_without_inference(self):
+        descriptors = []
+
+        def broken_reader(descriptor, *args, **kwargs):
+            descriptors.append(descriptor)
+            raise OSError('synthetic read failure')
+
+        with patch.object(segmentation.os, 'fdopen', side_effect=broken_reader):
+            with self.assertRaises(FlowError) as raised:
+                segmentation._read_model(self.path, self.checksum)
+        self.assertEqual(raised.exception.code, 'foreground_model_missing')
+        with self.assertRaises(OSError):
+            os.fstat(descriptors[0])
+
 
 @unittest.skipIf(np is None or Image is None, 'numpy/Pillow belong to the optional image runtime')
 class ForegroundImageContractTests(ForegroundFixture, unittest.TestCase):

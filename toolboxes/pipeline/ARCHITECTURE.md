@@ -1,6 +1,6 @@
 # 建模、模拟与渲染组合内部架构
 
-当前源码的 `physics-pipeline` 0.3.2 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling 为 0.3.2；rendering 0.3.1、simulation 0.2.0 和 physics 1.4.7 保持冻结快照。新增可选 `surface` 展示后处理及 v3 精确校验；默认仍是 conservative。源码、包构建、安装激活和真实 QQ 交付分别验收。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
+当前源码的 `physics-pipeline` 0.3.3 是 QQ toolbox v1 的组合适配器。宿主仍使用 `qq_toolbox`、原 `physics_*` / `pcb_*` 工具、`physics_simulate` 与 `qq_video`；模块分拆不改变消息权限、held 交付或物理引擎接口。独立的 `modeling_preview_from_image` → `modeling_preview_render` → `qq_video` 用于 360° 模型展示，跳过模拟且不推断真实尺度/材料。modeling 为 0.3.3；rendering 0.3.1、simulation 0.2.0 和 physics 1.4.7 保持冻结快照。可选 `surface` 展示后处理及 v3 精确校验保持默认 conservative；0.3.3 仅减少前景权重读取副本并提早释放阶段临时对象。源码、包构建、安装激活和真实 QQ 交付分别验收。入口、包格式和构建命令见 [README](README.md)，客户端边界见 [整体架构](../../docs/current-architecture.md)。
 
 ```text
 宿主 inbox pin → task.json → adapter.main

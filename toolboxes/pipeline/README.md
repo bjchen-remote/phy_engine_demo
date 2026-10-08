@@ -1,6 +1,6 @@
 # QQ modeling / simulation / rendering pipeline
 
-`physics-pipeline` 0.3.2 composes independently versioned modeling 0.3.2, rendering 0.3.1 and frozen simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
+`physics-pipeline` 0.3.3 composes independently versioned modeling 0.3.3, rendering 0.3.1 and frozen simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
 
 The messaging bridge is installed separately; this repository publishes the engine and composable modules. The public [host integration contract](HOST-INTEGRATION.md) describes image admission, runtime pins and complete data delivery.
 
@@ -178,3 +178,18 @@ Small detached features may be intentional. The policy does not identify eyes, a
 Capability discovery requires the modeling cleanup declaration and a rendering module declaring `preview_geometry_scope:"render_input"`. New modeling with a legacy renderer does not expose or start the preview operations; legacy modeling with a new renderer remains compatible as an uncleaned v1 preview. The host independently checks original raw pins, exact retained faces/vertices and whole-component eligibility before accepting the v2 archive or video. No cleanup result is promoted to physics readiness.
 
 Candidates must also be closed, consistently oriented, positive-volume and free of degenerate faces. Unreferenced vertices, numerical ambiguity or exhaustion of fixed triangle-check/node-visit budgets keep the complete raw mesh as display.
+
+## Memory maintenance (0.3.3)
+
+The modeling worker reads pinned U2Net graph bytes once through the same bounded,
+verified regular-file descriptor, retaining size-change and SHA checks. It releases
+the source image/Trimesh after array extraction, unscaled arrays after scaling, and
+the GLB export object after export. Shape precision, sampling, geometry, raw/display
+contracts and numerical checks remain unchanged. In a four-process 32 MiB synthetic
+file-read comparison, peak RSS growth was about 64.7 MiB before and 32.1 MiB after,
+with identical hashes; this is not a full ONNX/Metal inference memory measurement.
+Boundary and weak-reference lifecycle regression tests cover these changes.
+
+Build the new modeling stage and composed package while explicitly passing the
+existing engine, simulation and rendering snapshots. Only the modeling stage
+changes; new tasks use the new atomic active pointer and existing pins stay valid.

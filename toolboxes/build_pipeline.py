@@ -14,8 +14,8 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, supports_model_preview,
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
-COMPOSED_VERSION = "0.3.2"
-ROLE_VERSIONS = {"modeling": "0.3.2", "rendering": "0.3.1"}
+COMPOSED_VERSION = "0.3.3"
+ROLE_VERSIONS = {"modeling": "0.3.3", "rendering": "0.3.1"}
 
 
 def copy_tree(source: Path, target: Path) -> None:

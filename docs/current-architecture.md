@@ -147,3 +147,14 @@ visual identity, anatomical fidelity, printability or physical readiness.
 [The detailed surface validation record](modeling-surface-cleanup-validation.md)
 distinguishes this existing-mesh test from fresh inference, installed activation
 and real platform delivery; its private source images and meshes are not published.
+
+## Memory maintenance (0.3.3, 2026-10-08)
+
+The composed pipeline and modeling stage advance to 0.3.3. Simulation 0.2.0,
+rendering 0.3.1 and physics 1.4.7 remain frozen. Single bounded foreground-graph
+reads and earlier transient-object release reduce modeling allocation copies
+without changing reconstruction precision, generated geometry or result proofs.
+The worker remains an isolated process; these controls do not establish full
+neural-inference peak memory or long-term host leak behavior. See the
+[modeling architecture](../toolboxes/pipeline/manual/modeling/architecture.md)
+and [pipeline maintenance notes](../toolboxes/pipeline/README.md).

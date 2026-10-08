@@ -362,7 +362,9 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
         image_sha256 = file_digest(Path(request["image_path"]))
         model = _model_mesh(torch, pipeline_class, config, request, image)
         generated = _mesh_arrays(model)
+        del model, image
         mesh, scale = scale_mesh(generated, request.get("physical_extent_m", 1.0), request["scale_axis"])
+        del generated
         if units == "model_unit":
             scale = {key: value for key, value in scale.items() if key != "physical_extent_m"}
             scale.update(units=units, normalized_extent=1.0, physical_extent_m=None)
@@ -387,6 +389,7 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
         write_obj(display_obj, mesh, units)
         display_model = trimesh.Trimesh(vertices=mesh["vertices"], faces=mesh["faces"], process=False)
         display_model.export(str(display_glb), file_type="glb")
+        del display_model
         display_json = root / "display_mesh.json"
         write_json(display_json, {"schema_version": "modeling-flow-display/1", "units": units, **mesh,
                                  "scale": scale, "audit": display_audit,

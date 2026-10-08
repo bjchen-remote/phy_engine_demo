@@ -9,6 +9,7 @@ import sys
 import tempfile
 import types
 import unittest
+import weakref
 from unittest.mock import Mock, patch
 
 
@@ -401,6 +402,68 @@ class ModelingFlowTests(unittest.TestCase):
         self.assertFalse(pipe.generate.call_args.kwargs["compile_dit"])
         self.assertEqual(pipe.generate.call_args.kwargs["seed"], request["seed"])
         mx.clear_cache.assert_called_once()
+
+    def test_transient_geometry_and_image_are_released_before_export_and_audit(self):
+        # Use weak references and ordinary functions: Mock call histories would
+        # themselves keep the input image/mesh alive and hide their lifecycle.
+        class ImageFixture:
+            pass
+
+        class GeometryFixture(dict):
+            pass
+
+        references = {}
+        exports = []
+        arrays = runner._mesh_arrays
+        orient = runner.orient_outward
+        write_json = runner.write_json
+
+        def load_image(*args):
+            image = ImageFixture()
+            references['image'] = weakref.ref(image)
+            return image, {'foreground_mask': 'explicit-fixture'}
+
+        def infer(*args):
+            model = FakeMesh()
+            references['model'] = weakref.ref(model)
+            return model
+
+        def mesh_arrays(mesh):
+            generated = GeometryFixture(arrays(mesh))
+            references['generated'] = weakref.ref(generated)
+            return generated
+
+        def orient_mesh(mesh):
+            for name in ('image', 'model', 'generated'):
+                self.assertIsNone(references[name](), name + ' remains alive after scaling')
+            return orient(mesh)
+
+        class ExportFixture(FakeMesh):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                exports.append(weakref.ref(self))
+
+        def save_json(path, value):
+            if path.name == 'display_mesh.json':
+                self.assertEqual(len(exports), 1)
+                self.assertIsNone(exports[0](), 'GLB exporter remains alive after export')
+            return write_json(path, value)
+
+        with self.fake_runtime(), \
+                patch.object(runner, '_load_image', new=load_image), \
+                patch.object(runner, '_model_mesh', new=infer), \
+                patch.object(runner, '_mesh_arrays', new=mesh_arrays), \
+                patch.object(runner, 'orient_outward', new=orient_mesh), \
+                patch.object(runner, 'write_json', new=save_json), \
+                patch.object(runner, '_load_runtime', return_value=(None, None,
+                    types.SimpleNamespace(Trimesh=ExportFixture), {'commit': 'a' * 40})):
+            result = runner.generate(self.config, self.request, self.root / 'lifecycle')
+        self.assertTrue(result['ok'], result)
+        self.assertEqual(result['audit']['vertices'], 4)
+        self.assertEqual(result['audit']['faces'], 4)
+        for entry in result['artifacts']:
+            path = self.root / 'lifecycle' / entry['path']
+            self.assertEqual(file_digest(path), entry['sha256'])
 
     def test_missing_metal_fails_before_pipeline_load_without_cpu_fallback(self):
         config = load_config(self.config)

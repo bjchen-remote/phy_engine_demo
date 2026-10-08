@@ -29,6 +29,12 @@
 
 ## 实现与责任
 
+0.3.3 的内存维护保留独立推理子进程与串行任务锁。U2Net 从同一已核验的
+regular-file 描述符单次有界读取 ONNX bytes，读取前后大小与 SHA 校验不变；
+原图和原 Trimesh 在提取数组后释放，未缩放数组在缩放后释放，GLB 导出对象在
+导出后释放。输出 raw/display、数值质量门、生成精度和采样参数保持原合同。
+这些优化减少阶段内临时副本，不声称降低完整神经推理峰值；模型权重与激活仍需独立测量。
+
 | 实现 | 责任 |
 |---|---|
 | `pipeline_stages/modeling.py` | standard 结构化机械/PCB prepare；固定引擎、预算和 canonical model bundle，不调用生成模型 |

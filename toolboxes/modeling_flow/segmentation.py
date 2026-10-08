@@ -50,15 +50,14 @@ def _read_model(model_path: str | Path, checksum: str) -> tuple[bytes, dict]:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_MODEL_BYTES:
             raise FlowError('foreground_model_invalid', 'Foreground model must be a bounded regular file')
-        parts = []
-        remaining = MAX_MODEL_BYTES + 1
-        while remaining:
-            block = os.read(descriptor, min(1024 * 1024, remaining))
-            if not block:
-                break
-            parts.append(block)
-            remaining -= len(block)
-        content = b''.join(parts)
+        # Read through the same verified descriptor into one bounded bytes
+        # object. A chunk list plus join kept two complete copies of the graph
+        # alive; ORT requires bytes, so no second assembled copy is needed.
+        # The extra byte detects growth since fstat without following a path
+        # again or accepting an unbounded stream. Buffered read handles short
+        # underlying reads; ownership remains with the finally block below.
+        with os.fdopen(descriptor, 'rb', closefd=False) as source:
+            content = source.read(info.st_size + 1)
         if len(content) != info.st_size or len(content) > MAX_MODEL_BYTES:
             raise FlowError('foreground_model_invalid', 'Foreground model changed during its bounded read')
     except OSError as error:
