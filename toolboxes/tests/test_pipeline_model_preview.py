@@ -195,6 +195,45 @@ class PreviewModuleCompositionTests(unittest.TestCase):
         self.assertIn("modeling_preview_render", operations)
 
 
+class PortablePreviewArchiveTests(unittest.TestCase):
+    def test_export_removes_local_paths_and_keeps_original_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            mesh, receipt, render = (root / name for name in ('display_mesh.json', 'receipt.json', 'render-manifest.json'))
+            write(mesh, {'vertices': [], 'faces': []})
+            write(receipt, {'schema_version': 'modeling-flow-receipt/1',
+                'upstream': {'package_root': '/Users/private-owner/runtime/hy3dmlx', 'commit': 'a' * 40},
+                'artifacts': [{'path': mesh.name, 'sha256': bundle.sha256(mesh)}]})
+            write(render, {'source_mesh_path': str(mesh), 'source_mesh_sha256': bundle.sha256(mesh),
+                'compiler': {'path': '/opt/private-compiler/bin/clang',
+                             'version': 'clang 17\nInstalledDir: /Users/private-owner/compiler/bin'},
+                'video': {'path': str(root / 'private-video.mp4'), 'sha256': 'b' * 64},
+                'upstream_url': 'https://example.org/home/public'})
+            before = {path: path.read_bytes() for path in (mesh, receipt, render)}
+            output = root / 'public.zip'
+            EXPORT.make_archive(output, [(mesh, 'model/display_mesh.json', 'display_mesh_data'),
+                (receipt, 'model/receipt.json', 'modeling_receipt'),
+                (render, 'render/render-manifest.json', 'render_receipt')], 'fixture', 100000)
+            with zipfile.ZipFile(output) as archive:
+                contents = b''.join(archive.read(name) for name in archive.namelist())
+                self.assertNotIn(b'/Users/private-owner', contents)
+                self.assertNotIn(str(root).encode(), contents)
+                self.assertNotIn(b'/opt/private-compiler', contents)
+                proof = json.loads(archive.read('render/render-manifest.json'))
+                self.assertEqual(proof['source_mesh_path'], 'model/display_mesh.json')
+                self.assertEqual(proof['upstream_url'], 'https://example.org/home/public')
+                self.assertEqual(proof['public_projection']['source_sha256'], bundle.sha256(render))
+                entries = json.loads(archive.read('archive-manifest.json'))['members']
+                self.assertEqual(next(item for item in entries if item['role'] == 'render_receipt')['projection'],
+                    {'schema': 'portable-provenance/1', 'source_sha256': bundle.sha256(render)})
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_projection_omits_windows_paths_and_local_file_urls(self):
+        payload = bundle.public_projection_bytes({'windows': r'C:\Users\private-owner\runtime',
+            'file_url': 'file:///Users/private-owner/input.png'}, 'a' * 64, {})
+        self.assertNotIn(b'private-owner', payload)
+
+
 @unittest.skipUnless(NATIVE_AVAILABLE, "real native package/export checks need Mac runtime dependencies")
 class NativePreviewPackageTests(unittest.TestCase):
     @classmethod
@@ -338,9 +377,14 @@ class NativePreviewPackageTests(unittest.TestCase):
             for item in declarations:
                 self.assertEqual(hashlib.sha256(archive.read(item["path"])).hexdigest(), item["sha256"])
             for filename, expected in before.items():
-                self.assertEqual(hashlib.sha256(archive.read("model/" + filename)).hexdigest(), expected)
+                if filename == 'receipt.json':
+                    public = json.loads(archive.read('model/receipt.json'))
+                    self.assertEqual(public['public_projection']['source_sha256'], expected)
+                else:
+                    self.assertEqual(hashlib.sha256(archive.read("model/" + filename)).hexdigest(), expected)
             self.assertEqual(archive.read("reference/reference.png"), self.image.read_bytes())
-            self.assertEqual(archive.read("reference/source-receipt.json"), self.source_receipt.read_bytes())
+            self.assertEqual(json.loads(archive.read('reference/source-receipt.json'))['public_projection']['source_sha256'],
+                             bundle.sha256(self.source_receipt))
             licenses = self.package / "modules/modeling/modeling_flow/third_party"
             actual_licenses = {name for name in archive.namelist() if name.startswith("licenses/")}
             self.assertEqual(actual_licenses, {"licenses/" + path.name for path in licenses.iterdir()})

@@ -6,9 +6,10 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import time
 
-from bundle import inside, read_json, sha256
+from bundle import inside, public_projection_bytes, read_json, sha256
 
 
 def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
@@ -175,15 +176,40 @@ def used_modeling_assets(job: Path, model: dict, root: Path | None = None) -> li
         if len(receipts) != 1 or not any(receipts[0]['sha256'] in note for note in notes):
             continue
         reference = data['public_result']['model_ref']
+        export_names = ('receipt.json', 'display_mesh.json', 'simulation_mesh.json',
+                        'display.glb', 'display.obj', 'simulation.obj')
+        archive_paths = {key: 'modeling/' + reference + '/' + Path(item['path']).name
+                         for item in pins if Path(item['path']).name in export_names
+                         for key in (str(inside(job, item['path'])), Path(item['path']).name)}
         for item in pins:
             name = Path(item['path']).name
-            if name in ('receipt.json', 'display_mesh.json', 'simulation_mesh.json',
-                        'display.glb', 'display.obj', 'simulation.obj'):
+            if name in export_names:
                 path = inside(job, item['path'])
                 if sha256(path) != item['sha256']:
                     raise ValueError('image modeling provenance changed before export')
+                if name == 'receipt.json':
+                    payload = public_projection_bytes(read_json(path, 4_000_000), item['sha256'], archive_paths)
+                    # A separate immutable public copy keeps local evidence and
+                    # every existing checkpoint/pin byte-identical.
+                    directory = inside(job, 'work/pipeline/public-provenance')
+                    directory.mkdir(parents=True, exist_ok=True)
+                    projected = inside(job, 'work/pipeline/public-provenance/' + hashlib.sha256(payload).hexdigest() + '.json')
+                    if projected.exists():
+                        if projected.read_bytes() != payload:
+                            raise ValueError('public modeling provenance changed before export')
+                    else:
+                        descriptor, temporary = tempfile.mkstemp(prefix='.public-', dir=directory)
+                        try:
+                            with os.fdopen(descriptor, 'wb') as handle:
+                                handle.write(payload); handle.flush(); os.fsync(handle.fileno())
+                            os.link(temporary, projected)
+                        finally:
+                            Path(temporary).unlink(missing_ok=True)
+                    if sha256(path) != item['sha256']:
+                        raise ValueError('image modeling provenance changed during export')
+                    path = projected
                 result.append({'path': str(path), 'name': 'modeling/' + reference + '/' + name,
-                               'sha256': item['sha256']})
+                               'sha256': sha256(path)})
     if result and root is not None:
         module_root = inside(root, 'modules/modeling')
         module = read_json(inside(module_root, 'module.json'), 65536)

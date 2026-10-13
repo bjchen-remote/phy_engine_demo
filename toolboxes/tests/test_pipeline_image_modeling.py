@@ -293,6 +293,33 @@ class ImageModelingGateTests(unittest.TestCase):
                 finally:
                     path.write_bytes(original)
 
+    def test_physical_export_projects_local_provenance_without_changing_source(self):
+        with patch.object(image_modeling.subprocess, 'run', side_effect=self.backend):
+            result = self.call()
+        receipt = self.output / 'receipt.json'
+        original = json.loads(receipt.read_bytes())
+        original['upstream'] = {'package_root': '/Users/private-owner/runtime/hy3dmlx', 'commit': 'a' * 40}
+        save(receipt, original)
+        saved = self.job / 'work/modeling-images' / result['model_ref'] / 'response.json'
+        response = bundle.read_json(saved)
+        for item in response['artifact_pins']:
+            if item['path'].endswith('/receipt.json'):
+                item['sha256'] = bundle.sha256(receipt)
+        save(saved, response)
+        before = receipt.read_bytes()
+        model = {'entities': [{'mesh': {'metadata': {'provenance': {'notes': bundle.sha256(receipt)}}}}]}
+        exports = image_modeling.used_modeling_assets(self.job, model)
+        item = next(item for item in exports if item['name'].endswith('/receipt.json'))
+        public = Path(item['path']).read_bytes()
+        self.assertNotIn(b'private-owner', public)
+        self.assertEqual(json.loads(public)['public_projection']['source_sha256'], hashlib.sha256(before).hexdigest())
+        self.assertEqual(json.loads(public)['artifacts'][0]['path'].split('/')[0], 'modeling')
+        self.assertEqual(receipt.read_bytes(), before)
+        self.assertEqual(image_modeling.used_modeling_assets(self.job, model), exports)
+        Path(item['path']).write_bytes(b'tampered public copy')
+        with self.assertRaisesRegex(ValueError, 'public modeling provenance changed'):
+            image_modeling.used_modeling_assets(self.job, model)
+
     def test_geometry_export_includes_all_modeling_licenses_only_for_used_model(self):
         license_names = {'Hunyuan3D-LICENSE.txt', 'MLX-port-LICENSE.txt',
                          'U2Net-APACHE-2.0.txt', 'rembg-MIT.txt', 'PyMeshLab-GPL-3.0.txt'}

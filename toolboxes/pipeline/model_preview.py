@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -11,7 +12,8 @@ import tempfile
 import time
 import zipfile
 
-from bundle import inside, read_json, sha256
+from bundle import (PUBLIC_PROJECTION_ROLES, PUBLIC_PROJECTION_SCHEMA, inside,
+                    public_projection_bytes, read_json, sha256)
 
 SOURCE_LIMIT = 128 * 1024 * 1024
 
@@ -45,14 +47,24 @@ def make_archive(target: Path, members: list[tuple[Path, str, str]], notice: str
                  max_bytes: int, *, cleaned: bool = False, surface: bool = False) -> None:
     if target.exists():
         raise ValueError('unsealed preview archive already exists')
-    declarations = []
+    declarations, projections = [], {}
+    archive_paths = {key: name for source, name, _ in members
+                     for key in (str(source), source.name)}
     expanded = 0
     for source, name, role in members:
+        source_sha = sha256(source)
         size = source.stat().st_size
+        declaration = {'path': name, 'sha256': source_sha, 'size_bytes': size, 'role': role}
+        if role in PUBLIC_PROJECTION_ROLES:
+            payload = public_projection_bytes(read_json(source, SOURCE_LIMIT), source_sha, archive_paths)
+            projections[name] = payload
+            size = len(payload)
+            declaration.update(sha256=hashlib.sha256(payload).hexdigest(), size_bytes=size,
+                projection={'schema': PUBLIC_PROJECTION_SCHEMA, 'source_sha256': source_sha})
         expanded += size
         if not 0 < size <= SOURCE_LIMIT or expanded > SOURCE_LIMIT:
             raise ValueError('preview archive exceeds its expanded byte budget')
-        declarations.append({'path': name, 'sha256': sha256(source), 'size_bytes': size, 'role': role})
+        declarations.append(declaration)
     note = (notice + '\n\nAI-generated single-image shape approximation. Hidden surfaces are inferred.\n'
             'No physics simulation or measurement is supplied. GLB/OBJ are untextured geometry.\n'
             'See display_mesh.json for units; model_unit does not establish real-world dimensions.\n').encode()
@@ -63,7 +75,6 @@ def make_archive(target: Path, members: list[tuple[Path, str, str]], notice: str
     elif cleaned:
         note += ('Display assets use the bounded detached-component cleanup in cleanup-receipt.json.\n'
                  'Raw assets preserve the normalized pre-cleanup generated geometry. Cleanup is geometric, not semantic recognition.\n').encode()
-    import hashlib
     declarations.append({'path': 'PROVIDER-NOTICE.txt', 'sha256': hashlib.sha256(note).hexdigest(),
                          'size_bytes': len(note), 'role': 'notice'})
     manifest = {'schema_version': 'model-preview-data/3' if surface else
@@ -79,9 +90,12 @@ def make_archive(target: Path, members: list[tuple[Path, str, str]], notice: str
     try:
         with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
             for (source, name, _), declaration in zip(members, declarations):
-                with source.open('rb') as incoming, archive.open(entry(name), 'w') as out:
-                    shutil.copyfileobj(incoming, out, 1024 * 1024)
-                if sha256(source) != declaration['sha256']:
+                if name in projections:
+                    archive.writestr(entry(name), projections[name])
+                else:
+                    with source.open('rb') as incoming, archive.open(entry(name), 'w') as out:
+                        shutil.copyfileobj(incoming, out, 1024 * 1024)
+                if sha256(source) != declaration.get('projection', {}).get('source_sha256', declaration['sha256']):
                     raise ValueError('preview source changed during ZIP export')
             archive.writestr(entry('PROVIDER-NOTICE.txt'), note)
             archive.writestr(entry('archive-manifest.json'), json.dumps(manifest, ensure_ascii=False,

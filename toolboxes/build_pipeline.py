@@ -14,7 +14,7 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, supports_model_preview,
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
 VERSION = "0.2.0"
-COMPOSED_VERSION = "0.3.3"
+COMPOSED_VERSION = "0.3.4"
 ROLE_VERSIONS = {"modeling": "0.3.3", "rendering": "0.3.1"}
 
 
@@ -151,6 +151,7 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         + api.get("instructions", ""))
     write_json(output / "toolbox.json", {"schema_version": 1, "id": "physics-pipeline",
         "version": COMPOSED_VERSION, "entrypoint": "adapter.py", "requires_data_delivery": True,
+        "public_provenance_projection": "portable-provenance/1",
         "capabilities": ["独立建模、数据模拟、保真视频渲染；机械与 PCB 的 MP4+JSON/CSV 数据 ZIP",
                          "原子组合版本热切换，运行中任务保留原引擎和三个模块版本"],
         "limitations": ["需要支持数据附件的 QQ 宿主；保持原物理引擎能力边界",

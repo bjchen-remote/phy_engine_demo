@@ -569,3 +569,38 @@ Smoothing neither measures invisible surfaces nor restores semantic detail.
 Paired inspection has shown only modest small-bump improvement on one mesh;
 large back ridges remained. Keep these limitations visible to agents and users.
 See [the local validation record](../../docs/modeling-surface-cleanup-validation.md).
+
+## Portable receipt projections in composer 0.3.4
+
+Composer 0.3.4 declares `public_provenance_projection:"portable-provenance/1"`
+in its pinned `toolbox.json`. Upgrade the host validator before activating this
+package. The independently pinned modeling, simulation and rendering modules
+keep their existing versions. Published older packages remain immutable.
+
+Preview ZIP members with roles `modeling_receipt`, `render_receipt` and
+`source_receipt` carry a separate public JSON projection. Their archive entries
+declare `projection:{schema:"portable-provenance/1",source_sha256:ORIGINAL_SHA}`;
+their normal `sha256` and `size_bytes` describe the public bytes. The public JSON
+also contains `public_projection` with the schema, original receipt digest and
+`local_paths:"omitted_or_archive_relative"`. Original task receipts and outer
+provenance pins still describe the private source bytes.
+
+Use the deterministic specification in `pipeline/bundle.py`'s
+`public_projection_bytes` as the basis for an independent host implementation.
+Known asset locators become archive member paths; other absolute filesystem
+values and recognized embedded local installation paths are omitted. Source
+versions, content digests and numerical settings remain available. Projection
+does not remove arbitrary user content or identifiers embedded in public URLs.
+
+First verify the original source pins, geometry, complete video and licenses.
+Then rebuild the projection from those verified sources and the declared archive
+member map, and compare exact canonical bytes. A matching source digest in a
+declaration alone cannot authorize delivery. Require one fixed-name modeling
+receipt and one `render/render-manifest.json`; verify any admitted image-source
+receipt too. A package advertising this capability must not downgrade to raw
+receipts. Packages without it retain their legacy validation path.
+
+Physical data export uses a separate immutable public modeling receipt copy,
+bound to the original receipt digest. Canonical physical result files still
+retain their exact original bytes and may contain absolute task artifact paths;
+receipt projection is not a portable physical-result format.

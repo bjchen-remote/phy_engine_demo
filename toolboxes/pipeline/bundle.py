@@ -4,9 +4,46 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 
 
 ROLES = ("modeling", "simulation", "rendering")
+PUBLIC_PROJECTION_SCHEMA = "portable-provenance/1"
+PUBLIC_PROJECTION_ROLES = frozenset(("modeling_receipt", "render_receipt", "source_receipt"))
+
+
+def public_projection_bytes(document: dict, source_sha256: str,
+                            archive_paths: dict[str, str]) -> bytes:
+    """Deterministic public copy; local evidence and its digest stay unchanged.
+
+    This specification is independently implemented by the QQ host validator.
+    Exact known paths become archive references. Other local filesystem paths,
+    including paths embedded in compiler diagnostics, are omitted.
+    """
+    if "public_projection" in document:
+        raise ValueError("source provenance already contains a public projection")
+    local = re.compile(r'(?<![\w:/])(?:/(?:Users|home|private|tmp|var|Volumes|opt|Applications|Library|usr)(?:/[^\s\"\'<>;,)]*)?|[A-Za-z]:[\\/][^\s\"\'<>;,)]*)')
+
+    def project(value):
+        if isinstance(value, dict):
+            return {key: project(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [project(item) for item in value]
+        if isinstance(value, str):
+            if value in archive_paths:
+                return archive_paths[value]
+            if value.startswith(("/", "file://")) or re.match(r"^[A-Za-z]:[\\/]", value):
+                return "[local-path-omitted]"
+            if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", value):
+                return value
+            return local.sub("[local-path-omitted]", value)
+        return value
+
+    projected = project(document)
+    projected["public_projection"] = {"schema": PUBLIC_PROJECTION_SCHEMA,
+        "source_sha256": source_sha256, "local_paths": "omitted_or_archive_relative"}
+    return json.dumps(projected, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":"), allow_nan=False).encode("utf-8")
 FORMATS = {
     "modeling": ("prepared-scene/1", "pipeline-model/1"),
     "simulation": ("pipeline-model/1", "pipeline-simulation/1"),
