@@ -12,7 +12,8 @@
     "geometry_tolerance_m": null,
     "assumptions": [
       "仅为 schema 示例；有效板材参数仍需模板补全与审计。"
-    ]
+    ],
+    "purpose": "physical_simulation"
   },
   "simulation": {
     "physical_duration_s": null,
@@ -67,5 +68,6 @@
     "modeling",
     "simulation",
     "rendering"
-  ]
+  ],
+  "purpose": "physical_simulation"
 }

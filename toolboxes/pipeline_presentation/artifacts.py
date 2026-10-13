@@ -397,14 +397,8 @@ def _dictionary(source: dict) -> dict:
     return common
 
 
-def export_data(result_path: str | Path, model_path: str | Path, output_dir: str | Path,
-                domain: str = "physics", max_bytes: int = 16 * 1024 * 1024,
-                modeling_assets: list | None = None) -> dict:
-    """Export a reproducible ZIP with JSON, CSV, provenance and quality labels."""
-    if type(max_bytes) is not int or not 1024 <= max_bytes <= MAX_EXPORT_BYTES:
-        raise PresentationError("invalid data package byte budget")
-    source = load_source(result_path, model_path, domain)
-    output = output_directory(output_dir, source)
+def _data_members(source: dict, max_bytes: int, modeling_assets: list | None) -> tuple[dict, list]:
+    """Read and derive members without publishing anything or running a solver."""
     usable = source["quality_gate"].get("numerical_passed") is True
     expanded_limit = min(MAX_EXPORT_BYTES, max_bytes * 16)
     quality = {"quantitative_usable": usable, "quality_gate": source["quality_gate"],
@@ -432,12 +426,12 @@ def export_data(result_path: str | Path, model_path: str | Path, output_dir: str
             if digest(payload) != item['sha256']:
                 raise PresentationError('modeling asset hash changed')
             members[name] = payload
-            modeling_sources.append((path, item['sha256']))
+            modeling_sources.append((path, name, item['sha256']))
     stage = source["stage"]
     if stage is not None:
         members["source-stage/simulation-manifest.json"] = stage["path"].read_bytes()
         members.update({"source-stage/" + name: path.read_bytes() for name, path in stage["files"].items()})
-    if domain == "physics":
+    if source["domain"] == "physics":
         measurements = source["measurements"] or {"status": "unavailable", "reason": "measurements_not_predeclared", "observations": None}
         members["measurements.json"] = canonical(measurements)
         members["observations.csv"] = _csv_bytes(
@@ -457,7 +451,13 @@ def export_data(result_path: str | Path, model_path: str | Path, output_dir: str
              for row in result["time_series"]), expanded_limit)
     if sum(len(value) for value in members.values()) > expanded_limit:
         raise PresentationError("data package exceeds the uncompressed byte budget", "export_too_large")
-    manifest = {"schema": "pipeline-data/1", "domain": domain,
+    return members, modeling_sources
+
+
+def _data_manifest(source: dict, members: dict) -> dict:
+    usable = source["quality_gate"].get("numerical_passed") is True
+    stage = source["stage"]
+    manifest = {"schema": "pipeline-data/1", "domain": source["domain"],
                 "source_result_sha256": source["source_result_sha256"],
                 "source_model_sha256": source["source_model_sha256"],
                 "solver_rerun": False, "quantitative_usable": usable,
@@ -467,7 +467,33 @@ def export_data(result_path: str | Path, model_path: str | Path, output_dir: str
         manifest["source_stage"] = {"manifest_path": "source-stage/simulation-manifest.json",
                                     "manifest_sha256": stage["sha256"], "reference_root": "source-stage/",
                                     "all_declared_artifacts_included": True}
+    return manifest
+
+
+def export_data(result_path: str | Path, model_path: str | Path, output_dir: str | Path,
+                domain: str = "physics", max_bytes: int = 16 * 1024 * 1024,
+                modeling_assets: list | None = None, portable: bool = False) -> dict:
+    """Export saved evidence; opt in to the explicit, path-projected /2 contract.
+
+    The default /1 archive retains the original numerical evidence byte for byte.
+    ``portable=True`` produces derived documents, never a legacy restart result;
+    original private files stay unchanged and their hashes remain in the manifest.
+    """
+    if type(max_bytes) is not int or not 1024 <= max_bytes <= MAX_EXPORT_BYTES:
+        raise PresentationError("invalid data package byte budget")
+    if type(portable) is not bool:
+        raise PresentationError("portable must be a boolean")
+    source = load_source(result_path, model_path, domain)
+    output = output_directory(output_dir, source)
+    members, modeling_sources = _data_members(source, max_bytes, modeling_assets)
+    if portable:
+        from .portable_result import portable_members_and_manifest
+        members, manifest = portable_members_and_manifest(source, members, modeling_sources)
+    else:
+        manifest = _data_manifest(source, members)
     members["manifest.json"] = canonical(manifest)
+    if portable and sum(len(value) for value in members.values()) > min(MAX_EXPORT_BYTES, max_bytes * 16):
+        raise PresentationError("portable package exceeds the uncompressed byte budget", "export_too_large")
     def pack(compression: int) -> bytes:
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", compression=compression) as archive:
@@ -487,7 +513,7 @@ def export_data(result_path: str | Path, model_path: str | Path, output_dir: str
     if len(payload) > max_bytes:
         raise PresentationError("complete data package exceeds the delivery byte budget", "export_too_large")
     verify_unchanged(source)
-    if any(digest(path.read_bytes()) != checksum for path, checksum in modeling_sources):
+    if any(digest(path.read_bytes()) != checksum for path, _, checksum in modeling_sources):
         raise PresentationError('modeling assets changed during export')
     target = output / "data.zip"
     envelope = {**manifest, "path": str(target), "media_type": "application/zip", "bytes": len(payload), "sha256": digest(payload)}

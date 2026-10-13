@@ -126,6 +126,17 @@ FlashVDM custom kernel, quantization or compiled denoiser in this adapter. MLX
 sets the default computation device to Metal. CPU image decoding and marching
 cubes are explicit preprocessing/postprocessing, recorded in the receipt.
 
+## Shape reuse status
+
+`shape_reuse.shape_reuse_capability(config)` reports `supported: false`,
+`status: unsupported` and `inference_verified: false` without loading neural
+dependencies or inspecting files. Matching the pinned MLX source/checkpoint
+only identifies an unverified prospective route; latent extraction, caching,
+redecoding and latent optimization are not implemented capabilities.
+`shape_reuse.reuse_shape(config, request, output)` fails explicitly before
+request/path access or artifact creation. Caller-provided verification flags
+cannot enable it. This API accepts an in-memory config, never a config filename.
+
 ## Input and assets
 
 The physical `modeling-flow-request/1` requires a still PNG/JPEG/WebP attachment,
@@ -135,7 +146,7 @@ explicit extent, forbids material and decimation, and otherwise normalizes the
 maximum extent to one `model_unit`; no physical dimensions are inferred. Its
 receipt records `purpose: model_preview`, no simulation, and null material/mass.
 The QQ route is `modeling_preview_from_image` → `modeling_preview_render` →
-`qq_video`. In the 0.3.3 source preview, `display_cleanup` still defaults to `conservative`;
+`qq_video`. In the current source preview, `display_cleanup` still defaults to `conservative`;
 `none` keeps all components in the display. Both retain untouched normalized
 raw GLB/OBJ/JSON plus display assets and a fixed-policy cleanup receipt. Only
 whole tiny disconnected components meeting every `bounded-floaters/1` bound
@@ -199,27 +210,68 @@ Simulation-only cleanup may remove a numerical micro-component only when one
 surface accounts for at least 99% of total area, the fragment stays inside that
 surface's bounds, and all extent/area/absolute-volume thresholds pass. Individual
 limits are 0.001 / 1e-6 / 1e-9 of the corresponding dominant/total measures;
-aggregate area/volume losses stay below 1e-5 / 1e-8. Thin large parts, cavities,
+aggregate area/volume losses stay below 1e-5 / 1e-8. Thin large parts, significant cavities,
 separate objects and outside fragments remain and can cause a genuine rejection.
+An extremely small inward shell can satisfy this numerical-fragment policy;
+cleanup does not certify that every cavity or semantic feature is preserved.
 The receipt lists every removed fragment and threshold; display geometry is preserved.
 Disabling decimation also disables this cleanup.
 
-Reduction tries face budgets 6000, 8188 and 4000 independently from the admitted
+Reduction tries face budgets 6000, 8188 and 4000 independently from fresh copies of the admitted
 simulation source, using PyMeshLab topology/normal/boundary preservation,
 original-vertex placement and no automatic repair. Each candidate must preserve
-the source Euler characteristic as well as closure and winding, accepting the
-first independently passing candidate. Each
+the source Euler characteristic as well as closure and winding, and pass the
+actual engine geometry auditor before selection. Engine self-intersection
+rejection or audit budget exhaustion is recorded per candidate and the next
+candidate is tried. An already bounded source also receives this hard gate;
+when its audit exhausts a budget and reduction is allowed, smaller deterministic
+face targets are tried. The first candidate passing every gate is selected. Each
 candidate is uniformly rescaled to retain the explicitly requested physical
 extent; attempted topology audits and additional transforms are in the receipt.
-If none passes, the simulation mesh is rejected. The pipeline then applies its
-unchanged engine intersection/work-budget gate; a decimator flag is not proof of
-intersection freedom. A candidate failing that final gate remains a failure.
+If none passes, the simulation mesh is rejected and display assets remain intact.
+The independent pipeline audit and full authored-scene gate remain required.
+
+`candidate_quality.py` emits a deterministic `candidate-quality/1` report under
+fixed `bounded-simulation-candidate/1` policy. It records content hashes, engine
+auditor source hash, topology/volume/scale checks and bounded bidirectional
+point-to-triangle distance estimates. The initial limits are 2% relative volume
+change, 1% source-extent change for bounding extent/position and sampled distance,
+and 1e-6 relative mismatch of explicitly declared extent. Each direction samples
+up to 32 deterministic extrema/stratified vertices and face centroids; these are
+finite samples, not certified Hausdorff distance or area-uniform coverage.
+Quality processing admits at most 150,000 source vertices / 300,000 faces and
+reports `budget_exhausted` when its work capacity is reached. Thin structures,
+aperture dimensions, source self-intersections and physical fidelity are explicitly
+`not_verified`, even for an accepted candidate. It performs no mesh repair.
+
+The physical worker request optionally accepts `simulation_purpose` with default
+`surface_xpbd` or explicit `liquid_volume`; preview requests reject this field.
+Both currently require one closed, positive-volume surface within engine limits.
+Declared metre-scale `surface_xpbd` also requires volume greater than 1e-15 m³,
+matching the existing scene numeric-scale floor; no equivalent liquid initializer
+qualification is claimed by the geometry report.
+The purpose and selected quality report are bound into result/receipt/mesh JSON.
+For `liquid_volume`, success means geometry for later volume sampling:
+`ready_for_volume_sampling=true`, `ready_to_simulate=false`, and particleization
+is `not_performed`. This worker does not emit particles or infer liquid behavior.
+`ready_for_scene` is always false. The existing QQ image adapter must explicitly
+integrate a new purpose before advertising it; local worker support does not
+change QQ routing or delivery capabilities.
+
+In a packaged child process the geometry auditor is loaded from the trusted
+`PHYSICS_PIPELINE_PHYSICS_ROOT/physics_release` supplied by the verified bundle
+launcher. The loaded package must match that root. Requests cannot select an
+engine path, and unavailable/mismatched engines produce `unsupported` candidate
+reports while retaining display output. Standalone developer calls may use an
+explicitly configured Python import path when no host engine pin is supplied.
+Model previews never import or invoke this auditor.
 
 Physics eligibility requires bounded finite coordinates, distinct triangle
 indices, no duplicate/degenerate faces or unused vertices, one connected
 component, zero boundary/nonmanifold/inconsistently oriented edges and nonzero
-volume. Checks run after reduction too. This does **not** certify absence of
-self-intersections, image fidelity, CAD tolerances, wall thickness or material
+volume. Checks run after reduction too. Candidate acceptance includes the bounded
+engine rest-geometry self-intersection check; it does **not** certify dynamic
+self-collision, image fidelity, CAD tolerances, wall thickness or material
 properties. Simulations of reconstructed objects are approximations with these
 assumptions; quantitative physical accuracy requires separate measurements.
 

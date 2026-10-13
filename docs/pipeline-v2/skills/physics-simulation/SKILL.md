@@ -7,28 +7,29 @@ description: 模拟技能设计草案：消费已验证的模型引用，按视�
 
 > **设计草案，尚未注册或实现。** 本文件不替换现有同名技能，不启用新工具；不得在 v1 客户端调用下述新 API。只使用宿主实际公布的能力与操作。
 
-本技能将不可变 `ModelBundle` 转为 `SimulationBundle`。接口签名见 [API 契约](../../api-contract.md)，数据与验证字段见 [产物契约](../../artifact-contract.md)，模块衔接见 [规划书](../../README.md)。
+本技能只将 purpose=physical_simulation 的不可变 ModelBundle 转为 SimulationBundle。model_preview 直接走模型到渲染，禁止为形状展示发起模拟或制造空 SimulationBundle。接口签名见 [API 契约](../../api-contract.md)，数据与验证字段见 [产物契约](../../artifact-contract.md)，模块衔接见 [规划书](../../README.md)。
 
 ## 输入与输出
 
 - 输入：`ModelBundle` 引用、物理参数与初始条件、持续时间、观测需求、资源预算和模拟质量。
-- 输出：规范化求解配置、物理时间轴、状态数据、预声明测量、验证报告、生产者版本与 `SimulationBundle` 引用。
+- 输出：强类型 SimulationMetadata、规范化求解配置/时间轴、已承诺状态和预声明测量、验证报告与 SimulationBundle 引用。engine_dependency（id/version/digest/interface）必须来自已接受计划的 dependencies.engine。
 - 模拟质量为 `visual|strict`，默认 `visual`。用户要求数值测量、误差、稳定性或守恒结论时使用 `strict`；高精模型不能替代严格数值验证。
 
 ## 执行流程
 
 1. 弱客户端 agent 优先使用宿主 `pipeline_prepare → pipeline_submit → pipeline_status → pipeline_deliver`，取消使用 `pipeline_cancel`。默认建模 `standard`、模拟 `visual`、渲染 `standard`，交付视频和数据。
-2. 单独模拟时先调用 `simulation_capabilities`。核对模型的物理类型、耦合方式、资源和数据格式是否受支持；不能用名称相近的模型暗中替换。
+2. 单独模拟时先调用 `simulation_capabilities`。核对模型 purpose/domain 与不可变引用；拒绝把展示成功当物理资格。核对模型的物理类型、耦合方式、资源和数据格式是否受支持；不能用名称相近的模型暗中替换。
 3. 在 `simulation_prepare` 前声明观测量、单位、观察窗口、采样和误差要求。prepare 消费模型引用并返回 `plan_id`；检查实际分辨率、步长、预算、假设及调整是否保留明确要求。
 4. 用原 `plan_id` 和宿主提供的 `idempotency_key` 调用 `simulation_run`。计划变更或模型修订后必须重新 prepare；不由客户端临时覆盖准备好的物理参数。
 5. run 返回 `job_id` 后，按 `next_action.poll_after_ms` 调用 `pipeline_status`，取得成功的 `simulation_ref` 后再调用 `simulation_inspect`，检查完整性、物理时间范围与验证门禁。数值问题用 `simulation_query` 读取已声明、已采样且通过相应门禁的数据。
-6. 将通过检查的 `SimulationBundle` 引用交给渲染模块。视频编码或外部渲染失败不应删除或重新计算已经完成的模拟。
+6. 将通过检查的 SimulationBundle 与原 model_ref 交给渲染模块。下游必须核对模型引用（含 hash）和 engine_dependency 一致，不能按形状相似拼接。视频编码或外部渲染失败不应删除或重新计算已经完成的模拟。
 
 ## 关键决策
 
 - `visual` 可以交付原始数据，但必须标注数值精度未经认证；不把视觉通过、平滑轨迹或原始小数位数解释为测量可信度。
 - `strict` 要求能力声明的数值门禁通过。门禁失败时保留诊断与原始数据，不能发布认证测量或自动降级成 visual 成功。
 - 验证通过也只适用于配置的模型、采样和观察窗口；有限时间内未观察到事件不代表永不发生。校准材料与真实工程预测需要相应证据。
+- StatePlan 的 profile/population/selection_ref、字段来源和保存时钟必须一致；full_state 不接受显示插值或 legacy_display 冒充完整状态。元数据不能证明真实文件覆盖，仍需领域 validator。
 - 减少步长、增加采样、网格细化是不同操作；输出 FPS 不等于求解精度。不能为了视频大小缩短物理时间或改初始条件。
 - 缺少已声明的测量数据时，返回 `measurement_not_recorded`；只有用户允许重算才重新 prepare 并声明查询。首版不接受任意后验查询。不能从视频像素或插值展示帧反推数值答案。
 - 默认不调用外部求解服务；仅当能力已公布且宿主现有策略允许时使用，不对已有授权追加统一确认步骤。

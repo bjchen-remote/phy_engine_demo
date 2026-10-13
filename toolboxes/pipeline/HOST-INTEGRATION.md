@@ -506,8 +506,8 @@ Never omit raw, components or fields merely to satisfy archive delivery size.
 Legacy v1 archives keep their uncleaned contract and member requirements.
 
 Only the typed preview format additionally permits inert `.md`, `.png`, `.jpg`,
-`.jpeg`, `.webp` source files alongside `.json`, `.txt`, `.glb`, `.obj`. Physical
-ZIP rules remain unchanged. Reject symlinks, executable permissions, unsafe or
+`.jpeg`, `.webp` source files alongside `.json`, `.txt`, `.glb`, `.obj`. Legacy physical `/1`
+ZIP rules retain their existing contract; `/2` uses the source-reconstruction gate below. Reject symlinks, executable permissions, unsafe or
 duplicate paths, encryption and external GLB resources. Keep independent caps
 for compressed/expanded bytes, members and media. Release held references,
 video and archive together only after every check, recheck before sending and
@@ -601,6 +601,50 @@ receipt too. A package advertising this capability must not downgrade to raw
 receipts. Packages without it retain their legacy validation path.
 
 Physical data export uses a separate immutable public modeling receipt copy,
-bound to the original receipt digest. Canonical physical result files still
-retain their exact original bytes and may contain absolute task artifact paths;
-receipt projection is not a portable physical-result format.
+bound to the original receipt digest. For legacy physical `/1`, canonical result files retain their exact original bytes and may contain absolute task artifact paths; receipt projection alone is not a portable physical-result format. New opt-in `/2` uses the separate contract below.
+
+
+## Source-bound physical data and task imports (0.4.0 candidate)
+
+A rendering module declares `portable_data:"pipeline-data/2"`; only a verified
+combination with that module advertises `portable_physics_data:"pipeline-data/2"`.
+Legacy renderer overrides retain `/1`. Upgrade the host validator before activation.
+The producer result carries the task ID and declaration, and the ZIP manifest
+binds source result/model hashes. Scientific values stay intact; locators in
+JSON become known archive member paths or are omitted. All original task bytes
+and checkpoints remain private and unchanged. Geometry, image and license members
+are bound to the actual prepared-scene inventory. Decode GLB JSON metadata for
+locator checks; reject unsafe names, URI locators and external resources.
+
+The composed package contains fixed `verify_portable.py`. The host independently
+validates its exact task/registry pin, bundle and source/checkpoint selection,
+then runs that pinned entrypoint with a trusted interpreter under read-only,
+deny-network isolation. Pass `--job`, `--archive-sha256`, `--archive-bytes`,
+`--source-result-sha256` and `--source-model-sha256` from independently verified
+sources. The entrypoint rechecks task/request identity, plan, prepared scene,
+state, package/component pins and actual source inventory, and invokes the pinned
+renderer verifier. It reconstructs every member and the deterministic container.
+Compare every `portable-physics-verification/1` proof field and recheck source,
+pin and archive bytes after the child exits. Producer success and rehashed member
+lists alone never authorize delivery. DEFLATE identity requires the same pinned
+runtime/zlib. No solver, neural inference, network or source writes are needed.
+Stream CRC/expanded-size/hash checks without extracting or executing archive files.
+
+An explicitly authorized saved model can enter a fresh task at
+`work/imported-models/<imported_asset_ref>/manifest.json`. The seven fields are
+`schema_version:"model-asset-import/1"`, `task_id`, `imported_asset_ref`, `asset_id`,
+`source_model_ref`, `producer:{id,version,digest}` and `members`. Members bind
+relative paths, roles, SHA-256 and size. The imported reference is the SHA-256 of
+UTF-8 canonical JSON over `{task_id,asset_id,source_model_ref,producer,members}`,
+with sorted keys, compact separators, unescaped Unicode, no NaN and no newline.
+The host must separately bind issuance, source-event identity and authorization
+outside worker writes; a self-consistent worker-generated manifest is not authority.
+Do not import old requests, responses, task state or runtime pins.
+
+The advertised `modeling_liquefy` operation independently verifies those members
+or a current model reference and creates a sealed SI derivative plus `fluid_ref`.
+Use the suggested whole-entity `physics_patch` transaction, including removal of
+obsolete `mesh_settings` when replacing the last mesh. Then prepare and simulate
+the complete scene. Preserve unmentioned translation/velocity. Initial water-like
+volume conversion, finite coverage and numerical readiness are separate claims;
+there is no thermal phase transition, latent optimization or material calibration.

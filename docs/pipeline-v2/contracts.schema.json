@@ -172,6 +172,9 @@
             "maxLength": 8192
           },
           "maxItems": 64
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
         }
       },
       "required": [
@@ -179,7 +182,8 @@
         "parameters",
         "input_refs",
         "geometry_tolerance_m",
-        "assumptions"
+        "assumptions",
+        "purpose"
       ],
       "additionalProperties": false
     },
@@ -360,7 +364,8 @@
         "fidelity": {
           "enum": [
             "trajectory_preserving",
-            "illustrative"
+            "illustrative",
+            "shape_only"
           ]
         },
         "template_id": {
@@ -489,7 +494,7 @@
           "$ref": "#/$defs/RenderSpec"
         },
         "quality": {
-          "$ref": "#/$defs/Quality"
+          "$ref": "#/$defs/StageQuality"
         },
         "delivery": {
           "$ref": "#/$defs/DeliverySpec"
@@ -561,22 +566,115 @@
           "minItems": 1,
           "maxItems": 3,
           "uniqueItems": true
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
         }
       },
       "required": [
         "schema_version",
         "intent",
         "model",
-        "simulation",
         "render",
         "quality",
         "delivery",
         "requested_budget",
         "allow_adjustments",
         "reuse",
-        "permitted_stages"
+        "permitted_stages",
+        "purpose"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              }
+            },
+            "required": [
+              "purpose"
+            ]
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "properties": {
+                  "purpose": {
+                    "const": "model_preview"
+                  }
+                }
+              },
+              "quality": {
+                "required": [
+                  "modeling",
+                  "rendering"
+                ],
+                "not": {
+                  "required": [
+                    "simulation"
+                  ]
+                }
+              },
+              "permitted_stages": {
+                "items": {
+                  "enum": [
+                    "modeling",
+                    "rendering"
+                  ]
+                }
+              },
+              "reuse": {
+                "properties": {
+                  "simulation_ref": {
+                    "type": "null"
+                  }
+                }
+              },
+              "render": {
+                "properties": {
+                  "fidelity": {
+                    "const": "shape_only"
+                  }
+                }
+              }
+            },
+            "not": {
+              "required": [
+                "simulation"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "simulation"
+            ],
+            "properties": {
+              "model": {
+                "properties": {
+                  "purpose": {
+                    "const": "physical_simulation"
+                  }
+                }
+              },
+              "quality": {
+                "$ref": "#/$defs/Quality"
+              },
+              "render": {
+                "properties": {
+                  "fidelity": {
+                    "enum": [
+                      "trajectory_preserving",
+                      "illustrative"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "PipelineLock": {
       "type": "object",
@@ -616,6 +714,9 @@
         "created_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/DependencyLock"
         }
       },
       "required": [
@@ -624,9 +725,32 @@
         "bundle_revision",
         "modules",
         "policy_revision",
-        "created_at"
+        "created_at",
+        "dependencies"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "modules": {
+                "required": [
+                  "simulation"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "dependencies": {
+                "required": [
+                  "engine"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "CostEstimate": {
       "type": "object",
@@ -825,6 +949,104 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "population": {
+                "const": "sampled"
+              }
+            },
+            "required": [
+              "population"
+            ]
+          },
+          "then": {
+            "properties": {
+              "selection_ref": {
+                "$ref": "#/$defs/ArtifactRef"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "selection_ref": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "profile": {
+                "const": "full_state"
+              }
+            },
+            "required": [
+              "profile"
+            ]
+          },
+          "then": {
+            "properties": {
+              "population": {
+                "const": "all_declared_entities"
+              },
+              "interpolation": {
+                "const": "none"
+              },
+              "fields": {
+                "items": {
+                  "properties": {
+                    "source": {
+                      "const": "solver"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "profile": {
+                "const": "observables"
+              }
+            },
+            "required": [
+              "profile"
+            ]
+          },
+          "then": {
+            "properties": {
+              "population": {
+                "const": "observables_only"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "profile": {
+                "const": "sampled_state"
+              }
+            },
+            "required": [
+              "profile"
+            ]
+          },
+          "then": {
+            "properties": {
+              "population": {
+                "enum": [
+                  "sampled",
+                  "all_declared_entities"
+                ]
+              }
+            }
+          }
         }
       ]
     },
@@ -918,6 +1140,9 @@
         },
         "delivery": {
           "$ref": "#/$defs/DeliverySpec"
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
         }
       },
       "required": [
@@ -937,7 +1162,8 @@
         "quality_resolved",
         "effective_arguments",
         "effective_limits",
-        "delivery"
+        "delivery",
+        "purpose"
       ],
       "additionalProperties": false,
       "allOf": [
@@ -953,9 +1179,6 @@
             "properties": {
               "effective_arguments": {
                 "$ref": "#/$defs/args_pipeline_prepare"
-              },
-              "state_plan": {
-                "$ref": "#/$defs/StatePlan"
               }
             }
           }
@@ -1010,11 +1233,73 @@
             "properties": {
               "effective_arguments": {
                 "$ref": "#/$defs/args_rendering_prepare"
-              },
-              "state_plan": {
-                "$ref": "#/$defs/StatePlan"
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              }
+            },
+            "required": [
+              "purpose"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state_plan": {
+                "type": "null"
+              },
+              "quality_requested": {
+                "not": {
+                  "required": [
+                    "simulation"
+                  ]
+                }
+              },
+              "quality_resolved": {
+                "not": {
+                  "required": [
+                    "simulation"
+                  ]
+                }
+              },
+              "permitted_stages": {
+                "items": {
+                  "enum": [
+                    "modeling",
+                    "rendering"
+                  ]
+                }
+              }
+            }
+          },
+          "else": {
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "pipeline",
+                        "simulation",
+                        "rendering"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "state_plan": {
+                      "$ref": "#/$defs/StatePlan"
+                    }
+                  }
+                }
+              }
+            ]
           }
         }
       ]
@@ -1606,6 +1891,108 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ModelBundle/1"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/$defs/ModelMetadata"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "SimulationBundle/1"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/$defs/SimulationMetadata"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "RenderBundle/1"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metadata": {
+                "$ref": "#/$defs/RenderMetadata"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "metadata": {
+                "properties": {
+                  "purpose": {
+                    "const": "model_preview"
+                  }
+                },
+                "required": [
+                  "purpose"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "quality": {
+                "properties": {
+                  "requested": {
+                    "not": {
+                      "required": [
+                        "simulation"
+                      ]
+                    }
+                  },
+                  "actual": {
+                    "not": {
+                      "required": [
+                        "simulation"
+                      ]
+                    }
+                  }
+                }
+              },
+              "validation": {
+                "properties": {
+                  "numerical": {
+                    "const": "not_applicable"
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1890,6 +2277,9 @@
             "broker_handle"
           ],
           "additionalProperties": false
+        },
+        "dependencies": {
+          "$ref": "#/$defs/DependencyLock"
         }
       },
       "required": [
@@ -1905,9 +2295,30 @@
         "output_dir",
         "work_dir",
         "limits",
-        "permissions"
+        "permissions",
+        "dependencies"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "simulation"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "dependencies": {
+                "required": [
+                  "engine"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "ToolboxContract": {
       "type": "object",
@@ -2013,6 +2424,15 @@
             "maxLength": 8192
           },
           "minItems": 1
+        },
+        "purposes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Purpose"
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
         }
       },
       "required": [
@@ -2031,7 +2451,8 @@
         "isolation",
         "capability_policy",
         "dependencies",
-        "acceptance"
+        "acceptance",
+        "purposes"
       ],
       "additionalProperties": false
     },
@@ -2300,15 +2721,65 @@
             "standard",
             "deep"
           ]
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
         }
       },
       "required": [
         "model_ref",
-        "simulation_ref",
         "spec",
-        "quality"
+        "quality",
+        "purpose"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              }
+            },
+            "required": [
+              "purpose"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "simulation_ref"
+              ]
+            },
+            "properties": {
+              "spec": {
+                "properties": {
+                  "fidelity": {
+                    "const": "shape_only"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "simulation_ref"
+            ],
+            "properties": {
+              "spec": {
+                "properties": {
+                  "fidelity": {
+                    "enum": [
+                      "trajectory_preserving",
+                      "illustrative"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "args_rendering_inspect": {
       "type": "object",
@@ -2424,16 +2895,49 @@
           "items": {
             "type": "string"
           }
+        },
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "model_ref": {
+          "$ref": "#/$defs/ModelRef"
         }
       },
       "required": [
         "schema_version",
         "run_id",
-        "simulation_ref",
         "files",
-        "limitations"
+        "limitations",
+        "purpose",
+        "model_ref"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              }
+            },
+            "required": [
+              "purpose"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "simulation_ref"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "simulation_ref"
+            ]
+          }
+        }
+      ]
     },
     "ModelRef": {
       "type": "object",
@@ -2500,6 +3004,1119 @@
         "sha256"
       ],
       "additionalProperties": false
+    },
+    "Purpose": {
+      "enum": [
+        "physical_simulation",
+        "model_preview"
+      ]
+    },
+    "DependencyPin": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "interface": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "digest",
+        "interface"
+      ],
+      "additionalProperties": false
+    },
+    "DependencyLock": {
+      "type": "object",
+      "properties": {
+        "engine": {
+          "$ref": "#/$defs/DependencyPin"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "Coordinates": {
+      "type": "object",
+      "properties": {
+        "handedness": {
+          "const": "right"
+        },
+        "up_axis": {
+          "enum": [
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        "frame": {
+          "enum": [
+            "local",
+            "world"
+          ]
+        },
+        "origin": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      },
+      "required": [
+        "handedness",
+        "up_axis",
+        "frame",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "Units": {
+      "type": "object",
+      "properties": {
+        "length": {
+          "enum": [
+            "m",
+            "model_unit"
+          ]
+        },
+        "mass": {
+          "enum": [
+            "kg",
+            null
+          ]
+        },
+        "time": {
+          "enum": [
+            "s",
+            null
+          ]
+        },
+        "temperature": {
+          "enum": [
+            "K",
+            "degC",
+            null
+          ]
+        }
+      },
+      "required": [
+        "length",
+        "mass",
+        "time",
+        "temperature"
+      ],
+      "additionalProperties": false
+    },
+    "GeometryAsset": {
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "representation": {
+          "enum": [
+            "triangle_mesh",
+            "parameterized"
+          ]
+        },
+        "role": {
+          "enum": [
+            "raw_display",
+            "display",
+            "simulation_mesh"
+          ]
+        },
+        "units": {
+          "enum": [
+            "m",
+            "model_unit"
+          ]
+        },
+        "coordinates": {
+          "$ref": "#/$defs/Coordinates"
+        },
+        "topology_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "artifact_id",
+        "sha256",
+        "representation",
+        "role",
+        "units",
+        "coordinates",
+        "topology_sha256"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "representation": {
+                "const": "triangle_mesh"
+              }
+            },
+            "required": [
+              "representation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "topology_sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "GeometryAssetPin": {
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "topology_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "artifact_id",
+        "sha256",
+        "topology_sha256"
+      ],
+      "additionalProperties": false
+    },
+    "GeometryErrorReport": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "passed",
+            "not_verified"
+          ]
+        },
+        "metric": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "unit": {
+          "enum": [
+            "m",
+            "model_unit",
+            "dimensionless"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tolerance": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        }
+      },
+      "required": [
+        "status",
+        "metric",
+        "unit",
+        "value",
+        "tolerance",
+        "limitations"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "passed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "GeometryBinding": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "identity",
+            "rigid_transform",
+            "barycentric",
+            "exact_subset",
+            "bounded_surface"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/GeometryAssetPin"
+        },
+        "target": {
+          "$ref": "#/$defs/GeometryAssetPin"
+        },
+        "mapping_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error_report": {
+          "$ref": "#/$defs/GeometryErrorReport"
+        }
+      },
+      "required": [
+        "kind",
+        "source",
+        "target",
+        "mapping_ref",
+        "transform",
+        "error_report"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "identity"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mapping_ref": {
+                "type": "null"
+              },
+              "transform": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "rigid_transform"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mapping_ref": {
+                "type": "null"
+              },
+              "transform": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                },
+                "minItems": 4,
+                "maxItems": 4
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "barycentric",
+                  "exact_subset",
+                  "bounded_surface"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "mapping_ref": {
+                "$ref": "#/$defs/ArtifactRef"
+              },
+              "transform": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "GeometryQuality": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "tolerance_m": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "measured_error_m": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        }
+      },
+      "required": [
+        "reference",
+        "tolerance_m",
+        "measured_error_m",
+        "verified",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "Requirement": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source": {
+          "enum": [
+            "user",
+            "template",
+            "inference"
+          ]
+        },
+        "status": {
+          "enum": [
+            "met",
+            "assumed",
+            "unverified"
+          ]
+        }
+      },
+      "required": [
+        "field",
+        "description",
+        "source",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "ModelMetadata": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "domain": {
+          "enum": [
+            "mechanical",
+            "pcb_thermal",
+            "geometry"
+          ]
+        },
+        "model_schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "units": {
+          "$ref": "#/$defs/Units"
+        },
+        "coordinates": {
+          "$ref": "#/$defs/Coordinates"
+        },
+        "entity_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Requirement"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "simulation_asset": {
+          "$ref": "#/$defs/GeometryAsset"
+        },
+        "render_asset": {
+          "$ref": "#/$defs/GeometryAsset"
+        },
+        "raw_asset": {
+          "$ref": "#/$defs/GeometryAsset"
+        },
+        "binding": {
+          "$ref": "#/$defs/GeometryBinding"
+        },
+        "geometry_quality": {
+          "$ref": "#/$defs/GeometryQuality"
+        },
+        "consumer_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "engine_dependency": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DependencyPin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "purpose",
+        "domain",
+        "model_schema",
+        "units",
+        "coordinates",
+        "entity_ids",
+        "requirements",
+        "assumptions",
+        "render_asset",
+        "binding",
+        "geometry_quality",
+        "consumer_requirements",
+        "engine_dependency"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              }
+            },
+            "required": [
+              "purpose"
+            ]
+          },
+          "then": {
+            "required": [
+              "raw_asset"
+            ],
+            "not": {
+              "required": [
+                "simulation_asset"
+              ]
+            },
+            "properties": {
+              "domain": {
+                "const": "geometry"
+              },
+              "units": {
+                "properties": {
+                  "mass": {
+                    "type": "null"
+                  },
+                  "time": {
+                    "type": "null"
+                  },
+                  "temperature": {
+                    "type": "null"
+                  }
+                }
+              },
+              "raw_asset": {
+                "properties": {
+                  "role": {
+                    "const": "raw_display"
+                  }
+                }
+              },
+              "binding": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "identity",
+                      "exact_subset",
+                      "bounded_surface"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "simulation_asset"
+            ],
+            "properties": {
+              "domain": {
+                "enum": [
+                  "mechanical",
+                  "pcb_thermal"
+                ]
+              },
+              "units": {
+                "properties": {
+                  "length": {
+                    "const": "m"
+                  }
+                }
+              },
+              "simulation_asset": {
+                "properties": {
+                  "role": {
+                    "const": "simulation_mesh"
+                  },
+                  "units": {
+                    "const": "m"
+                  }
+                }
+              },
+              "render_asset": {
+                "properties": {
+                  "units": {
+                    "const": "m"
+                  }
+                }
+              },
+              "binding": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "identity",
+                      "rigid_transform",
+                      "barycentric"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "render_asset": {
+              "properties": {
+                "role": {
+                  "const": "display"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              },
+              "units": {
+                "properties": {
+                  "length": {
+                    "const": "model_unit"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "geometry_quality": {
+                "properties": {
+                  "tolerance_m": {
+                    "type": "null"
+                  },
+                  "measured_error_m": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "SimulationMetadata": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "const": "physical_simulation"
+        },
+        "fixture_only": {
+          "type": "boolean"
+        },
+        "model_ref": {
+          "$ref": "#/$defs/ModelRef"
+        },
+        "domain": {
+          "enum": [
+            "mechanical",
+            "pcb_thermal"
+          ]
+        },
+        "engine_dependency": {
+          "$ref": "#/$defs/DependencyPin"
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "physical_interval_s": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "state_export": {
+          "enum": [
+            "observables",
+            "sampled_state",
+            "full_state"
+          ]
+        },
+        "state_plan": {
+          "$ref": "#/$defs/StatePlan"
+        },
+        "numerical_status": {
+          "enum": [
+            "passed",
+            "failed",
+            "not_checked"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        }
+      },
+      "required": [
+        "purpose",
+        "model_ref",
+        "domain",
+        "engine_dependency",
+        "backend",
+        "seed",
+        "physical_interval_s",
+        "state_export",
+        "state_plan",
+        "numerical_status",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "RenderMetadata": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "$ref": "#/$defs/Purpose"
+        },
+        "model_ref": {
+          "$ref": "#/$defs/ModelRef"
+        },
+        "simulation_ref": {
+          "$ref": "#/$defs/SimulationRef"
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "engine_dependency": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DependencyPin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "binding": {
+          "$ref": "#/$defs/GeometryBinding"
+        },
+        "fidelity": {
+          "enum": [
+            "trajectory_preserving",
+            "illustrative",
+            "shape_only"
+          ]
+        },
+        "physical_interval_s": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playback_duration_s": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "frame_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "frame_map_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "simulation_performed": {
+          "type": "boolean"
+        },
+        "measurement_source": {
+          "const": false
+        },
+        "reproducibility": {
+          "enum": [
+            "deterministic",
+            "best_effort"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "presentation": {
+          "$ref": "#/$defs/RenderSpec"
+        },
+        "execution": {
+          "type": "object",
+          "properties": {
+            "renderer": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "device": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "processing": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 8192
+              }
+            }
+          },
+          "required": [
+            "renderer",
+            "version",
+            "device",
+            "seed",
+            "processing"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "purpose",
+        "model_ref",
+        "provider",
+        "engine_dependency",
+        "binding",
+        "fidelity",
+        "physical_interval_s",
+        "playback_duration_s",
+        "width_px",
+        "height_px",
+        "fps",
+        "frame_count",
+        "frame_map_ref",
+        "simulation_performed",
+        "measurement_source",
+        "reproducibility",
+        "limitations",
+        "presentation",
+        "execution"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "const": "model_preview"
+              }
+            },
+            "required": [
+              "purpose"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "simulation_ref"
+              ]
+            },
+            "properties": {
+              "fidelity": {
+                "const": "shape_only"
+              },
+              "physical_interval_s": {
+                "type": "null"
+              },
+              "frame_map_ref": {
+                "type": "null"
+              },
+              "simulation_performed": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "simulation_ref"
+            ],
+            "properties": {
+              "fidelity": {
+                "enum": [
+                  "trajectory_preserving",
+                  "illustrative"
+                ]
+              },
+              "physical_interval_s": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "frame_map_ref": {
+                "$ref": "#/$defs/ArtifactRef"
+              },
+              "simulation_performed": {
+                "const": true
+              },
+              "engine_dependency": {
+                "$ref": "#/$defs/DependencyPin"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

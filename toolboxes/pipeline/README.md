@@ -1,6 +1,8 @@
 # QQ modeling / simulation / rendering pipeline
 
-`physics-pipeline` 0.3.4 composes independently versioned modeling 0.3.3, rendering 0.3.1 and frozen simulation 0.2.0 packages with an explicitly selected physics engine snapshot. QQ keeps its **v1** envelope, existing structured `physics_*` / `pcb_*` tools, `physics_simulate` and `qq_video`. An optional Mac-local Hunyuan3D-2mini flow matching worker adds image-to-shape generation through `modeling_preview_from_image` for shape presentations and `modeling_from_image` for physical scenes; it does not train a new model or replace the solver.
+The current source `physics-pipeline` 0.4.0 composes modeling 0.4.0, simulation 0.2.1 and rendering 0.4.0 with physics 1.5.0. It adds bounded closed-mesh liquid initialization, candidate geometry gates and versioned portable physical data. QQ keeps its **v1** envelope, existing `physics_*` / `pcb_*` operations, `physics_simulate` and `qq_video`. The optional offline Hunyuan3D-2mini worker generates shapes; DFSPH/PBF advance liquids. Model previews still skip simulation and require no invented physical scale or density. Source/build verification, installed activation and live delivery remain separate acceptance layers.
+
+`modeling_liquefy` accepts one current `model_ref` or a host-authorized `imported_asset_ref`, an explicit `physical_extent_m` and `entity_id`. It derives a sealed whole-fluid `fluid_ref`; insert or replace that whole entity with `physics_patch`, then prepare and simulate the full scene. The first version preserves scaled volume at t=0 with water's fixed 1000 kg/m³ reference density. It models no heating or phase transition. Open, self-intersecting, ambiguous or unresolved geometry fails explicitly; particle and volume budgets are hard gates. Runtime discovery and the verified component pins determine operation availability. The adjacent operation catalogue is used for admission; its presence never grants a missing capability.
 
 The messaging bridge is installed separately; this repository publishes the engine and composable modules. The public [host integration contract](HOST-INTEGRATION.md) describes image admission, runtime pins and complete data delivery.
 
@@ -8,13 +10,13 @@ The [internal architecture](ARCHITECTURE.md) records component pins, prepare loc
 
 ## Build against the intended engine
 
-Always pass an explicit immutable `--engine` snapshot when preserving a deployed solver. The maintenance baseline is physics **1.4.7**, content digest:
+Always pass an explicit immutable `--engine` snapshot when preserving a deployed solver. The historical 0.3.x maintenance baseline was physics **1.4.7**, content digest:
 
 ```text
 f22cb4f59bc3cce75862c7a549656a94ce8c70c17b4762efd228d30399f3f41f
 ```
 
-This identifies the existing engine snapshot, not a pipeline activation or QQ image-modeling acceptance receipt. Resolve it from the operator's actual registry and verify `toolbox.json` plus its content digest before building. For an operator with the corresponding verified registry snapshot (the host-dependent smoke command requires the separately installed bridge):
+This identifies the historical engine snapshot, which has no mesh-volume initializer. For the current liquid candidate, run `python3 toolboxes/build_physics.py` and build against `toolboxes/physics`; verify the fresh digest. Source/build checks do not imply activation or platform delivery. The commands below preserve the older maintenance baseline. Resolve it from the operator's actual registry and verify `toolbox.json` plus its content digest before building. For an operator with the corresponding verified registry snapshot (the host-dependent smoke command requires the separately installed bridge):
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 toolboxes/build_pipeline.py \
@@ -161,15 +163,13 @@ Unsupported quality/backend/geometry fails concretely, with no silent downgrade.
 
 ## Data, recovery and limits
 
-Public ZIP modeling, rendering and image-source receipts use a deterministic `portable-provenance/1` projection. Known asset paths refer to archive members; standalone absolute filesystem paths and known Mac/Linux paths embedded in compiler diagnostics are omitted. Each projected JSON and its preview archive declaration bind the SHA-256 of the original private receipt. The host independently recomputes preview projections from task-pinned source bytes and verifies renderer receipt identity; it does not trust a projection declaration alone. Original task receipts, geometry bytes, component pins and checkpoints remain unchanged. Legacy preview archives retain their original validation path. Physical exports likewise retain the original modeling receipt hash in a separate immutable public copy. The host must support `portable-provenance/1` before activating 0.3.4: older hosts reject the changed ZIP receipt bytes under their exact-source hash checks. This release is a new composed package, with unchanged independently versioned stage modules. This projection applies only to receipt members; physical canonical result files retain their original bytes and can still contain task-local absolute artifact paths.
+Public modeling, rendering and image-source receipts retain the deterministic `portable-provenance/1` contract and its independently recomputed source bindings. The new rendering pin declares `portable_data=pipeline-data/2`: physical data is a versioned projection of the original private result, with numerical values and source hashes preserved, local paths removed and internal descriptors rebound. A fixed read-only process from the verified package reconstructs the ZIP from sealed original sources and inventory; the host compares its complete proof. GLB metadata is decoded before privacy checks. Invalid names, file URIs and unprojectable private scientific fields fail explicitly. Old immutable rendering packages retain their original `/1` byte-exact contract and may contain historical task paths.
 
-Simulation saves `result.json` with video disabled. Presentation exports exact result bytes, model, available measurements/CSV, quality metadata, dictionary and file hashes. Used image assets additionally preserve display GLB/OBJ, simulation OBJ, modeling receipts/mesh JSON and complete third-party licenses. Macro-step observations and sampled display frames are distinct; `quantitative_usable=false` is diagnostic data. Strict numerical checks do not establish the physical calibration of a reconstructed object.
+Simulation saves its canonical private `result.json` with video disabled. Rendering exports the appropriate versioned data representation, normalized model, measurements/CSV, quality labels and licenses. Used liquid conversions also export source geometry, qualified geometry and the conversion receipt. Macro-step observations remain distinct from sampled display frames; `quantitative_usable=false` is diagnostic data. Neither a portable projection nor display interpolation is a restart checkpoint or physical calibration.
 
-Stage checkpoints bind metadata and file hashes. Changed preparations archive the previous compute attempt; incomplete nonempty stages are retained rather than overwritten or blindly repeated. Successful simulation survives export/render failure. Rerendering remains scoped to the same task and original component pins; cross-task import and renderer-version migration are not implemented.
+Stage checkpoints bind metadata and source hashes. Changed preparations archive the previous compute attempt; incomplete nonempty stages are retained. Successful simulation survives export/render failure. `pipeline_render_prepare` remains scoped to the same task and original pins. Separately, an authorized host can archive and import persistent model geometry into a later task, issuing a new task-bound reference while preserving source evidence. This does not migrate a solver checkpoint or renderer version.
 
-QQ currently accepts one MP4 plus one ZIP, default 16 MiB each. Oversized complete data fails rather than silently dropping fields. Unknown platform receipts are never resent. OneBot may run without fixed timeouts; other transports retain their configured task deadline. The executor has output/queue limits but no hard aggregate memory or temporary-disk quota. An extra artistic video needs the future multi-artifact protocol and explicit provider capability/authorization before cloud generation can be enabled.
-
-Large complete ZIPs may use lossless DEFLATE when the stored form exceeds the delivery limit. Every original member and its hash is retained; small archives keep their previous bytes. Host validation streams CRC under the independent expanded-size cap without extracting or executing model files. The adapter also removes indentation from legacy task-owned model files that would otherwise exceed the engine's existing 1 MB admission limit, preserving every value and insertion order where legacy mesh references require it. The engine snapshot is unchanged.
+QQ currently accepts one MP4 plus one ZIP, default 16 MiB each. Oversized complete data fails; unknown platform receipts are never resent. Large ZIPs can use lossless DEFLATE under the expanded-size budget. Portable `/2` verifies the deterministic container using the same rendering runtime; legacy `/1` retains its exact member bytes. The executor still has no hard aggregate memory or temporary-disk quota. The 0.4.0 candidate rebuilds physics 1.5.0 and independently versions every changed stage; existing installed snapshots and running pins remain unchanged. Source, offline package, activation and live platform receipts are separate acceptance layers.
 
 ## Conservative display fragment cleanup
 
@@ -195,3 +195,7 @@ Boundary and weak-reference lifecycle regression tests cover these changes.
 Build the new modeling stage and composed package while explicitly passing the
 existing engine, simulation and rendering snapshots. Only the modeling stage
 changes; new tasks use the new atomic active pointer and existing pins stay valid.
+
+## Runtime operation contracts and liquid conversion
+
+Read `help(topic="operation:<name>")` for the pinned admission/result schema. `modeling_liquefy` returns a sealed whole-entity `fluid_ref`; follow its exact `physics_patch` suggestion, prepare the full scene, then simulate. Finite sampling uses hard particle, volume, connectivity and source-coverage gates; it is not a certificate of arbitrary thin-wall preservation or a thermal melting model. See the [candidate record](../../docs/release-1.5.0.md) and [host integration](HOST-INTEGRATION.md).

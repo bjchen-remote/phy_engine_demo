@@ -6,7 +6,7 @@
     {
       "name": "pipeline_prepare",
       "owner": "host",
-      "description": "协商全部阶段并冻结计划；不启动计算或付费作业。",
+      "description": "按显式 purpose 协商物理流水线或无模拟的模型展示并冻结计划；不启动计算或付费作业。",
       "input_schema": {
         "$ref": "contracts.schema.json#/$defs/args_pipeline_prepare"
       },
@@ -90,7 +90,7 @@
     {
       "name": "modeling_prepare",
       "owner": "modeling",
-      "description": "校验参数、来源和几何目标并冻结建模计划。",
+      "description": "按 spec.purpose 校验物理或展示参数、来源和几何目标并冻结建模计划。",
       "input_schema": {
         "$ref": "contracts.schema.json#/$defs/args_modeling_prepare"
       },
@@ -198,7 +198,7 @@
     {
       "name": "rendering_prepare",
       "owner": "rendering",
-      "description": "验证依赖与可用缓存并冻结渲染计划。",
+      "description": "按 purpose 核对依赖；物理用途要求一致模拟引用，模型展示不接收模拟引用。",
       "input_schema": {
         "$ref": "contracts.schema.json#/$defs/args_rendering_prepare"
       },

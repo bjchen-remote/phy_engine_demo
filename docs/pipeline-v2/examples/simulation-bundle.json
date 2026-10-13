@@ -122,6 +122,13 @@
       "limitations": [
         "仅为拟议摆模型导出，不是现有全粒子状态能力声明。"
       ]
+    },
+    "purpose": "physical_simulation",
+    "engine_dependency": {
+      "id": "physics",
+      "version": "1.4.7",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "interface": "physics-python/1"
     }
   }
 }

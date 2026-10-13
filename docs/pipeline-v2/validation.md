@@ -37,3 +37,27 @@ skill 的 frontmatter 校验使用 skill-creator 自带工具与 PyYAML。行为
 所有示例都使用虚构 ID/hash/费用/回执，不对应真实产物。schema 只证明结构；动态模板参数、权限、实际文件 hash、几何/数值正确性、跨文件一致性、时间覆盖、预算和发送回执仍需实现相应 validator 后验收。bundle metadata 的 domain 细节由产物契约规定，后续要按真实领域能力细化 schema。
 
 未运行已有完整物理测试集，因为本轮没有更改 solver、运行时、生产 skill 或 v1 toolbox；文件格式校验不应被描述成三模块已经可运行。P1–P6 的完成门列在规划书中。
+
+## 2026-10-13 草案契约复核
+
+v2 状态仍是设计草案；本次只在隔离源码目录修改 docs/pipeline-v2。未运行求解器、读取私有 runs/runtime、操作注册表、调用 provider 或发送 QQ。
+
+本次增加显式 purpose、无模拟的模型展示分支、GeometryAsset/GeometryBinding、按 kind 分派的强类型 metadata、求解器 DependencyPin 和跨字段设计检查。19 个公开工具名不变；rendering_prepare 通过 purpose 选择用途，模型展示禁止 simulation_ref，物理用途要求一致上游模型和引擎依赖。StatePlan 结构额外约束总体选择/full_state 来源，真实数组时间与字段覆盖仍由后续领域 validator 验证。
+
+完整复核需要 jsonschema（本轮使用隔离环境的 4.26.0）：
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 docs/pipeline-v2/validate_contracts.py
+```
+
+缺少依赖时可明确选择仅标准库检查；此模式不会声称 JSON Schema 合规，也不运行结构反例：
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 docs/pipeline-v2/validate_contracts.py --semantic-only
+```
+
+正式 jsonschema 4.26.0 结果：19 份正例/模块契约、36 项 schema 反例、17 项结构合法但跨字段非法的反例、19 个操作及其 next_action 示例参数、112 个内部引用全部通过；单独建模与 rendering_prepare 的两种用途均通过。`--semantic-only` 同样通过标准库检查并明确打印 schema/结构反例已跳过。`git diff --check -- docs/pipeline-v2` 通过。
+
+源码链接检查明确不读取 implementation-report 中六个指向历史 runs/ 的私有/生成证据链接；它们是否存在或真实不属于这次契约校验。
+
+[contract_semantics.py](contract_semantics.py) 是设计 fixture 的跨字段检查，不是运行时授权器或几何验证器。它可检查模型/引擎引用一致、资产 pin 与文件声明一致、identity/刚性变换的字段约束、时间窗/重复字段、重复 artifact ID/path；不会读取真实工件或证明 barycentric、exact_subset、bounded_surface 的算法结果。AgentResult 的通用 data 与 next_action dispatch 仍需未来 host 的操作白名单/动态模板/schema/作用域/预算门，不能仅凭本轮检查接入运行时。

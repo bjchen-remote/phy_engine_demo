@@ -1,6 +1,16 @@
 # 模拟模块内部架构
 
-模拟模块消费已验证的 `pipeline-model/1`，执行固定引擎一次，并发布独立于视频的 `pipeline-simulation/1` 数值结果。用户工具仍是 `physics_simulate` / `physics_inspect` / `physics_query` 或 PCB 对应接口；内部 `simulation.run` 不是 QQ 工具。操作说明见 [Skill](SKILL.md)，组合状态与 pin 见 [组合架构](../../ARCHITECTURE.md)。
+模拟模块消费已验证的 `pipeline-model/1`，执行固定引擎一次，并发布独立于视频的 `pipeline-simulation/1` 数值结果。用户工具仍是 `physics_simulate` / `physics_inspect` / `physics_query` 或 PCB 对应接口；内部 `simulation.run` 不是 QQ 工具。操作说明见相邻 [Skill](SKILL.md)；组合状态与 pin 的源码说明位于 `toolboxes/pipeline/ARCHITECTURE.md`。
+
+本文和 Skill 来自 `toolboxes/pipeline/manual/simulation/`，构建时复制进 simulation
+模块的 `manual/`，字节参与该模块摘要。构建器只复制 simulation 实现及共享 helper、
+固定 worker 和本角色手册，不把 modeling.py 或 modeling_flow 放入 simulation 包；
+修改建模源码不应因目录共置而改变模拟 digest，共享文件修改则仍会影响相关模块。
+当前 v1 的完整组合交付 MP4 与 ZIP；`docs/pipeline-v2` 的异步接口是草案。
+
+独立模型展示不消费 `pipeline-model/1` 或伪造 `pipeline-simulation/1`，而是从绑定的
+display 资产直接走 preview renderer。`ready_to_preview`、runtime configured、引擎
+可支持某类场景与完整 `ready_to_simulate` 是不同证据。
 
 ```text
 模型 bundle + 固定预算
@@ -51,6 +61,12 @@ mechanical 数据分两类：
 | solver observations / measurements | 预声明 queries，t=0 与完成宏步的 float64 归约；支持原 query 与通过质量门的 CSV |
 | trajectory display frames | 求解器为展示保存的采样/可能舍入状态；粒子可能抽样，不能恢复全量历史状态、任意新观测或重启 |
 
+网格求解的 `mesh_objects` 保存每个模拟实体的顶点区间和准备 scene 的 triangles；
+`frames[*].m` 保存这些模拟顶点，结果复核会比较拓扑、偏移、初态和 pin 约束。
+这条同网格绑定没有实现详细 display mesh 随简化 simulation mesh 运动的映射。
+预览 raw→display 的清理回执只描述静态展示处理。粒子液体则由 DFSPH 粒子状态推进，
+其录制采样由 renderer 重建视觉连续液面；视觉液面不是这里的求解网格或数值观测。
+
 只有 data_usable 且 measurements 已保存时生成 `measurements.csv`。标识符是外部数据，写 CSV 时保护开头的公式字符；数字保持原符号和数值。新数值需求不能从显示帧补造，必须在新模型中预声明并重算。
 
 ## PCB 路径与物理假设
@@ -75,6 +91,11 @@ simulation-manifest.json          # pipeline-simulation/1
 manifest 绑定原引擎身份、model bundle 文件摘要、model canonical 摘要、result 引用、所有 artifacts 的 path/hash/bytes、质量门、data_usable、采样能力与 physics_claims。组合对 manifest 和全部声明工件封存 checkpoint；后续渲染复用时再重算哈希。
 
 失败前已写出的证据保留，不能删除目录强行重复运行。成功模拟可在 ZIP / 渲染失败后继续使用；不完整且未封存的非空输出目录需要明确恢复，不能当作缓存成功，也不能盲目覆盖。
+
+恢复范围是同一任务、原组件 pin 和通过摘要检查的 checkpoint。原样重跑失败 scene
+不属于恢复；成功模拟后的 `pipeline_render_prepare` → `physics_simulate` 只重做呈现，
+不重复积分。模块成功不代表平台送达；宿主分别保存 MP4/ZIP 的 sent、failed、unknown，
+unknown 不自动重发，不能计为成功或借此重跑模拟。
 
 ## 扩展与回归
 

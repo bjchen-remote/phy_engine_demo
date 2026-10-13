@@ -1,7 +1,7 @@
 # Pipeline v2：API、执行与恢复契约
 
 状态：**设计草案，未实现、未注册、未部署**。本文件定义未来 host 与三类 toolbox 的共同边界。
-现有 v1 入口、`schema_version=1`、单 MP4 验证和旧任务 pin 保持不变；不能把这些操作当作当前可调用工具。
+现有 v1 入口、`schema_version=1`、单 MP4/受限 ZIP 交付和旧任务 pin 保持不变；不能把这些操作当作当前可调用工具。
 总体取舍见 [规划书](README.md)，产物字段见 [产物契约](artifact-contract.md)，机器定义见 [contracts.schema.json](contracts.schema.json) 与 [api-tools.json](api-tools.json)。
 
 ## 1. 调用者与引用
@@ -38,14 +38,14 @@
 | `simulation_query(simulation_ref, query_id)` | 读取已有且满足验收条件的预声明查询，不暗中增加采样或重算 |
 | `simulation_inspect(simulation_ref)` | 返回时间范围、采样语义、模型适用性、数据完整性和验证结论 |
 | `rendering_capabilities()` | 公布输入状态、几何映射、provider、格式与视觉质量能力 |
-| `rendering_prepare(model_ref, simulation_ref, spec, quality)` | 核对依赖并准备镜头、时间映射和输出；质量为 `preview|standard|deep` |
+| `rendering_prepare(purpose, model_ref, spec, quality, simulation_ref?)` | 保留同一操作名：物理用途必须传一致的 simulation_ref；模型展示禁止传 simulation_ref，输出 shape_only；质量为 `preview|standard|deep` |
 | `rendering_render(plan_id, idempotency_key)` | 异步读取已保存数据并渲染，返回 host `job_id` |
 | `rendering_inspect(render_ref)` | 返回输入 hash、帧覆盖、时间映射、解码与实际质量报告 |
 
 只读操作没有幂等键。四个阶段性提交入口与取消、交付使用宿主签发的幂等键；agent 不自行更换键来“重试”。
 `pipeline_submit`、`modeling_build`、`simulation_run`、`rendering_render` 均快速返回作业引用，不在短 API 调用内等待计算完成。
 所有阶段作业统一经 `pipeline_status(job_id)` 查询和 `pipeline_cancel` 取消，不另增加一套模块轮询 API。
-独立渲染必须证明两个输入来自一致的模型依赖；不一致返回错误，不能靠外形相似自动拼接。
+物理独立渲染必须证明 simulation_ref 的上游 model_ref 与本次 model_ref（含 schema/hash）完全一致，且 engine dependency 一致；不一致返回错误，不能靠外形相似自动拼接。模型展示只消费已授权的模型引用，禁止创建空 SimulationBundle 来满足签名。
 
 ## 3. AgentResult/2：统一响应
 
@@ -82,6 +82,8 @@ host 必须在 dispatch 前重新验证 next_action 的操作白名单、参数�
 
 ## 4. 计划准备与版本冻结
 
+`PipelineRequest.purpose`、`ModelSpec.purpose`、`Plan.purpose` 显式区分 `physical_simulation|model_preview`；不能只凭渲染质量 preview 判断用途。模型展示 request 省略 simulation、禁止 simulation quality/permitted stage，render.fidelity 必须是 shape_only；其 plan.state_plan 为 null。独立 modeling_prepare 通过 spec.purpose 选择用途，仍使用已有工具名。
+
 prepare 先解析明确需求，再应用模板默认值；保留用户明示参数与假设来源，不用默认值覆盖明确要求。
 完整计划包含不可变输入及 hash、三模块 pin 或所需阶段 pin、plan hash、请求/拟执行质量、数据 profile、观测、验证门和交付项。公开 Plan 用 `effective_arguments` 保存规范化参数，`effective_limits` 保存实际约束，`delivery` 保存交付目标；`quality_resolved` 是计划选择，不是已经验收的实际质量。plan hash 对 host 封存的规范计划原始字节计算，在 StageTask 中引用，不把自身 hash 写入待散列的计划。
 `Plan.permitted_stages` 不得超出请求；重用引用必须与用户未修改的模型/参数相符。required 输出需要被禁止阶段重算才能获得时返回 unsupported，而非扩大允许阶段。独立阶段 prepare 从 host 请求上下文继承预算与交付偏好，并将其摘要回显；无上下文时采用公布的本地默认策略，不猜授权。
@@ -89,12 +91,12 @@ prepare 先解析明确需求，再应用模板默认值；保留用户明示参
 计划与提交所需幂等键通过响应 `data` 返回；agent 只传回 plan_id，不能在 submit 时夹带新参数。
 接收作业后，host 在 status data/control_keys 中提供该 job 的取消与交付幂等键，并可给出相应 next_action；这些键绑定操作和原作业，客户端不自行生成。单阶段作业若未准备某种交付能力，deliver 返回具体限制，不自动扩大原计划。
 
-prepare 对流水线须先协商 rendering 所需状态，再准备 simulation；不能算完抽样显示帧后才承诺 full_state 或更高采样精度。
+物理用途 prepare 对流水线须先协商 rendering 所需状态，再准备 simulation；不能算完抽样显示帧后才承诺 full_state 或更高采样精度。
 prepare 不是授权或资源承诺：submit 需再次检查权限、配额、资产、包完整性、plan 有效期，并原子保存 pin、plan hash 和幂等记录。
 `pipeline_prepare` 只读一次 `v2/active-bundle.json`；默认三阶段任务的三 pin 必须来自同一个兼容组合。独立阶段或明确只需部分阶段的作业只锁所需模块，不要求未使用 renderer 存在；已有输入的 producer pin 从 bundle 保留。建模计划的 state_plan 为 null，阶段质量只列相关维度；不能填造后续阶段的实际质量。
 active 更新本身不使未过期且可用的旧 plan 失效。缺包、资产过期或策略收紧返回 `plan_expired` 或 `capability_unavailable`，要求重新 prepare。
 这些是错误 code，不增加新的 status。不能悄悄改 pin、模型、质量或输出继续执行。
-已接受任务写入 `pipeline-lock.json`；重启、恢复和重试均读该锁，不重新解析 active。
+已接受任务写入 `pipeline-lock.json`；重启、恢复和重试均读该锁，不重新解析 active。`PipelineLock.dependencies.engine` 为 DependencyPin（id/version/digest/interface），包含 simulation 模块时必需；只用独立几何/展示模块时可以为空。模块包摘要不能替代组合外求解器依赖的摘要。StageTask.dependencies 必须与已接受 plan 的锁一致；模拟产物与物理渲染的 metadata.engine_dependency 必须沿依赖链保持相同 pin。
 
 ## 5. 状态机与完成语义
 

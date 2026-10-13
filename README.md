@@ -35,7 +35,7 @@ The external agent turns mechanical requests into scene configurations. Examples
 
 The optional offline Hunyuan3D-2mini/MLX modeling worker can reconstruct a
 single-image shape and generate a 360-degree H.264 model presentation on Apple
-Silicon. The 0.3.4 [composed pipeline](toolboxes/pipeline/README.md) preserves the
+Silicon. The 0.4.0 [composed pipeline](toolboxes/pipeline/README.md) preserves the
 whole raw model and exports raw/display GLB, OBJ, JSON, source references and
 licenses. Its optional conservative display cleanup removes only tiny detached
 components meeting every fixed bound; an unfiltered mode retains them. The
@@ -105,7 +105,8 @@ Toolboxes are published by version and content digest. Switching modules affects
 
 ```text
 physics_demo/
-  core/          State, solvers, constraints, collisions, and C11 kernels
+  core/          State, solvers, constraints and collisions
+    native/      Maintained C11 kernels and ABI headers
   systems/       System construction from physical parameters
   io/            Scene configuration, result storage, and video rendering
   analysis/      Measurements, queries, and trajectory analysis
@@ -116,6 +117,8 @@ tests/           Numerical, interface, invalid-input, and video regressions
 benchmarks/      Performance and refinement comparisons
 docs/            Integration, architecture, and release documentation
 ```
+
+Start algorithm changes in [core/native](physics_demo/core/native/README.md); Python bridges live under `core/`. [ARCHITECTURE.md](ARCHITECTURE.md) maps kernels, bridges, compatibility imports and generated release files.
 
 This repository contains the standalone simulator. It runs independently of any larger research project or messaging client.
 
@@ -135,7 +138,7 @@ python3 -m unittest discover -s toolboxes/tests -v
 python3 toolboxes/build_physics.py --check
 ```
 
-The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares version **1.4.7**. Current image modeling and pipeline verification is recorded in [Mac validation](docs/modeling-flow-validation.md); earlier release notes remain historical records. The Python distribution in `pyproject.toml` has its own version. Run the commands above or check the the recorded local regression suite for validation of the current source; test counts change as coverage grows. Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
+The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares source candidate version **1.5.0**. See the [candidate changes and offline validation](docs/release-1.5.0.md). Current image modeling and pipeline verification is recorded in [Mac validation](docs/modeling-flow-validation.md); earlier release notes remain historical records. The Python distribution in `pyproject.toml` has its own version. Run the commands above or check the recorded local regression suite for validation of the current source; test counts change as coverage grows. Bug reports and improvements are welcome through [Issues](https://github.com/bjchen-remote/phy_engine_demo/issues). A reproducible scene configuration helps make a report actionable.
 
 ## License
 
@@ -145,4 +148,4 @@ The [toolbox manifest](toolboxes/physics/toolbox.json) in this checkout declares
 
 The optional Mac backend runs public Hunyuan3D-2mini flow matching weights through a pinned MLX Metal implementation, with offline U2Net CPU foreground estimation for opaque images. It preserves detailed display GLB/OBJ and a separately audited physics mesh, explicit scale/material assumptions and provenance. Code/weight installation is separate from inference; model weights and private chat bridges are not part of this repository.
 
-See the [modeling backend and reproducible installer](toolboxes/modeling_flow/README.md), [composed pipeline](toolboxes/pipeline/README.md), [algorithm research](docs/modeling-flow-research.md), [Mac validation](docs/modeling-flow-validation.md), and [separately installed host interface](toolboxes/pipeline/HOST-INTEGRATION.md). The adopted engine snapshot is 1.4.7. No texture generation, CAD tolerances, calibrated toy mechanics or reproduction of Meshy's proprietary service is claimed.
+See the [modeling backend and reproducible installer](toolboxes/modeling_flow/README.md), [composed pipeline](toolboxes/pipeline/README.md), [algorithm research](docs/modeling-flow-research.md), [Mac validation](docs/modeling-flow-validation.md), and [separately installed host interface](toolboxes/pipeline/HOST-INTEGRATION.md). The current source candidate is physics 1.5.0; existing installed snapshots retain their pins. No texture generation, CAD tolerances, calibrated toy mechanics or reproduction of Meshy's proprietary service is claimed.

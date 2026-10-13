@@ -1,6 +1,13 @@
 # 建模模块内部架构
 
-建模模块维护标准结构化物理模型准备、本地单图到物理几何和独立单图模型展示三条路径。它负责来源、生成假设与几何记录；物理路径另负责明确尺度、材料和完整场景准备。模型展示默认 model_unit，不推断真实物理尺寸或密度，不执行模拟。模块不负责 QQ 授权/发送、不自行积分，也不以语言模型描述替代真实图片生成。操作说明见 [Skill](SKILL.md)，组合 pin 与恢复见 [组合架构](../../ARCHITECTURE.md)。
+建模模块维护标准结构化物理模型准备、本地单图到物理几何和独立单图模型展示三条路径。它负责来源、生成假设与几何记录；物理路径另负责明确尺度、材料和完整场景准备。模型展示默认 model_unit，不推断真实物理尺寸或密度，不执行模拟。模块不负责 QQ 授权/发送、不自行积分，也不以语言模型描述替代真实图片生成。操作说明见相邻 [Skill](SKILL.md)；组合 pin 与恢复的源码说明位于 `toolboxes/pipeline/ARCHITECTURE.md`。
+
+本文与相邻 Skill 的源目录为 `toolboxes/pipeline/manual/modeling/`，由
+`build_pipeline.py` 原样复制到 modeling 模块的 `manual/`。构建器另生成模块的
+`module.json`、`toolbox.json`、固定 worker 入口和 `flow_runner.py`；不要直接修改这些
+生成文件来增加能力。manual 字节属于模块摘要，更新文档也会产生新的 module digest；
+当前任务保留原 pin。当前 v1 已有 MP4+ZIP 与 typed preview；`docs/pipeline-v2` 是后续
+异步合同草案。下文 preview `/2`、`/3` 是当前预览 schema 的版本，不是 pipeline-v2。
 
 ```text
 结构化 scene/spec → pinned engine prepare/validate → pipeline-model/1
@@ -9,9 +16,9 @@
   → 宿主图片/runtime/modeling pin → modeling_preview_from_image
   → dedicated worker：alpha 或 U2Net CPU → MLX Metal shape
   → 保留完整 raw GLB / OBJ / mesh JSON
-     → 默认 conservative：bounded-floaters/1 → display + cleanup receipt（v2）
+     → 默认 conservative：bounded-floaters/1 → display + cleanup receipt（preview /2）
      → 显式 surface：bounded-surface/1 → 有界碎片删除/坐标平滑 + 精确重算回执（v3）
-     → none：display 保留原始生成网格（v2）
+     → none：display 保留原始生成网格（preview /2）
      （默认 model_unit；无模拟减面；任何分支均保留 raw）
   → model_ref → modeling_preview_render → 360° MP4 + 模型 ZIP → qq_video
      （simulation 阶段跳过；ready_to_simulate=false）
@@ -62,6 +69,13 @@ QQ 和结构化 pipeline 保持 Python 3.9+。可选 MLX worker 采用独立 App
 ## 当前事件隔离与运行时 pin
 
 `pipeline_capabilities.image_modeling` 来自当前任务 runtime pin，区分是否 configured、提供者、generative fidelity 和明确尺度/材料要求。configured 只是安装配置已准入，不表示实际 GPU 推理或图像质量通过。
+
+能力发现有三层：`pipeline_stages/modeling.capabilities()` 只描述 standard structured
+prepare/build；构建的 `module.json` 声明 modeling 的可选 preview/cleanup 功能；
+组合 `pipeline_capabilities` 验证锁中声明与模块元数据一致，再结合当前任务 runtime pin
+给出实际可用入口。引擎领域能力与完整 prepare 仍各自决定物理支持和场景 readiness。
+不能把 structured stage 的“无图片重建”限制扩大到整个 modeling 模块，也不能仅凭
+配置存在、健康检查或模块版本号宣称推理/物理成功。
 
 `modeling_from_image` 只接受当前事件唯一匹配的 image_id 与有界物理/采样参数；宿主验证附件 bytes/hash 并提供受限相对路径。适配器再检查图片与配置快照哈希，按 request/image/runtime/modeling-stage 摘要分配任务内尝试目录。来信不选解释器、模型目录、revision、shell 或网络。
 
@@ -114,7 +128,7 @@ shape inference 使用固定 Hunyuan3D-2mini flow matching 权重和 source comm
 
 独立模型展示先保存规范化的完整 raw GLB / OBJ / mesh JSON、来源和生成回执，raw 保留生成的所有连通
 组件、面和拓扑记录。默认 `conservative` 按 `bounded-floaters/1` 删除合格完整微小分量，
-`none` 保留全部生成几何。0.3.2 的可选 `surface` 由固定 `bounded-surface/1` 处理 display：
+`none` 保留全部生成几何。当前 pin 宣告的可选 `surface` 由固定 `bounded-surface/1` 处理 display：
 允许删除通过尺寸/面积/面数、精确表面间隔和累计预算的完整独立微小分量，包括开放薄片；
 对其他保留面不删面、不补孔，固定 6 对 Taubin 平滑只移动合格顶点。位移同时限制为主表面
 最大尺寸和局部平均边长的固定比例，具体阈值由回执的 policy 记录；每步检查原非零三角面的朝向与面积。
@@ -128,7 +142,7 @@ surface 处理预算为 150,000 顶点和 300,000 面；更大的有效原网格
 
 surface 回执保存 raw/display canonical 摘要、原始面删除列表、顶点映射、移动的原顶点
 ID、位移和保留拓扑。`model-preview-result/3` / `model-preview-data/3` 由宿主可信镜像
-独立精确重算整个策略，再绑定视频使用的 display 和完整 ZIP；v2 仍只接受坐标不变的
+独立精确重算整个策略，再绑定视频使用的 display 和完整 ZIP；preview `/2` 仍只接受坐标不变的
 精确子网格。完整 raw 备份、坐标变化披露和 v3 校验不能互相替代。
 
 展示不经过模拟微屑清理、QEM 或原引擎的单实体验收，不以删除
@@ -154,19 +168,35 @@ face budgets 6000、8188、4000。首选 6000 面为原引擎相交/工作量审
 明确开启 preserve_topology/normal/boundary，关闭 optimal_placement 和 automatic cleaning，
 使用原顶点位置；库参数只提供约束，不是几何安全证明。
 每个候选重新解析、按显式物理 extent 均匀缩放、审计面方向并检查闭合、单连通与
-源 Euler characteristic 保持，接受首个通过者。每次目标、拓扑结果、缩放和反向信息留在
-receipt；没有认证几何误差上界。约束语义见 [PyMeshLab 官方过滤器文档](https://pymeshlab.readthedocs.io/en/latest/filter_list.html#meshing-decimation-quadric-edge-collapse)。
+源 Euler characteristic 保持，并在每个候选内执行固定 pin 的实际引擎几何审计，
+同时记录体积/尺度及有界双向采样距离；任一硬门失败继续下一候选，接受首个全通过者。
+每次目标、质量报告、引擎源码摘要、缩放和反向信息留在 receipt；有限采样不是认证
+Hausdorff 误差上界，也不认证孔径、壁厚或细小结构。约束语义见 [PyMeshLab 官方过滤器文档](https://pymeshlab.readthedocs.io/en/latest/filter_list.html#meshing-decimation-quadric-edge-collapse)。
+
+这里的两套网格没有一般动态变形绑定。`scale_mesh` 记录生成 bbox center、uniform
+scale factor 和未推断的坐标朝向；减面候选的再次缩放另记入 simulation receipt。
+这些变换可解释静态尺度与位置，不提供逐顶点 display→simulation 对应。物理视频使用
+准备 scene 的模拟网格顶点和三角索引，按 `trajectory.frames[*].m`、`mesh_objects`
+绘制；详细 display 资产保留为 provenance/ZIP。raw→display 的子集/平滑映射只证明
+预览清理，不是高模随仿真低模运动的 cage、蒙皮或重心坐标绑定。此类新映射需要独立
+实现与能力/schema，当前不能从两个 mesh 的同源 receipt 推断其存在。
+
+当前候选组合广告 `modeling_liquefy` 时，可从当前 model_ref 或宿主授权的
+imported_asset_ref，以明确 SI 尺度派生闭合网格体积和 `fluid_ref`。引擎
+`core/volume_sampling.py` 用有界确定性内部格点初始化水样 DFSPH 粒子；
+规划与实际初态共用采样结果，预算不足不截断粒子。转换要求体积相对误差不超过5%、
+粒子连通及源顶点/面中心的有限覆盖门，但不认证任意薄壁、孔道或真实熔化。
+`fluid_ref` 通过完整实体 patch 接入场景，再通过全场景和数值门。renderer 的连续
+液面只是录制粒子的展示重建，不能反过来当成物理输入。
 
 除上述独立披露且受全套阈值限制的微屑清理外，减面不能删除连接组件、填洞、替代基本体、
 挤出图像轮廓或偷偷更改用户尺度来过关。闭合一致、单连通且 signed volume 为负时允许整体
 翻转面方向并记录；不是局部修补。所有候选失败时保留展示资产和具体拒绝回执，不能自动模拟。
 
-flow mesh gate 检查 finite 坐标、三角索引、重复/退化面、unused vertices、单连通、零 boundary/nonmanifold/inconsistent edges、非零 volume 与预算。它**不认证**自交、图像相似度、CAD tolerance 或真实材料。进入 pipeline 后，原引擎的 `physics_mesh` 再做自身几何审计，包括其支持的相交检查，合格结果存为任务 mesh_ref。
+flow mesh gate 检查 finite 坐标、三角索引、重复/退化面、unused vertices、单连通、零 boundary/nonmanifold/inconsistent edges、非零 volume 与预算。候选还须通过实际 pinned engine 的有界静态自交审计；预算耗尽也拒绝该候选。它不认证动态自碰撞、图像相似度、CAD tolerance 或真实材料。进入 pipeline 后，`physics_mesh` 再独立复验并存为任务 mesh_ref。
 
-本轮真实网格离线复核：88636 顶点/177320 面的两个分量仅清理内部 6 顶点/8 面微屑，
-主网格为 88630/177312；保拓扑减为 2974 顶点/6000 面，Euler characteristic 仍为 -26。
-恢复明确 extent 后体积变化约 -0.104%，原引擎闭合/连通/一致方向/相交审计通过。
-这只是该网格的几何验收，不证明不同图片都会成功，也没有重跑或发送真实 QQ 请求。
+特定网格的历史几何验收不证明不同图片都会通过；真实推理、几何复核、完整视频/ZIP、
+安装副本与 QQ 平台回执须分别记录。运行手册不以某个样例的减面结果作为所有任务保证。
 
 PyMeshLab 采用 [GPL-3.0](https://github.com/cnr-isti-vclab/PyMeshLab/blob/main/LICENSE)，
 完整许可由安装器保留，随实际使用的建模数据导出保存，依赖版本进入 receipt。
@@ -179,12 +209,12 @@ PyMeshLab 采用 [GPL-3.0](https://github.com/cnr-isti-vclab/PyMeshLab/blob/main
 |---|---|
 | `modeling_preview_from_image ok=true / ready_to_preview=true` | 当前事件完整展示资产与来源绑定有效；默认 model_unit，无模拟资格声明 |
 | `modeling_preview_render ok=true` | 展示 MP4 / 模型 ZIP 通过对应呈现和导出检查；没有模拟、质量估计或测量 |
-| 本机 flow worker `ready_to_simulate=true` | bounded simulation mesh 通过该 worker 的 topology/budget gate；没有完整 scene |
+| 本机 flow worker `ready_to_simulate=true` | surface_xpbd mesh 通过候选质量和实际引擎硬门；没有完整 scene。liquid_volume 仅 ready_for_volume_sampling |
 | QQ `modeling_from_image ok=true / geometry_verified=true` | mesh 经原引擎 geometry audit 并存 task mesh_ref；`ready_to_simulate=false` |
 | `physics_prepare ok=true / ready_to_simulate=true` | mesh 已进入 authored full scene，边界/运动/质量/材料/查询/预算及固定 pipeline plan 准备通过 |
 | 完成 simulation / numerical gate | 当前假设下数值验收结果；不认证图片重建的真实物理精度 |
 
-Agent 必须通过 physics_patch 引用 mesh_ref，明确初态、dynamic/static 类型、质量/碰撞/其他物理参数，再 prepare。不能复制超长 vertex 数组到 tool 参数，也不能将几何成功、receipt 或清晰 GLB 当作完整场景已准备。
+Agent 必须通过 physics_patch 引用 mesh_ref，明确初态、`motion=soft|static|kinematic`、质量/碰撞/其他物理参数，再 prepare。不能复制超长 vertex 数组到 tool 参数，也不能将几何成功、receipt 或清晰 GLB 当作完整场景已准备。
 
 ## 回执、导出与失败
 
@@ -197,6 +227,14 @@ receipt 固定 upstream commit、checkpoint revision/inventory、配置/request/
 
 原引擎 mesh provenance 的 notes 绑定 source image 与 receipt 哈希。`used_modeling_assets` 只收集当前 scene 确实引用 receipt 的模型数据/回执，重新校验 pin 后加入最终 data.zip；相关第三方许可作为使用证据保存。模型路径只保留本机，Agent 得到 model_ref/mesh_ref/receipt_ref/display_model_ref。
 
+当前 `model_ref` 是 request、图片 hash、runtime 配置 hash 和 modeling pin 的任务内
+摘要；request 含宿主解析的本地 image path，因此不是跨任务可搬运的几何 ID。
+`mesh_ref` 是任务内存储 mesh JSON 的 legacy 摘要，校验保持其键顺序约定；不能替换
+为另一种 canonical hash。preview `model_ref` 不产生可插入物理场景的 `mesh_ref`。
+宿主持久模型使用独立 asset_id；授权复制到新任务后生成 imported_asset_ref，绑定
+当前任务、来源、producer 和成员字节。该导入不搬运旧请求或运行状态。旧 ID 保留，
+bytes hash、结构摘要、作用域与几何 role 均不可仅凭同为64位十六进制字符串互换。
+
 依赖/权重/source/GPU/图片/推理失败没有伪造 geometry；展示可生成而模拟门失败时，保留 display 和原因，禁止 downgrade 成随意 primitive。原有结构化工具不受 optional runtime 缺失影响。
 
 ## 验证与扩展
@@ -205,11 +243,9 @@ contracts/mesh/scale/receipt/foreground/decimation 测试不下载权重或初�
 
 新增质量、模型或 provider 要更新实际实现、pin/许可、能力发现、typed 参数、receipt 和对应验收。生成训练属于后续研究：当前 worker 调用公开预训练权重，没有训练/数据集流水线，也不宣称复刻商业服务的私有算法。
 
-本轮碎块清理源码候选为 modeling 0.3.1、rendering 0.3.1、完整 pipeline 0.3.1；simulation
-保持冻结的 0.2.0，physics 引擎保持 1.4.7。预览不调用 simulation，物理路径的原质量门
-和完整场景准备保持。当前文档属于 modeling 包摘要，修改后须重新构建和发布新组合，
-旧任务 pin 不切换。新参考图的真实完整展示流程、安装副本与 QQ 回执待最终验收记录，
-不能用先前物理失败网格的复测或健康检查代替。
+以当前任务的已验证 bundle-lock 与 runtime pin 为运行身份，不以本文中的历史版本号
+决定能力。预览跳过 simulation，物理路径仍需原质量门和完整场景准备。文档或代码更新
+须构建并验收新组合；构建完成不代表激活、安装或平台送达，旧任务不切换 pin。
 
 ## 展示碎块清理
 
@@ -222,7 +258,7 @@ contracts/mesh/scale/receipt/foreground/decimation 测试不下载权重或初�
 
 这不是 largest-component 筛选，也无平滑、补洞、简化或语义识别。尺寸很小的合法饰件也
 可能符合阈值；raw 备份和 `none` 保留可检查/恢复的选择。策略不改变模拟微屑政策，不保证
-闭合、单实体、自交或物理校准。新 v2 preview 合同让宿主独立复核组件与精确子集，不能只
+闭合、单实体、自交或物理校准。`model-preview-result/2` 让宿主独立复核组件与精确子集，不能只
 相信 worker 的 `modified` 布尔值。渲染和导出的 display 指向同一 SHA，raw 另存。
 
 清理候选还须闭合、一致朝向且正体积，无退化面；存在未引用顶点、数值歧义或超出固定

@@ -8,7 +8,7 @@
   "entrypoint": "adapter.py (planned, not present)",
   "input_schemas": [
     "ModelBundle/1",
-    "SimulationBundle/1"
+    "SimulationBundle/1 (physical_simulation only)"
   ],
   "output_schemas": [
     "RenderBundle/1"
@@ -31,6 +31,12 @@
   ],
   "acceptance": [
     "重渲染不改输入 hash，不重新调用 solver。",
-    "完整解码与时间映射通过；外部生成式结果单独标记。"
+    "完整解码与时间映射通过；外部生成式结果单独标记。",
+    "model_preview 无 simulation_ref/物理时间，保留 raw/display 形状数据。",
+    "physical_simulation 的 model_ref/hash 与模拟上游完全一致，engine dependency 一致。"
+  ],
+  "purposes": [
+    "physical_simulation",
+    "model_preview"
   ]
 }

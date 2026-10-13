@@ -31,6 +31,11 @@
   ],
   "acceptance": [
     "显式尺寸、单位、拓扑、来源与模板字段保真。",
-    "high 必须通过声明容差；双资产映射绑定双方 hash。"
+    "high 必须通过声明容差；双资产映射绑定双方 hash。",
+    "ModelMetadata/GeometryBinding 通过结构与跨字段检查；真实几何和映射另由领域 validator 证明。"
+  ],
+  "purposes": [
+    "physical_simulation",
+    "model_preview"
   ]
 }

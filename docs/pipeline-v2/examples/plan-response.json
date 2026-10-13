@@ -34,7 +34,15 @@
           }
         },
         "policy_revision": "example-local-policy",
-        "created_at": "2026-09-26T00:00:00Z"
+        "created_at": "2026-09-26T00:00:00Z",
+        "dependencies": {
+          "engine": {
+            "id": "physics",
+            "version": "1.4.7",
+            "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "interface": "physics-python/1"
+          }
+        }
       },
       "input_refs": [],
       "quality_requested": {
@@ -116,7 +124,8 @@
             "geometry_tolerance_m": null,
             "assumptions": [
               "理想点质量、无质量杆、无阻尼；此处为协议示例。"
-            ]
+            ],
+            "purpose": "physical_simulation"
           },
           "simulation": {
             "physical_duration_s": 8.0,
@@ -185,7 +194,8 @@
             "modeling",
             "simulation",
             "rendering"
-          ]
+          ],
+          "purpose": "physical_simulation"
         }
       },
       "effective_limits": {
@@ -212,7 +222,8 @@
           "csv"
         ],
         "allow_partial": false
-      }
+      },
+      "purpose": "physical_simulation"
     }
   },
   "errors": [],

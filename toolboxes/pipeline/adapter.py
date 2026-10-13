@@ -9,6 +9,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -92,6 +93,90 @@ def image_module(root: Path):
     return module
 
 
+def liquefy_module(root: Path):
+    """Load only the helper shipped in this immutable composition."""
+    spec = importlib.util.spec_from_file_location('_pinned_liquefy', inside(root, 'liquefy.py'))
+    module = importlib.util.module_from_spec(spec)
+    previous = sys.path[:]
+    try:
+        sys.path.insert(0, str(root))
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = previous
+    return module
+
+
+def operation_contract_module(root: Path):
+    spec = importlib.util.spec_from_file_location('_pinned_operation_contracts',
+        inside(root, 'operation_contracts.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def supports_liquefy(lock: dict, root: Path | None = None) -> bool:
+    """Require an explicit producer feature and the bound engine implementation.
+
+    Imported geometry does not require a runnable neural model. A legacy stage
+    or engine must not gain this operation merely because the adapter is newer.
+    """
+    pin = lock['modules']['modeling']
+    if pin.get('liquefy') != 'mesh-volume/1':
+        return False
+    if root is not None:
+        module = inside(root, pin['path'])
+        if read_json(module / 'module.json').get('liquefy') != pin['liquefy']:
+            return False
+        engine = inside(root, lock['engine']['path'])
+        if not (engine / 'physics_release/physics_demo/core/volume_sampling.py').is_file():
+            return False
+        try:
+            schema = importlib.import_module('physics_demo.io.schema')
+        except ImportError:
+            return False
+        if (not Path(schema.__file__).resolve().is_relative_to((engine / 'physics_release').resolve())
+                or schema.CAPABILITIES.get('engines', {}).get('fluid', {}).get('mesh_volume') != 'mesh-volume/1'):
+            return False
+    return True
+
+
+def expand_fluid_references(root: Path, job: Path, task: dict, lock: dict,
+                            arguments: dict) -> dict:
+    """Replace a whole entity using a sealed current-task liquid reference.
+
+    Replacing the entity, rather than appending fluid inside its source solid,
+    removes the converted collision geometry from the numerical scene.
+    """
+    operations = arguments.get('operations')
+    if not isinstance(operations, list) or not any(
+            isinstance(item, dict) and 'fluid_ref' in item for item in operations):
+        return arguments
+    if not supports_liquefy(lock, root):
+        raise ValueError('model liquefaction requires explicitly compatible pinned modeling and engine modules')
+    helper, expanded = liquefy_module(root), []
+    for item in operations:
+        if isinstance(item, dict) and 'fluid_ref' in item:
+            if (set(item) != {'op', 'path', 'fluid_ref'}
+                    or item['op'] not in ('add', 'replace')
+                    or not isinstance(item['path'], str)):
+                raise ValueError('fluid_ref is allowed only for a whole fluid entity insertion')
+            entity = helper.load_liquefied_entity(job, item['fluid_ref'], task, lock)
+            path = item['path']
+            match = re.fullmatch(r'/entities/@([^/]+)', path)
+            if match:
+                ident = match.group(1).replace('~1', '/').replace('~0', '~')
+                if item['op'] != 'replace' or ident != entity['id']:
+                    raise ValueError('a converted source entity must be replaced with the same entity id')
+            elif path != '/entities/-' or item['op'] != 'add':
+                raise ValueError('fluid_ref must replace /entities/@ID or append to /entities/-')
+            expanded.append({'op': item['op'], 'path': path,
+                             'value_json': json.dumps(entity, ensure_ascii=False,
+                                                      separators=(',', ':'), allow_nan=False)})
+        else:
+            expanded.append(item)
+    return {**arguments, 'operations': expanded}
+
+
 def settings(job: Path) -> dict:
     path = job / "work/pipeline/settings.json"
     value = read_json(path) if path.exists() else DEFAULT_SETTINGS.copy()
@@ -145,7 +230,7 @@ def check_plan(job: Path, lock: dict) -> tuple[dict, dict]:
     return plan, prepared
 
 
-def capabilities(lock: dict, runtime: dict | None = None) -> dict:
+def capabilities(lock: dict, runtime: dict | None = None, root: Path | None = None) -> dict:
     cleanup = (all(lock['modules'][role].get('model_preview') is True for role in ('modeling', 'rendering'))
                and lock['modules']['modeling'].get('display_cleanup') == 'bounded-floaters/1'
                and lock['modules']['rendering'].get('preview_geometry_scope') == 'render_input')
@@ -157,6 +242,12 @@ def capabilities(lock: dict, runtime: dict | None = None) -> dict:
                 "operation": "modeling_from_image", "network": False,
                 "physical_scale_required": True, "material_assumption_required": True,
                 "fidelity": "generative_approximation"},
+            "model_liquefaction": {"available": supports_liquefy(lock, root),
+                "operation": "modeling_liquefy", "source_shape": "mesh_volume",
+                "contract": "mesh-volume/1", "neural_inference_required": False,
+                "physical_scale_required": True, "conversion": "instant",
+                "conservation": "volume", "preset": "water", "reference_density_kg_m3": 1000,
+                "phase_change": False, "ready_requires_full_scene_prepare": True},
             "model_preview": {"available": runtime is not None and supports_model_preview(lock),
                 "modeling_operation": "modeling_preview_from_image", "render_operation": "modeling_preview_render",
                 "cleanup_operation": "modeling_preview_cleanup" if cleanup else None,
@@ -196,14 +287,64 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
     if not isinstance(arguments, dict):
         raise ValueError("arguments must be an object")
     output = job / "work/toolbox-response.json"
+    contracts = operation_contract_module(root)
+    available = read_json(root / 'toolbox.json')['agent_api']['operations']
+    try:
+        arguments = contracts.validate_operation(operation, arguments, available_operations=available)
+    except contracts.OperationContractError as error:
+        atomic(output, {'schema_version': 1, 'result': error.as_result()})
+        return
     if operation == "pipeline_capabilities":
         if arguments:
             raise ValueError("pipeline_capabilities takes no arguments")
-        result = capabilities(lock, task.get('modeling_runtime'))
+        result = capabilities(lock, task.get('modeling_runtime'), root)
+        result['operation_contracts'] = {
+            'schema_version': 'pipeline-operation-contracts/1',
+            'operations': sorted(contracts.operation_descriptors(available)),
+            'lookup': 'help(topic=operation:<operation name>)'}
+    elif operation == 'modeling_liquefy':
+        if not supports_liquefy(lock, root):
+            raise ValueError('model liquefaction requires explicitly compatible pinned modeling and engine modules')
+        if not delivery_ready(task):
+            raise ValueError('data_delivery_unavailable: model liquefaction requires video and data ZIP delivery')
+        draft = job / 'work/draft-scene.json'
+        draft_scene = read_json(draft, 4_000_000) if draft.exists() else {}
+        existing = draft_scene.get('entities', [])
+        target = next((item for item in existing if isinstance(item, dict)
+                       and item.get('id') == arguments.get('entity_id')), None)
+        if target is not None:
+            # Follow-up conversion preserves unmentioned translation and linear
+            # velocity. It starts from source geometry, not a video checkpoint.
+            inherited = {}
+            if 'position' not in arguments:
+                inherited['position'] = target.get('position', target.get('shape', {}).get('center', [0, 0, 0]))
+            if 'velocity' not in arguments:
+                inherited['velocity'] = target.get('velocity', [0, 0, 0])
+            arguments = {**arguments, **inherited}
+        result = liquefy_module(root).liquefy_model(root, job, task, lock, arguments, atomic, object_hash)
+        if result.get('ok'):
+            entity = liquefy_module(root).load_liquefied_entity(job, result['fluid_ref'], task, lock)
+            replacing = any(isinstance(item, dict) and item.get('id') == entity['id'] for item in existing)
+            selector = entity['id'].replace('~', '~0').replace('/', '~1')
+            operations = [{
+                'op': 'replace' if replacing else 'add',
+                'path': '/entities/@' + selector if replacing else '/entities/-',
+                'fluid_ref': result['fluid_ref']}]
+            # Normalizing a mesh scene supplies mesh-only solver settings. They
+            # cease to apply when the last mesh is explicitly replaced by fluid.
+            # Keep the removal visible in the suggested transaction, and keep
+            # settings untouched when another mesh still uses them.
+            if (target is not None and target.get('type') == 'mesh'
+                    and 'mesh_settings' in draft_scene
+                    and not any(item.get('type') == 'mesh' and item.get('id') != entity['id']
+                                for item in existing if isinstance(item, dict))):
+                operations.append({'op': 'remove', 'path': '/mesh_settings'})
+            result['next_action'] = {'tool': 'physics_patch', 'arguments': {'operations': operations},
+                'reason': 'Use an authored complete scene, replace the converted solid entity, then physics_prepare and physics_simulate.'}
     elif operation == 'modeling_from_image':
         result = image_module(root).generate_image_model(root, job, task, lock, arguments, atomic, object_hash)
     elif operation in ('modeling_preview_from_image', 'modeling_preview_render', 'modeling_preview_cleanup'):
-        if not capabilities(lock, task.get('modeling_runtime'))['model_preview']['available']:
+        if not capabilities(lock, task.get('modeling_runtime'), root)['model_preview']['available']:
             raise ValueError('model preview requires compatible pinned modeling and rendering modules; '
                              'display cleanup needs a renderer declaring preview_geometry_scope=render_input')
         if not delivery_ready(task):
@@ -223,7 +364,7 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         if (selected["modeling_quality"] != "standard"
                 or selected["simulation_quality"] not in ("inherit", "visual", "strict")
                 or selected["rendering_quality"] not in ("preview", "standard")):
-            result = {"ok": False, "code": "unsupported_quality", "supported": capabilities(lock)}
+            result = {"ok": False, "code": "unsupported_quality", "supported": capabilities(lock, task.get('modeling_runtime'), root)}
         else:
             atomic(job / "work/pipeline/settings.json", selected)
             # All subsequent executions must be prepared with these exact choices.
@@ -258,6 +399,12 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         atomic(job / "work/pipeline/plan.json", plan)
         result = {"ok": True, "ready_to_simulate": True, "plan_id": plan["plan_id"],
                   "solver_rerun": False, "next_action": "physics_simulate"}
+    elif operation == 'help' and arguments.get('topic', '').startswith('operation:'):
+        name = arguments['topic'].split(':', 1)[1]
+        entries = contracts.operation_descriptors(available)
+        result = ({'ok': True, 'operation': name, 'contract': entries[name]}
+                  if name in entries else {'ok': False, 'code': 'operation_unavailable',
+                    'message': 'The operation is absent from this pinned composition.'})
     elif operation == "help" and arguments.get("topic") in ("pipeline", *ROLES):
         topic = arguments["topic"]
         if topic == "pipeline":
@@ -268,12 +415,15 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
                 "queues both verified MP4 and data.zip. Read help(topic=modeling|simulation|rendering). "
                 "After a presentation failure, pipeline_render_prepare then physics_simulate reuses saved data. "
                 "Never rerun unchanged failed physics. Raw/display data is not certified measurement."),
-                      "capabilities": capabilities(lock)}
+                      "capabilities": capabilities(lock, task.get('modeling_runtime'), root)}
         else:
             module = inside(root, lock["modules"][topic]["path"])
             result = {"ok": True, "text": (module / "manual/SKILL.md").read_text()}
     else:
         # Legacy tools retain exact request/response semantics and query paths.
+        if operation == 'physics_patch':
+            arguments = expand_fluid_references(root, job, task, lock, arguments)
+            atomic(call_path, {**call, 'arguments': arguments})
         if operation in ("physics_prepare", "pcb_prepare", "physics_system", "physics_example", "physics_patch"):
             (job / "work/pipeline/plan.json").unlink(missing_ok=True)
         if operation == "physics_prepare" and settings(job)["simulation_quality"] != "inherit":
@@ -302,6 +452,10 @@ def api(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
             plan = freeze(job, lock, estimate)
             result["pipeline"] = {"plan_id": plan["plan_id"], "settings": plan["settings"],
                                   "required_outputs": ["video", "data"], "engine_version": lock["engine"]["version"]}
+    try:
+        result = contracts.validate_operation_result(operation, result)
+    except contracts.OperationContractError as error:
+        result = error.as_result()
     atomic(output, {"schema_version": 1, "result": result})
 
 
@@ -439,9 +593,19 @@ def run(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         current_role = "data_export"
         source = {"result_path": simulation["result_path"], "model_path": simulation["model_path"],
                   "domain": domain, "output_dir": str(job / "artifacts")}
+        modeling_assets = image_module(root).used_modeling_assets(job, prepared['scene'], root)
+        liquid_sources = [entity for entity in prepared['scene'].get('entities', [])
+                          if isinstance(entity, dict) and entity.get('type') == 'fluid'
+                          and entity.get('shape', {}).get('type') == 'mesh_volume'
+                          and entity['shape'].get('source_ref')]
+        if liquid_sources:
+            if not supports_liquefy(lock, root):
+                raise ValueError('saved liquid source requires its compatible pinned modeling module')
+            modeling_assets.extend(liquefy_module(root).used_liquefy_assets(
+                job, prepared['scene'], root, task=task, lock=lock))
         exported = stage(root, engine, job, lock, "rendering", {
             **source, "max_bytes": task["delivery"]["max_data_bytes"],
-            "modeling_assets": image_module(root).used_modeling_assets(job, prepared['scene'], root)}, start, task, "export")
+            "modeling_assets": modeling_assets}, start, task, "export")
         state["data"] = exported
         atomic(state_path, state)
         current_role = "rendering"
@@ -477,6 +641,9 @@ def run(root: Path, engine: Path, job: Path, task: dict, lock: dict) -> None:
         if sha256(video) != rendered["sha256"] or sha256(data) != exported["sha256"]:
             raise ValueError("published presentation changed")
         atomic(job / "artifacts/result-manifest.json", {"schema_version": 1,
+            "task_id": task['task_id'],
+            **({'portable_physics_data': 'pipeline-data/2'}
+               if lock['modules']['rendering'].get('portable_data') == 'pipeline-data/2' else {}),
             "status": "succeeded", "summary": "模拟、保真视频和 JSON/CSV 数据包已通过检查，等待宿主交付。",
             "outputs": [{"path": video.name, "media_type": "video/mp4", "sha256": sha256(video)}],
             "attachments": [{"path": data.name, "media_type": "application/zip", "role": "data",

@@ -235,6 +235,8 @@ def load_request(source: str | Path | dict) -> dict:
                 "octree_resolution", "num_chunks", "allow_decimation"}
     if preview:
         optional.update({"physical_extent_m", "display_cleanup"})
+    else:
+        optional.add("simulation_purpose")
     _keys(value, required, optional, "request")
     if value["schema_version"] not in (REQUEST_SCHEMA, PREVIEW_REQUEST_SCHEMA):
         raise FlowError("invalid_request", "Unsupported flow request schema")
@@ -252,6 +254,9 @@ def load_request(source: str | Path | dict) -> dict:
     if value["scale_axis"] not in ("max", "x", "y", "z"):
         raise FlowError("invalid_request", "scale_axis must be max, x, y or z in the generated mesh coordinate frame")
     if not preview:
+        value["simulation_purpose"] = value.get("simulation_purpose", "surface_xpbd")
+        if value["simulation_purpose"] not in ("surface_xpbd", "liquid_volume"):
+            raise FlowError("invalid_request", "simulation_purpose must be surface_xpbd or liquid_volume")
         material = value["material"]
         if not isinstance(material, dict):
             raise FlowError("invalid_request", "material must specify name and density_kg_m3")

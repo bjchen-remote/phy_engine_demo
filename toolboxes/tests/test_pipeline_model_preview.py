@@ -173,8 +173,10 @@ class PreviewModuleCompositionTests(unittest.TestCase):
         (job / "work").mkdir(parents=True)
         write(job / "work/toolbox-call.json", {"operation": "modeling_preview_from_image", "arguments": {}})
         with mock.patch.object(ADAPTER, "image_module", side_effect=AssertionError("inference must not start")):
-            with self.assertRaisesRegex(ValueError, "preview_geometry_scope=render_input"):
-                ADAPTER.api(package, package / "engine", job, {"modeling_runtime": {}}, lock)
+            ADAPTER.api(package, package / "engine", job, {"modeling_runtime": {}}, lock)
+        rejected = bundle.read_json(job / 'work/toolbox-response.json')['result']
+        self.assertFalse(rejected['ok'])
+        self.assertEqual(rejected['code'], 'operation_unavailable')
 
     def test_legacy_modeling_with_new_renderer_keeps_original_geometry_preview(self):
         modeling = self.root / "legacy-modeling-030"

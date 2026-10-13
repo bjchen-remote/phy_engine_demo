@@ -1,12 +1,12 @@
 # 产物契约：模型、模拟、渲染与交付
 
-状态：设计草案，尚无 v2 runtime。本文中的 MUST/必须是后续实现验收要求，不代表当前产物已满足。
+状态：设计草案，尚无 v2 runtime。本文中的 MUST/必须是后续实现验收要求，不代表当前产物已满足。2026-10-13 复核增加显式用途、强类型 metadata/GeometryBinding 与 engine dependency lock；仍未实现 v2 runtime。
 
 ## 1. 通用 envelope 与引用
 
 三个 bundle 使用共同 `BundleManifest` envelope；内容类型分别为 `ModelBundle/1`、`SimulationBundle/1`、`RenderBundle/1`。机器字段在 [contracts.schema.json](contracts.schema.json)，示例在 [examples](examples)。envelope schema 检查结构；本文件定义必须另做的文件与领域语义验证，不能只通过 JSON Schema 就声称物理合格。
 
-每个 bundle 包含：`schema_version`、`bundle_id`、`run_id`、`producer`（模块 id/version/digest）、`inputs`（上游 bundle refs）、`files`、`quality`、`validation`、`metadata`。metadata 按 bundle 类型执行本文件的约束；机器 schema 留作分 domain 扩展，不是任意物理语义的授权。
+每个 bundle 包含：`schema_version`、`bundle_id`、`run_id`、`producer`（模块 id/version/digest）、`inputs`（上游 bundle refs）、`files`、`quality`、`validation`、`metadata`。metadata 通过 kind 分派到 ModelMetadata、SimulationMetadata、RenderMetadata，禁止未知字段；领域正确性仍需独立 validator，不是任意物理语义的授权。
 
 quality.requested 可保留流水线意图；quality.actual 只记录本阶段与已验收祖先阶段。ModelBundle 不声明模拟/渲染实际质量，SimulationBundle 不提前声明渲染实际质量。计划的 quality_resolved 与产物的 actual 必须区分。
 
@@ -26,19 +26,21 @@ metadata 至少定义：
 
 | 字段 | 语义 |
 | --- | --- |
-| `domain` | 明确如 mechanical 或 pcb_thermal；不同 domain 不套用同一模型定义 |
+| `purpose` / `domain` | physical_simulation 对应 mechanical/pcb_thermal；model_preview 对应 geometry，不创造物理状态 |
 | `model_schema` | 如 `scene-v1`、带版本的 PCB spec；该 schema 的实际版本必须锁定 |
-| `units` | 规范 SI：m、kg、s、K；显示 °C 与 solver 内部旧单位必须记录转换，不机械改写物理值 |
+| `units` | 强类型 length/mass/time/temperature；物理长度为 m，展示默认 model_unit、质量/时间/温度为 null；显式用户尺度可用 m。旧 °C 的保留与转换记录到原配置/假设，不机械改写值 |
 | `coordinates` | 右手系、Y-up、世界/局部原点；2D PCB 板面轴映射显式记录；外部 Z-up/mm 导入只做一次可审计转换 |
 | `entity_ids` | 稳定且唯一；数组顺序不是身份；修订中保留未改变实体的 ID |
 | `requirements` | 用户明确给定的尺寸、质量、材料、约束和事件，附来源与满足状态 |
 | `assumptions` | 模板默认、推断尺寸/深度、材料估计；不得与测量值合并 |
-| `simulation_asset` / `render_asset` | 文件 artifact_id 或参数化几何引用；可相同；分别声明用途与规模 |
-| `binding` | identity、rigid_transform、barycentric 等已声明映射；绑定双方资产 hash、拓扑 hash 与误差报告 |
-| `geometry_quality` | requested/actual、容差定义/目标/实测、尺寸/拓扑审计及未验证项 |
-| `consumer_requirements` | solver 所需实体/边界/变形能力与 renderer 所需几何格式；支持组合以协商结果为准 |
+| `simulation_asset` / `render_asset` / `raw_asset` | GeometryAsset 绑定 artifact_id、原始字节 sha256、表示类型、role、单位、坐标和 topology_sha256；物理要求 simulation/render，展示要求 raw/render 且禁止 simulation |
+| `binding` | 强类型 GeometryBinding：source/target 绑定 artifact_id、sha256、topology_sha256；kind、mapping_ref、transform、error_report 均必填。物理为 identity/rigid_transform/barycentric；展示 raw→display 为 identity/exact_subset/bounded_surface |
+| `geometry_quality` | reference/tolerance_m/measured_error_m/verified/limitations；请求与实际档位保留在 envelope.quality，不以面数证明容差 |
+| `consumer_requirements` / `engine_dependency` | 前者列所需实体/状态/几何能力；后者为实际依赖的 DependencyPin 或 null。模拟与物理渲染必须有相同非空 engine_dependency；独立建模/展示未依赖求解器时可为空 |
 
 high 的容差必须说明测量基准：解析曲面、用户 CAD 或采样参考。没有真值的单图重建只能声称符合已知尺寸/轮廓与假设，不能声称真实物体误差小于某数。
+
+identity 必须有相同字节/拓扑 pin 与坐标；rigid_transform 必须是保持朝向的刚性 4×4 变换，不能藏入缩放或反射；barycentric 必须给出受验证的映射引用。exact_subset 仅证明 raw 保留坐标的精确子网格，不能许可平滑；bounded_surface 必须另外重算固定策略的删除、顶点映射、位移与保留拓扑。GeometryBinding 结构合格、pin 一致及误差值未超目标都不等于实际几何证明；后续 host 仍须读取并验证真实资产/映射/算法回执。
 
 显示网格加密不改变物理参数和质量分布。双网格需要证明映射合法及误差；柔性形变要检查变形过程中绑定仍适用。代理无法保留显式孔洞、接触面或动力学目的时返回 `unsupported_model`，不能静默删掉。
 
@@ -48,7 +50,7 @@ P2 适配器负责把 bundle 投影到旧 scene/spec，并保留反向实体映�
 
 建议文件：`simulation.json`、`model.json` 或其受控引用、`diagnostics.json`、`queries.json`、`observations.csv`、`data-dictionary.json`、状态分块及 `state-index.json`。视频元数据不写回 SimulationBundle。
 
-metadata 至少定义 `model_ref`、domain、solver/backend 版本、随机种子、参数、实际物理区间、积分方案/离散分辨率、导出 profile、完整性与 numerical_status。性能估计和实际用时分开；保存的随机初态或 seed 足以解释重现范围。
+SimulationMetadata 明确 purpose=physical_simulation、model_ref、domain、engine_dependency、backend、seed、physical_interval_s、state_export、state_plan、numerical_status 和 limitations。原参数与离散方案由依赖的规范模型/求解结果保存；实际求解器 id/version/digest/interface 来自依赖锁，不能只写可变版本字符串。model_ref 必须在 inputs 中，模型用途/domain、导出 profile/时窗和引擎依赖须跨字段校验。性能估计和实际用时分开；保存的随机初态或 seed 足以解释重现范围。
 
 ### 3.1 三种保存规格
 
@@ -86,11 +88,13 @@ CSV 建议列：`run_id,query_id,entity_id,time_s,value,unit,status`。数据字
 
 ## 4. RenderBundle/1
 
-输入精确引用 ModelBundle、SimulationBundle；模型 hash 必须与模拟上游一致，除非是已经审计并引用的新展示派生资产。只读挂载 canonical 数据；渲染前后 hash 必须相同。
+物理用途输入精确引用 ModelBundle、SimulationBundle；模型 hash 必须与模拟上游一致，除非是已经审计并引用的新展示派生资产。只读挂载 canonical 数据；渲染前后 hash 必须相同。
+
+模型展示输入仅为 purpose=model_preview 的 ModelBundle，不允许 simulation_ref 或 SimulationBundle inputs。RenderMetadata 使用 fidelity=shape_only、simulation_performed=false、physical_interval_s=null、frame_map_ref=null；播放时间不是物理时长。raw/display 模型数据通过不需要 simulation_ref 的 DataPackageManifest 保存。
 
 文件通常有 `simulation.mp4`、`thumbnail.png`、`render-report.json`、`frame-map.json`；深度输出可选 PNG/EXR 序列。manifest 至少有一个已验证 video role 才能算视频完成。
 
-metadata 必须包含：provider ID/版本、渲染器/设备/seed、请求与实际质量、相机、显示材质与灯光、分辨率/FPS/帧数、物理时长与播放时长、插值/重建/降噪/压缩说明、geometry binding、`fidelity=trajectory_preserving|illustrative` 和可重现级别。
+RenderMetadata 强类型记录 purpose、model_ref、物理用途的 simulation_ref、provider（id/version）、engine_dependency、binding、presentation（已公布模板与有界参数）、execution（renderer/version/device/seed/processing）、fidelity、physical_interval_s、playback_duration_s、分辨率/FPS/帧数、frame_map_ref、simulation_performed、measurement_source=false、reproducibility 和 limitations。物理 fidelity=trajectory_preserving|illustrative；模型展示为 shape_only。请求与实际质量在 envelope.quality，模板参数仍须按 capability 二次校验。
 
 固定慢动作使用 `physical_time = start + playback_time * time_scale_to_physical`；视频帧的具体物理时刻保存在 frame-map，覆盖端点按编码帧中心约定说明。非线性时间映射使用显式单调表；循环、剪辑、暂停必须声明，不能省略物理片段后仍称完整时间覆盖。
 
@@ -106,7 +110,7 @@ delivery manifest 引用已验证输出，不承载凭证/临时签名 URL。机
 
 pipeline 的计算成功与 delivery 的发送成功是两个字段。用户要 video+data 时，二者验证成功后 pipeline 可 `succeeded`（计算完成）；最终对用户声称“已交付”还要 delivery 所有 required 项达到通道可证明的完成状态。required 项缺失、unknown 或发送失败不能视为完成。
 
-数据 ZIP 内必须有不可变 `DataPackageManifest/1`（仅列包内文件及其 hash）、原模型/配置、质量报告、JSON/CSV 与字典；用户要求状态或模型时加入相应文件。包内 manifest 不含 ZIP 自己的 hash，也不含可变发送回执。外部 DeliveryManifest 引用已封存 ZIP 的 hash，回执记录在 host 数据库并输出带修订号的 delivery 快照；不得回填 ZIP 造成循环 hash。外部 provider 的临时链接不代替本地/受控持久副本。预算同时限制单文件、总交付量、工作磁盘和解压量；数据不够装时给出明确分包/存储选项，不删掉一部分后称完整。
+数据 ZIP 内必须有不可变 `DataPackageManifest/1`（schema_version=data-package/1，仅列包内文件及其 hash，显式 purpose/model_ref；物理用途必须有一致的 simulation_ref，模型展示禁止该字段）、原模型/配置、质量报告、JSON/CSV 与字典；用户要求状态或模型时加入相应文件。包内 manifest 不含 ZIP 自己的 hash，也不含可变发送回执。外部 DeliveryManifest 引用已封存 ZIP 的 hash，回执记录在 host 数据库并输出带修订号的 delivery 快照；不得回填 ZIP 造成循环 hash。外部 provider 的临时链接不代替本地/受控持久副本。预算同时限制单文件、总交付量、工作磁盘和解压量；数据不够装时给出明确分包/存储选项，不删掉一部分后称完整。
 
 保留窗口至少覆盖活动作业、恢复、交付重试和已告知用户的下载期限。清理先检查 DAG 引用与 receipt，后原子撤销可访问引用，再删除未被引用文件。被删除数据重渲染返回 `artifact_expired`，不能承诺从模型无成本还原。
 

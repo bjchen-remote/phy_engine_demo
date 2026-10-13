@@ -104,6 +104,9 @@ def _validated_scene(scene: Any, budget_seconds: float | None, unlimited: bool =
 
 
 def _plan_constraint_error(plan: dict[str, Any]) -> dict[str, Any] | None:
+    if not plan.get("liquid_volume_fits_limits", True):
+        detail = plan.get("liquid_volume_error") or {}
+        return {"code": detail.get("code", "mesh_volume_sampling_budget"), "path": "entities", "message": detail.get("message", "Mesh-volume conversion did not pass its hard sampling gates."), "retryable": True, "suggestion": "Use a qualified closed source, separate overlapping particle volumes, or explicitly revise spacing/quality/scale; samples are never truncated and conversion volume errors are never advisory."}
     if not plan.get("coupling_fits_limits", True):
         return {"code":"coupling_budget_exceeded","path":"coupling","message":"Shared-clock substeps, mesh size or contact work exceed coupled limits.","retryable":True,"suggestion":"Reduce dt for stiffness resolution; shorten the horizon or simplify explicit geometry for work limits. Do not silently change masses, spring constants or mesh topology."}
     if not plan.get("connection_fits_limits", True):

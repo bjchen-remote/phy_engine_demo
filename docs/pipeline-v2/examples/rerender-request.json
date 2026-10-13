@@ -13,7 +13,8 @@
     "geometry_tolerance_m": null,
     "assumptions": [
       "理想点质量、无质量杆、无阻尼；此处为协议示例。"
-    ]
+    ],
+    "purpose": "physical_simulation"
   },
   "simulation": {
     "physical_duration_s": 8.0,
@@ -88,5 +89,6 @@
   },
   "permitted_stages": [
     "rendering"
-  ]
+  ],
+  "purpose": "physical_simulation"
 }

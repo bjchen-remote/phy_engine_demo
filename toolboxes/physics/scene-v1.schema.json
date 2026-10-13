@@ -1364,7 +1364,14 @@
           "const": "fluid"
         },
         "shape": {
-          "$ref": "#/$defs/volume_shape"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/volume_shape"
+            },
+            {
+              "$ref": "#/$defs/mesh_volume_shape"
+            }
+          ]
         },
         "spacing": {
           "type": "number",
@@ -1401,7 +1408,29 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "shape": {
+                "properties": {
+                  "type": {
+                    "const": "mesh_volume"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "preset": {
+                "const": "water"
+              }
+            }
+          }
+        }
+      ]
     },
     "granular": {
       "type": "object",
@@ -2666,6 +2695,59 @@
           }
         }
       ]
+    },
+    "mesh_volume_shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "mesh",
+        "center",
+        "units",
+        "conversion",
+        "conservation",
+        "reference_density_kg_m3"
+      ],
+      "properties": {
+        "type": {
+          "const": "mesh_volume"
+        },
+        "mesh": {
+          "$ref": "#/$defs/mesh_asset"
+        },
+        "center": {
+          "$ref": "#/$defs/coordinate_vec3"
+        },
+        "units": {
+          "const": "m"
+        },
+        "conversion": {
+          "const": "instant"
+        },
+        "conservation": {
+          "const": "volume"
+        },
+        "reference_density_kg_m3": {
+          "const": 1000
+        },
+        "source_ref": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "receipt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "dependentRequired": {
+        "source_ref": [
+          "receipt_sha256"
+        ],
+        "receipt_sha256": [
+          "source_ref"
+        ]
+      },
+      "description": "Bounded qualified closed outward single-component mesh, explicitly scaled to metres. Native water initial-volume conversion only; at most 5% represented-volume error. No thermal phase change."
     }
   }
 }

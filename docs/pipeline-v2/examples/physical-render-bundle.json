@@ -1,0 +1,153 @@
+{
+  "schema_version": "bundle-manifest/1",
+  "kind": "RenderBundle/1",
+  "bundle_id": "example-render-001",
+  "run_id": "example-run-001",
+  "producer": {
+    "id": "rendering-fast",
+    "version": "0.1.0",
+    "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "api_major": 2
+  },
+  "inputs": [
+    {
+      "artifact_ref": "example-model-001",
+      "schema": "ModelBundle/1",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "artifact_ref": "example-simulation-001",
+      "schema": "SimulationBundle/1",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
+  "files": [
+    {
+      "artifact_id": "example-video",
+      "role": "video",
+      "path": "simulation.mp4",
+      "media_type": "video/mp4",
+      "bytes": 2048,
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "artifact_id": "example-frame-map",
+      "role": "frame_map",
+      "path": "frame-map.json",
+      "media_type": "application/json",
+      "bytes": 128,
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ],
+  "quality": {
+    "requested": {
+      "rendering": "standard"
+    },
+    "actual": {
+      "modeling": "standard",
+      "simulation": "strict",
+      "rendering": "standard"
+    }
+  },
+  "validation": {
+    "integrity": "passed",
+    "domain": "passed",
+    "numerical": "passed",
+    "checks": [
+      "example-fixture-only"
+    ],
+    "warnings": []
+  },
+  "metadata": {
+    "purpose": "physical_simulation",
+    "model_ref": {
+      "artifact_ref": "example-model-001",
+      "schema": "ModelBundle/1",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "simulation_ref": {
+      "artifact_ref": "example-simulation-001",
+      "schema": "SimulationBundle/1",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "provider": {
+      "id": "local-fast",
+      "version": "example-1"
+    },
+    "engine_dependency": {
+      "id": "physics",
+      "version": "1.4.7",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "interface": "physics-python/1"
+    },
+    "binding": {
+      "kind": "identity",
+      "source": {
+        "artifact_id": "example-physical-model",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "topology_sha256": null
+      },
+      "target": {
+        "artifact_id": "example-physical-model",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "topology_sha256": null
+      },
+      "mapping_ref": null,
+      "transform": null,
+      "error_report": {
+        "status": "passed",
+        "metric": "identity",
+        "unit": "m",
+        "value": 0,
+        "tolerance": 0,
+        "limitations": [
+          "Fictional fixture; no actual geometry files or proof."
+        ]
+      }
+    },
+    "fidelity": "trajectory_preserving",
+    "physical_interval_s": [
+      0,
+      8
+    ],
+    "playback_duration_s": 8,
+    "width_px": 960,
+    "height_px": 540,
+    "fps": 30,
+    "frame_count": 240,
+    "frame_map_ref": {
+      "artifact_ref": "example-frame-map",
+      "schema": "FrameMap/1",
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "simulation_performed": true,
+    "measurement_source": false,
+    "reproducibility": "best_effort",
+    "limitations": [
+      "Fictional fixture; no video or delivery evidence."
+    ],
+    "presentation": {
+      "provider": "local-fast",
+      "width_px": 960,
+      "height_px": 540,
+      "fps": 30,
+      "playback_duration_s": 8.0,
+      "style": "scientific",
+      "fidelity": "trajectory_preserving",
+      "template_id": "scientific-default",
+      "parameters": {
+        "camera_azimuth_deg": 30.0,
+        "key_light_intensity": 1.0
+      }
+    },
+    "execution": {
+      "renderer": "example-renderer",
+      "version": "example-1",
+      "device": "example-cpu",
+      "seed": 0,
+      "processing": [
+        "Fictional fixture; no rendering performed."
+      ]
+    }
+  }
+}

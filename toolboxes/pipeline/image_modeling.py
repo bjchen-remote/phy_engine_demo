@@ -66,6 +66,13 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
     script = inside(module, 'flow_runner.py')
     output = work / 'assets'
     env = dict(os.environ)
+    # The worker's candidate audit must use this composition's verified engine,
+    # never an inherited environment value or a developer checkout fallback.
+    # Real composed locks always contain engine; minimal isolated helper
+    # fixtures without one deliberately receive no candidate engine setting.
+    env.pop('PHYSICS_PIPELINE_PHYSICS_ROOT', None)
+    if isinstance(lock.get('engine'), dict):
+        env['PHYSICS_PIPELINE_PHYSICS_ROOT'] = str(inside(root, lock['engine']['path']))
     env.update(HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', HY3DGEN_DEBUG='0',
                PYTHONDONTWRITEBYTECODE='1', PYTORCH_ENABLE_MPS_FALLBACK='0',
                HOME=str(job / 'work/tmp'), XDG_CACHE_HOME=str(job / 'work/tmp/cache'),
@@ -159,7 +166,7 @@ def generate_image_model(root: Path, job: Path, task: dict, lock: dict,
     return {**public, 'provider_notice': notice}
 
 
-def used_modeling_assets(job: Path, model: dict, root: Path | None = None) -> list[dict]:
+def used_modeling_assets(job: Path, model: dict, root: Path | None = None, *, readonly: bool = False) -> list[dict]:
     """Export only image assets whose receipt is referenced by this scene."""
     notes = [entity.get('mesh', {}).get('metadata', {}).get('provenance', {}).get('notes', '')
              for entity in model.get('entities', []) if isinstance(entity, dict)]
@@ -192,12 +199,15 @@ def used_modeling_assets(job: Path, model: dict, root: Path | None = None) -> li
                     # A separate immutable public copy keeps local evidence and
                     # every existing checkpoint/pin byte-identical.
                     directory = inside(job, 'work/pipeline/public-provenance')
-                    directory.mkdir(parents=True, exist_ok=True)
+                    if not readonly:
+                        directory.mkdir(parents=True, exist_ok=True)
                     projected = inside(job, 'work/pipeline/public-provenance/' + hashlib.sha256(payload).hexdigest() + '.json')
                     if projected.exists():
                         if projected.read_bytes() != payload:
                             raise ValueError('public modeling provenance changed before export')
                     else:
+                        if readonly:
+                            raise ValueError('sealed public modeling provenance is missing')
                         descriptor, temporary = tempfile.mkstemp(prefix='.public-', dir=directory)
                         try:
                             with os.fdopen(descriptor, 'wb') as handle:

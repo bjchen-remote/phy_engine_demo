@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gc
+from copy import deepcopy
 import importlib
 import importlib.metadata
 import json
@@ -17,13 +18,15 @@ from .contracts import (FlowError, MAX_IMAGE_PIXELS, MAX_SIMULATION_FACES,
                         load_request, output_directory, verify_foreground_model, verify_weights, write_json)
 from .meshes import audit_mesh, import_obj, orient_outward, scale_mesh, validate_mesh, write_obj
 from .reduction import numerical_component_cleanup, topology_decimate
+from .candidate_quality import evaluate_candidate
+from .shape_reuse import shape_reuse_capability
 
 
 ASSUMPTIONS = [
     "Single-image generation estimates the unobserved surfaces; hidden geometry is unverified.",
     "Uniform scale in metres is supplied by the user, not recovered from image pixels.",
     "The declared density assumes a homogeneous filled solid, not hollow walls or measured material.",
-    "Mesh topology is checked; self-intersections and CAD tolerances are not certified.",
+    "Accepted simulation candidates pass the bounded engine geometry audit; CAD tolerances, thin structures and aperture dimensions remain unverified.",
     "The generated coordinate orientation is preserved; gravity alignment must be chosen in the scene.",
     "A shape-only GLB contains no generated texture or physically measured surface properties.",
 ]
@@ -171,6 +174,7 @@ def health(config_source: str | Path | dict) -> dict:
                 "foreground_model": foreground_model,
                 "background_removal": config["background_removal"],
                 "decimator": decimator,
+                "shape_reuse": shape_reuse_capability(config),
                 "checkpoint": {"id": config["checkpoint_id"], "revision": config["checkpoint_revision"],
                                "inventory": inventory, **header}, "dependencies": _versions(),
                 "capabilities": ["image_to_shape", "shape_glb", "bounded_triangle_obj", "offline_only"],
@@ -242,13 +246,21 @@ def _mesh_arrays(mesh) -> dict:
 
 
 def _decimate(mesh: dict, trimesh, request: dict) -> tuple[dict, dict]:
+    """Select only candidates that pass both geometry and bounded quality gates.
+
+    The display/raw input remains untouched. Every reduction starts from the
+    admitted source, including after engine rejection or audit budget exhaustion.
+    The source has already been scaled into the declared physical frame by
+    generate(). This prepares geometry only; the full scene gate is still needed.
+    """
+    raw_mesh = mesh
     original = audit_mesh(mesh)
-    if original["simulation_budget_passed"] and original.get("connected_components", 1) == 1:
-        return mesh, {"applied": False, "method": None}
-    if not request["allow_decimation"]:
+    purpose = request.get("simulation_purpose", "surface_xpbd")
+    if not original["simulation_budget_passed"] and not request["allow_decimation"]:
+        raise FlowError("simulation_mesh_budget_exceeded", "Generated mesh exceeds simulation budget and decimation is disabled")
+    if original.get("connected_components", 1) > 1 and not request["allow_decimation"]:
         if original["simulation_budget_passed"]:
             raise FlowError("simulation_mesh_rejected", "Disconnected mesh requires geometry cleanup and decimation is disabled")
-        raise FlowError("simulation_mesh_budget_exceeded", "Generated mesh exceeds simulation budget and decimation is disabled")
     cleanup = {"applied": False, "reason": "single_component", "display_geometry_preserved": True}
     if (original.get("connected_components", 1) > 1
             and all(original.get(key, 0) == 0 for key in ("boundary_edges", "nonmanifold_edges",
@@ -257,8 +269,12 @@ def _decimate(mesh: dict, trimesh, request: dict) -> tuple[dict, dict]:
     prepared = audit_mesh(mesh) if cleanup["applied"] else original
     attempts = []
     metadata = {"applied": False, "reduction_required": not prepared["simulation_budget_passed"],
+                "reduction_attempted": False,
                 "method": "topology_preserving_quadric_edge_collapse",
                 "source_vertices": original["vertices"], "source_faces": original["faces"],
+                "simulation_purpose": purpose, "raw_geometry_sha256": digest(raw_mesh),
+                "prepared_source_geometry_sha256": digest(mesh), "raw_geometry_preserved": True,
+                "scene_preparation_required": True,
                 "geometry_error_bound": "not_certified", "numerical_cleanup": cleanup,
                 "constraints": {"preserve_topology": True, "preserve_normal": True,
                                 "preserve_boundary": True, "optimal_placement": False,
@@ -267,9 +283,27 @@ def _decimate(mesh: dict, trimesh, request: dict) -> tuple[dict, dict]:
     if prepared.get("connected_components", 1) > 1:
         raise FlowError("simulation_mesh_rejected",
                         "Significant disconnected surfaces remain; they cannot be silently deleted or connected",
-                        {**metadata, "source_audit": original, "prepared_audit": prepared})
+                        {**metadata, "status": "rejected", "source_audit": original, "prepared_audit": prepared})
+    # The initial generated mesh may have had multiple components, so its
+    # outward-orientation step could only run after simulation-only cleanup.
+    # Compare two outward surfaces without changing the raw/prepared source.
+    comparison_source, comparison_flipped = orient_outward(mesh)
+    metadata.update(comparison_source_geometry_sha256=digest(comparison_source),
+                    comparison_source_winding_reversed=comparison_flipped)
     if prepared["simulation_budget_passed"]:
-        return mesh, {**metadata, "applied": False, "method": None}
+        candidate, reversed_winding = orient_outward(mesh)
+        scale = {"units": "m", "physical_extent_m": request.get("physical_extent_m",
+                 max(prepared["extent"])), "scale_axis": request.get("scale_axis", "max")}
+        quality = evaluate_candidate(comparison_source, candidate, purpose=purpose, scale=scale)
+        attempts.append({"target_faces": None, "audit": audit_mesh(candidate, simulation=True),
+                         "winding_reversed": reversed_winding, "quality": quality,
+                         "status": quality["status"], "code": quality["code"]})
+        if quality["accepted"]:
+            return candidate, {**metadata, "applied": False, "method": None,
+                               "selected_quality": quality, "status": "accepted"}
+        if quality["status"] != "budget_exhausted" or not request["allow_decimation"]:
+            metadata["status"] = quality["status"]
+            raise FlowError("simulation_mesh_rejected", "Source mesh failed the engine or candidate quality gate", metadata)
     try:
         importlib.import_module("pymeshlab")
     except (ImportError, OSError) as error:
@@ -278,24 +312,38 @@ def _decimate(mesh: dict, trimesh, request: dict) -> tuple[dict, dict]:
     # leaves headroom for the engine's bounded intersection audit. Original
     # vertex placements avoid QEM's unconstrained spikes in flat regions.
     targets = (6000, min(MAX_SIMULATION_FACES, 2 * (MAX_SIMULATION_VERTICES - 2)), 4000)
+    if prepared["simulation_budget_passed"]:
+        targets = tuple(target for target in targets if target < prepared["faces"])
+        if not targets and prepared["faces"] > 4:
+            targets = (max(4, prepared["faces"] // 2),)
     for target in targets:
         try:
-            metadata["applied"] = True
-            candidate = topology_decimate(mesh, target)
+            metadata["reduction_attempted"] = True
+            candidate = topology_decimate(deepcopy(mesh), target)
             candidate, transform = scale_mesh(candidate, request["physical_extent_m"], request["scale_axis"])
             candidate, reversed_winding = orient_outward(candidate)
             report = audit_mesh(candidate, simulation=True)
             topology_preserved = (report.get("euler_characteristic") == prepared.get("euler_characteristic")
                                   and report["connected_components"] == prepared.get("connected_components", 1))
-            attempts.append({"target_faces": target, "audit": report,
+            attempt = {"target_faces": target, "audit": report,
                              "scale_transform": transform, "winding_reversed": reversed_winding,
                              "source_euler_characteristic": prepared.get("euler_characteristic"),
-                             "topology_preserved": topology_preserved})
-            if report["simulation_eligible"] and topology_preserved:
-                return candidate, {**metadata, "target_faces": target, "scale_transform": transform}
+                             "topology_preserved": topology_preserved}
+            scale = {"units": "m", "physical_extent_m": request["physical_extent_m"],
+                     "scale_axis": request["scale_axis"]}
+            quality = evaluate_candidate(comparison_source, candidate, purpose=purpose, scale=scale)
+            attempt.update(quality=quality, status=quality["status"], code=quality["code"])
+            attempts.append(attempt)
+            if report["simulation_eligible"] and topology_preserved and quality["accepted"]:
+                return candidate, {**metadata, "target_faces": target, "scale_transform": transform,
+                                   "selected_quality": quality, "status": "accepted", "applied": True}
         except (FlowError, ValueError, TypeError, RuntimeError) as error:
             attempts.append({"target_faces": target, "code": getattr(error, "code", "decimation_failed"),
-                             "error": str(error)})
+                             "status": "rejected", "error": str(error)})
+    statuses = [attempt["status"] for attempt in attempts]
+    metadata["status"] = ("budget_exhausted" if statuses and all(s == "budget_exhausted" for s in statuses)
+                          else "unsupported" if statuses and all(s == "unsupported" for s in statuses)
+                          else "rejected")
     raise FlowError("simulation_mesh_rejected", "No bounded decimation candidate passed the mesh gate", metadata)
 
 
@@ -433,16 +481,23 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
         artifacts = [artifact(display_glb, root, "display_mesh", "model/gltf-binary"),
                      artifact(display_obj, root, "display_mesh_source", "model/obj"),
                      artifact(display_json, root, "display_mesh_data", "application/json")] + raw_artifacts
-        result = {"schema_version": RESULT_SCHEMA, "ready_to_simulate": rejection is None,
+        geometry_only_liquid = not preview and request["simulation_purpose"] == "liquid_volume"
+        result = {"schema_version": RESULT_SCHEMA,
+                  "ready_to_simulate": rejection is None and not geometry_only_liquid,
                   "display_only": preview, "ready_to_preview": preview,
                   "display_mesh_path": str(display_glb), "display_obj_path": str(display_obj),
                   "display_mesh_json_path": str(display_json),
                   "receipt_path": str(root / "receipt.json"), "audit": simulation_audit,
                   "assumptions": assumptions, "artifacts": artifacts}
+        if not preview:
+            result.update(simulation_purpose=request["simulation_purpose"], ready_for_scene=False,
+                          ready_for_volume_sampling=rejection is None and geometry_only_liquid)
         if simulation_mesh is not None:
             physics_obj, physics_json = root / "simulation.obj", root / "simulation_mesh.json"
             write_obj(physics_obj, simulation_mesh)
             physics = {"schema_version": "modeling-flow-mesh/1", "units": "m", **simulation_mesh,
+                       "simulation_purpose": request["simulation_purpose"],
+                       "candidate_quality": decimation.get("selected_quality"),
                        "material": request["material"],
                        "scale": {**scale, "simulation_decimation_rescale": decimation.get("scale_transform")},
                        "audit": simulation_audit, "image_sha256": image_sha256,
@@ -478,9 +533,15 @@ def generate(config_source: str | Path | dict, request_source: str | Path | dict
                    "display_audit": display_audit, "simulation_audit": simulation_audit,
                    "decimation": decimation, "display_winding_reversed": flipped,
                    "simulation_winding_reversed": simulation_flipped,
-                   "ready_to_simulate": rejection is None, "display_only": preview,
+                   "ready_to_simulate": rejection is None and not geometry_only_liquid,
+                   "display_only": preview,
                    "assumptions": assumptions,
                    "artifacts": artifacts, "elapsed_seconds": time.monotonic() - started}
+        if not preview:
+            receipt.update(simulation_purpose=request["simulation_purpose"], ready_for_scene=False,
+                           ready_for_volume_sampling=rejection is None and geometry_only_liquid,
+                           liquid_particleization="not_performed" if geometry_only_liquid else "not_requested",
+                           shape_reuse=shape_reuse_capability(config))
         if rejection is not None and not preview:
             receipt["simulation_rejection"] = {"code": rejection.code, "error": str(rejection)}
         if preview:

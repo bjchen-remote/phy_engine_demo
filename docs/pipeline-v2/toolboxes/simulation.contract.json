@@ -31,6 +31,10 @@
   ],
   "acceptance": [
     "无 renderer 仍能独立输出可检查、可查询的数据。",
-    "严格指标与数据字典一致；未存字段不伪造。"
+    "严格指标与数据字典一致；未存字段不伪造。",
+    "拒绝 model_preview；实际 engine_dependency 与接受计划的锁一致。"
+  ],
+  "purposes": [
+    "physical_simulation"
   ]
 }

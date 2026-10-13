@@ -1,0 +1,68 @@
+{
+  "schema_version": "pipeline-request/2",
+  "intent": "协议示例：只生成并展示三维形状，不模拟。",
+  "model": {
+    "purpose": "model_preview",
+    "template_id": "single-image-shape",
+    "parameters": {},
+    "input_refs": [
+      {
+        "artifact_ref": "example-admitted-image",
+        "schema": "ImportedAsset/1",
+        "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    ],
+    "geometry_tolerance_m": null,
+    "assumptions": [
+      "Single image; hidden surfaces inferred; no measured dimensions."
+    ]
+  },
+  "render": {
+    "provider": "local-fast",
+    "width_px": 960,
+    "height_px": 540,
+    "fps": 30,
+    "playback_duration_s": 3,
+    "style": "scientific",
+    "fidelity": "shape_only",
+    "template_id": "shape-orbit",
+    "parameters": {
+      "camera_azimuth_deg": 30.0,
+      "key_light_intensity": 1.0
+    }
+  },
+  "quality": {
+    "modeling": "standard",
+    "rendering": "standard"
+  },
+  "delivery": {
+    "required_roles": [
+      "video",
+      "data"
+    ],
+    "include_model": true,
+    "data_formats": [
+      "json"
+    ],
+    "allow_partial": false
+  },
+  "requested_budget": {
+    "wall_time_seconds": 120,
+    "max_output_bytes": 33554432,
+    "max_cost": 0,
+    "currency": "CNY"
+  },
+  "allow_adjustments": [
+    "render_compression"
+  ],
+  "reuse": {
+    "model_ref": null,
+    "simulation_ref": null,
+    "render_ref": null
+  },
+  "permitted_stages": [
+    "modeling",
+    "rendering"
+  ],
+  "purpose": "model_preview"
+}

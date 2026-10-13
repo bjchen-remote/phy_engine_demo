@@ -1,8 +1,8 @@
 # 建模—模拟—渲染：独立热插拔模块规划书
 
-状态：**总体 v2 设计保留为草案；QQ v1 兼容实现已落地，线上未切换**。日期：2026-09-26。
+状态：**v2 异步协议仍是设计草案，未注册、未部署；当前运行接口是 QQ v1 兼容实现**。初稿：2026-09-26；用途与类型契约复核：2026-10-13。
 
-实施以你的 **1.4.0 模拟器**为真实兼容基线。请先读 [实施方案](implementation-plan.md)、[实现与验收报告](implementation-report.md) 和 [构建使用说明](../../toolboxes/pipeline/README.md)。本目录原有的通用异步 v2 API/schema/example 仍是拟议接口；当前运行接口及三份 skill 位于 `toolboxes/pipeline/`，不能混用。线上仍使用原来的 1.4.2，没有改变活动注册表、调用付费生成服务或发送 QQ 消息。
+2026-09-26 的兼容实施以 **1.4.0 模拟器**为真实基线。请先读 [实施方案](implementation-plan.md)、[实现与验收报告](implementation-report.md) 和 [构建使用说明](../../toolboxes/pipeline/README.md)。本目录原有的通用异步 v2 API/schema/example 仍是拟议接口；当前运行接口及三份 skill 位于 `toolboxes/pipeline/`，不能混用。“线上仍为 1.4.2”是当时的历史记录，不是当前部署声明。当前源码与后续验收应读 [当前整体架构](../current-architecture.md)；本次草案复核不改变活动注册表、不调用付费生成服务、不发送 QQ 消息。
 
 ## 1. 目标与关键决策
 
@@ -13,7 +13,7 @@
 确定以下设计：
 
 1. 三个模块、三个 API 命名空间、三份 skill；host 提供一个确定性 pipeline 编排入口。
-2. 模块之间传不可变的 `ModelBundle/1 → SimulationBundle/1 → RenderBundle/1`，弱 agent 只传引用，不复制大量网格、逐帧数据或本地路径。
+2. `purpose=physical_simulation` 传不可变 `ModelBundle/1 → SimulationBundle/1 → RenderBundle/1`；`purpose=model_preview` 只传 `ModelBundle/1 → RenderBundle/1`，不创建模拟引用、数值状态或物理时间。弱 agent 只传引用，不复制大量网格、逐帧数据或本地路径。
 3. `modeling=standard|high`、`simulation=visual|strict`、`rendering=preview|standard|deep` 独立选择。没有统一的“high 就全都精确”开关。
 4. 同一份模拟结果可以反复换镜头、材质、渲染器；渲染失败保留数据，渲染不得修改 canonical 数值结果。
 5. 高质量渲染的状态需求在模拟前协商；只有抽样视频帧的旧结果不能冒充完整高精轨迹。
@@ -79,7 +79,7 @@ API 是稳定能力接口；toolbox 是带依赖、schema、skill 和验证器�
 | 渲染 | `standard`（默认） | 完整、易读的本地视频；支持既有快速渲染器和热图 |
 | 渲染 | `deep` | 更高视觉采样、材质/光照、几何表面重建与高级输出；需要可满足要求的 provider 和状态 profile |
 
-默认组合为 `standard / visual / standard`，交付 `video + data`。默认数据至少包含模型参数、诊断、数据字典和可用观测；没有观测时明确空结果的原因。用户要求数值、误差或稳定性结论时选择 strict，并预声明所需量。
+物理用途的默认组合为 `standard / visual / standard`，交付 `video + data`。模型展示只选择建模与渲染质量，默认 `standard / standard`、`model_unit`，交付形状视频与 raw/display 模型数据；不要求密度、材料或模拟质量。默认数据至少包含模型参数、诊断、数据字典和可用观测；没有观测时明确空结果的原因。用户要求数值、误差或稳定性结论时选择 strict，并预声明所需量。
 
 “高精建模”必须落到长度/曲面/孔洞等几何容差；“精确计算”必须落到物理模型和数值误差；“电影级”落到渲染配置。物理材质的密度/弹性参数与显示材质的颜色/粗糙度分开保存。
 
@@ -91,7 +91,7 @@ API 是稳定能力接口；toolbox 是带依赖、schema、skill 和验证器�
 
 常规任务优先使用 host 的 `pipeline_prepare → pipeline_submit → pipeline_status → pipeline_deliver`。host 内部按三阶段执行；客户端不需要掌握几十个内部细节。需要单独改模型、查询数据或重新渲染时再用阶段 API。
 
-1. 从用户原话提取目的、明确参数、三项质量及交付偏好；读取当前 capabilities。模板只是起点，显式参数不可被模板覆盖。
+1. 从用户原话提取 `purpose`、明确参数、相关阶段质量及交付偏好；读取当前 capabilities。模型展示不得为填合同而虚构物理参数或模拟阶段。模板只是起点，显式参数不可被模板覆盖。
 2. 工具将模板参数转成完整模型，返回 assumptions、缺失项、成本范围和稳定 plan_id。只有会改变任务意义且无法推断的缺失项才交给用户补充。
 3. prepare 先协商模型格式、导出状态及渲染要求，再冻结任务。预算不足给出具体替代选项；未经用户预先允许不能暗降精度、缩短时长或删输出。
 4. submit 后 host 推进队列；agent 只按 poll_after_ms 查询。状态、下一步 API 和最小参数均由工具结构化给出。
@@ -103,7 +103,7 @@ API 是稳定能力接口；toolbox 是带依赖、schema、skill 和验证器�
 
 “热插拔”指 host 无需重启即可让**新任务**采用新组合；运行中任务继续使用接收时的版本。卸载不能终止既有任务或令其恢复时找不到包。
 
-建议注册表保留 v1 分区，新增 `v2/modules/<id>/versions/<digest>` 和原子 `v2/active-bundle.json`。bundle 指针一次性列出三个 module pin，避免同时读三个 active 文件造成混合版本。package 内容覆盖 entrypoint、依赖锁、schema、validator、skill；hash 校验不能替代安装信任。
+建议注册表保留 v1 分区，新增 `v2/modules/<id>/versions/<digest>` 和原子 `v2/active-bundle.json`。bundle 指针一次性列出三个 module pin，避免同时读三个 active 文件造成混合版本。package 内容覆盖 entrypoint、依赖锁、schema、validator、skill；hash 校验不能替代安装信任。`PipelineLock.dependencies.engine` 单独绑定实际求解器的 id/version/digest/interface；包含 simulation pin 时必须有此依赖，StageTask 传递相同依赖锁。独立且未使用引擎的模型展示可以使用空 dependencies。
 
 生命周期：`publish → validate compatibility → health/probe → activate bundle → drain old → gc`。drain 禁止新接收但允许旧 pin 完成；GC 必须查队列、运行中、重试、恢复窗口、交付重试与保留资产引用。回滚只改新任务的 bundle 指针。
 
@@ -194,3 +194,4 @@ P2 的全链路 MVP 不依赖 CAD、图片重建或外部服务。先让独立�
 - [三份 toolbox 契约](toolboxes)：设计元数据，不是可发布 `toolbox.json`
 - [请求与响应示例](examples)：协议示例，ID/hash 均为虚构，不对应实际运行或资产
 - [契约检查记录](validation.md)
+- [跨字段设计检查](contract_semantics.py)：验证虚构 fixture 的依赖/绑定关系，不解析真实工件，也不构成运行时授权或几何证明。

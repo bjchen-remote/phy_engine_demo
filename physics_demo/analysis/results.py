@@ -43,6 +43,8 @@ def physics_claims(scene: dict[str, Any] | None = None) -> dict[str, str]:
     claims = dict(PHYSICS_CLAIMS)
     if scene is None or (scene.get("interactions", {}).get("mutual_gravity", False) and any(e["type"] in {"fluid", "granular"} for e in scene["entities"])):
         claims["particle_gravity"] = "Plummer-softened gravity on equal-volume, equal-reference-density particles; Barnes-Hut far fields or direct pairs. Coupled to incompressible DFSPH, not compressible stellar hydrodynamics. Spatial resolution, softening and timestep convergence are required for quantitative conclusions."
+    if scene is not None and any(e.get("shape", {}).get("type") == "mesh_volume" for e in scene["entities"]):
+        claims["liquid_conversion"] = "Instant source-geometry conversion to an initially liquid water volume, using explicit metres, reference density 1000 kg/m3 and at most 5% initial represented-volume error; no heat transfer, latent heat, melting or prior-simulation restart."
     if scene is not None and coupled_enabled(scene):
         claims.update(
             point_mass="Finite masses accelerated by explicit fields, attachments and contact impulses; no mutual gravity in the coupled route.",
@@ -690,6 +692,26 @@ def _summary(
         raise TypeError("attempts must be a non-empty array of attempt objects")
     if attempts[-1].get("backend") != backend:
         raise ValueError("the final attempt backend does not match trajectory diagnostics")
+    if "liquid_volume_fits_limits" in plan:
+        # This is conversion identity/inventory integrity, never a visual-mode
+        # precision advisory. It is independently recomputed with the plan.
+        import ctypes
+        from physics_demo.core.engine import _make_state
+        from physics_demo.core.native_backend import _render_indices
+        from physics_demo.core.liquids import render_material_names
+        particle_scene = {**scene, "entities": [e for e in scene["entities"] if e["type"] in {"fluid", "granular"}]}
+        particles = _make_state(particle_scene, plan["effective_spacing"])[0]
+        materials = [0 if p.material == "water" else 1 for p in particles]
+        selected = _render_indices(materials, plan["render_particle_limit"], groups=[p.group for p in particles], visual_materials=render_material_names(scene, particles))
+        initial = [[float(ctypes.c_float(value).value) for value in particles[i].pos] for i in selected]
+        if not has_coupling:
+            initial = [[round(value, 5) for value in point] for point in initial]
+        receipts = plan["liquid_volume_receipts"]
+        numerical_checks.update({
+            "liquid_volume_conversion_integrity": plan["liquid_volume_fits_limits"] and bool(receipts) and all(r["volume_gate_passed"] and r["relative_volume_error"] <= .05 and r["reference_density_kg_m3"] == 1000 for r in receipts.values()),
+            "liquid_volume_inventory_matches_solver": math.isclose(diagnostics.get("represented_water_volume_m3", -1), sum(p.material == "water" for p in particles) * plan["effective_spacing"]**3, rel_tol=1e-12, abs_tol=1e-15),
+            "liquid_volume_initial_state_matches_source": bool(frames) and frames[0].get("p") == initial,
+        })
     water_checks_applied = has_water and (backend.startswith("native-c11-dfsph") or has_coupling)
     if water_checks_applied:
         numerical_checks.update(_water_checks(diagnostics))

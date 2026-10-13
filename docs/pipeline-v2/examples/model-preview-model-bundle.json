@@ -1,0 +1,156 @@
+{
+  "schema_version": "bundle-manifest/1",
+  "kind": "ModelBundle/1",
+  "bundle_id": "example-preview-model",
+  "run_id": "example-preview-run",
+  "producer": {
+    "id": "modeling-basic",
+    "version": "0.1.0",
+    "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "api_major": 2
+  },
+  "inputs": [
+    {
+      "artifact_ref": "example-admitted-image",
+      "schema": "ImportedAsset/1",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  ],
+  "files": [
+    {
+      "artifact_id": "example-preview-raw",
+      "role": "geometry",
+      "path": "raw-mesh.json",
+      "media_type": "application/json",
+      "bytes": 128,
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    {
+      "artifact_id": "example-preview-display",
+      "role": "geometry",
+      "path": "display-mesh.json",
+      "media_type": "application/json",
+      "bytes": 128,
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
+  "quality": {
+    "requested": {
+      "modeling": "standard"
+    },
+    "actual": {
+      "modeling": "standard"
+    }
+  },
+  "validation": {
+    "integrity": "passed",
+    "domain": "passed",
+    "numerical": "not_applicable",
+    "checks": [
+      "example-fixture-only"
+    ],
+    "warnings": []
+  },
+  "metadata": {
+    "purpose": "model_preview",
+    "domain": "geometry",
+    "model_schema": "triangle-mesh/1",
+    "units": {
+      "length": "model_unit",
+      "mass": null,
+      "time": null,
+      "temperature": null
+    },
+    "coordinates": {
+      "handedness": "right",
+      "up_axis": "Y",
+      "frame": "local",
+      "origin": [
+        0,
+        0,
+        0
+      ]
+    },
+    "entity_ids": [
+      "shape1"
+    ],
+    "requirements": [],
+    "assumptions": [
+      "Single image; hidden surfaces inferred; no measured dimensions."
+    ],
+    "raw_asset": {
+      "artifact_id": "example-preview-raw",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "representation": "triangle_mesh",
+      "role": "raw_display",
+      "units": "model_unit",
+      "coordinates": {
+        "handedness": "right",
+        "up_axis": "Y",
+        "frame": "local",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "topology_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "render_asset": {
+      "artifact_id": "example-preview-display",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "representation": "triangle_mesh",
+      "role": "display",
+      "units": "model_unit",
+      "coordinates": {
+        "handedness": "right",
+        "up_axis": "Y",
+        "frame": "local",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "topology_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "binding": {
+      "kind": "identity",
+      "source": {
+        "artifact_id": "example-preview-raw",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "topology_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "target": {
+        "artifact_id": "example-preview-display",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "topology_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "mapping_ref": null,
+      "transform": null,
+      "error_report": {
+        "status": "passed",
+        "metric": "identity",
+        "unit": "model_unit",
+        "value": 0,
+        "tolerance": 0,
+        "limitations": [
+          "Fictional fixture; no actual geometry files or proof."
+        ]
+      }
+    },
+    "geometry_quality": {
+      "reference": "single reference image",
+      "tolerance_m": null,
+      "measured_error_m": null,
+      "verified": false,
+      "limitations": [
+        "No metric truth, hidden-surface or semantic fidelity proof."
+      ]
+    },
+    "consumer_requirements": [
+      "shape-only full display geometry"
+    ],
+    "engine_dependency": null
+  }
+}

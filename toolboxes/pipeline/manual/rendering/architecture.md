@@ -1,6 +1,14 @@
 # 渲染模块内部架构
 
-渲染模块有独立模型展示与物理结果呈现两条路径。前者从当前任务绑定的完整 display 网格绘制 360° 相机旋转，导出模型 ZIP；后者从保存且经过验证的模拟结果生成科学视频和完整数值数据包。模块不运行求解器、不改变模型与原始结果、不把旋转或插值画面当成测量。物理呈现使用 local-scientific provider；质量档位 preview/standard 与独立 model-preview 目的分开。deep/PBR/diffusion 仍需能力发现与独立实现。操作说明见 [Skill](SKILL.md)，恢复与 pin 见 [组合架构](../../ARCHITECTURE.md)。
+渲染模块有独立模型展示与物理结果呈现两条路径。前者从当前任务绑定的完整 display 网格绘制 360° 相机旋转，由组合层导出模型 ZIP；后者从保存且经过验证的模拟结果生成科学视频和完整数值数据包。模块不运行求解器、不改变模型与原始结果、不把旋转或插值画面当成测量。物理呈现使用 local-scientific provider；质量档位 preview/standard 与独立 model-preview 目的分开。deep/PBR/diffusion 仍需能力发现与独立实现。操作说明见相邻 [Skill](SKILL.md)；恢复与 pin 的源码说明位于 `toolboxes/pipeline/ARCHITECTURE.md`。
+
+本文与 Skill 的源目录为 `toolboxes/pipeline/manual/rendering/`，构建时随
+`pipeline_presentation/` 复制到 rendering 模块，手册位于模块的 `manual/`；固定
+worker、module/toolbox 元数据由构建器生成。手册属于模块摘要，改源后构建新组合，
+不编辑生成包或旧 pin。当前 v1 已支持 MP4+ZIP 与 typed model-preview；
+`docs/pipeline-v2` 的异步多产物协议仍是草案。preview `/2`、`/3` schema 不是该草案的
+上线证据。组合能力来自验证后的 module 声明和任务 runtime pin，configured 或可用
+声明不能代替实际推理、prepare、渲染验收和平台回执。
 
 ```text
 当前事件 model_ref + 完整 display mesh / GLB / OBJ / 生成回执
@@ -12,7 +20,7 @@
 
 保存 result + model + simulation manifest
   → artifacts.load_source：模型绑定、领域质量门、全部声明摘要
-  → export_data：完整原始 JSON + CSV + 字典 + provenance → data.zip
+  → export_data：按 pin 导出 /1 原字节或 /2 可移植派生 JSON + CSV + 字典 + provenance → data.zip
   → render_simulation：保存状态绘制 → H.264 → 全帧解码/字节验证
   → verify_unchanged：源文件不变
   → presentation manifests → 组合校验 → 宿主检查及交付
@@ -39,9 +47,9 @@
 display-only 生成回执、来源图片摘要、全部展示工件和 rendering module pin，按模型/
 参数/模块摘要分配独立输出；不能导入旧物理失败任务、任意路径或跨事件模型。
 
-渲染保留全部输入 display 顶点、三角索引与断开的组件。0.3.2 沿用 `geometry_scope=render_input`
+渲染保留全部输入 display 顶点、三角索引与断开的组件。清理组合使用 `geometry_scope=render_input`
 和 `input_geometry_retained=true` 限定该承诺，不宣称建模阶段未清理生成碎块。raw 几何
-与 fixed-policy cleanup receipt 另在 v2 或 surface 的 v3 ZIP/provenance 中绑定。
+与 fixed-policy cleanup receipt 另在 preview `/2` 或 surface `/3` ZIP/provenance 中绑定。
 surface 的坐标变化在建模后处理发生，renderer 不再平滑或删面；v3 宿主从 raw 精确
 重算有界删除、映射、位移和保留拓扑。完整 display 输入保留不等于 raw/display 坐标不变。
 有限坐标、索引、空间范围
@@ -56,13 +64,28 @@ SHAPE ONLY 与 no simulation or measurements。颜色属于呈现样式，不是
 
 输出 `model-preview.mp4`、海报和 `model-preview-render/1` 回执；组合导出完整 GLB、OBJ、
 raw/display mesh JSON、清理/生成/渲染回执、来源与许可，逐文件绑定哈希并验证 ZIP。最终合同标记
-`result_kind=model-preview`、`simulation_performed=false`、`measurement_source=false`，
-宿主核验后由 qq_video 交付 MP4 和模型 ZIP。没有 `pipeline-simulation/1` 或假造数值数据。
+`result_kind=model-preview`，verification 中 `simulation_performed=false`、`numerical_passed=false`；
+其绑定的 render receipt 另有 `measurement_source=false`。宿主核验后由 qq_video 交付
+MP4 和模型 ZIP。没有 `pipeline-simulation/1` 或假造数值数据。
 
 模型可展示不证明可模拟；原物理 gate 保持。生成或渲染失败必须具体报告，不能将空白视频、
 截取参考图、单张图片平移或未知工件当作三维模型旋转展示。完整原始网格和来源工件在
-发布前复核不变；预览不改写原模拟 checkpoint。0.3.2 的真实新图完整验收由最终记录
-另行确认，不以实现完成、构建或 health 代替实际工件证据。
+发布前复核不变；预览不改写原模拟 checkpoint。真实新图完整验收、安装副本和平台
+送达分别记录，不以实现完成、构建或 health 代替实际工件证据。
+
+## 几何角色与映射边界
+
+| 呈现输入 | 当前绑定 | 不可推出的能力 |
+|---|---|---|
+| preview display mesh | raw→display 的精确子集或 bounded-surface 重算；renderer 对完整 display 作等比取景 | 闭合实体、材料/质量测量、物理运动 |
+| physical mesh trajectory | `mesh_objects` 的 triangles/顶点区间与准备 scene 一致，逐帧绘制 `frames[*].m` | 详细 display mesh 随简化 simulation mesh 动态变形 |
+| liquid recorded particles | 录制位置/材料标签驱动屏幕空间连续表面与阴影 | 新的物理三角网格、测得体积、光学求解或更高物理精度 |
+| rerender | 原 result/model/checkpoint 与原 pin，显示插值和编码 | 新的求解状态、任意未声明测量、跨任务或版本迁移 |
+
+模型生成的均匀缩放、候选减面后的尺度恢复和 preview 相机 normalization 都有各自
+回执。它们说明静态坐标关系，不是两套不同拓扑之间的 cage、蒙皮或重心坐标绑定。
+物理路线保存的详细 display GLB/OBJ/JSON 进入 provenance/ZIP；当前科学视频仍绘制
+模拟 mesh。raw→display 后处理映射不能替代 simulation→display 逐帧绑定。
 
 ## 输入身份与数值质量
 
@@ -80,7 +103,7 @@ PCB 则按固定模型重新检查尺寸、网格、时间、功率、有限温�
 
 ## 完整、确定性的数据导出
 
-`export_data` 的源是原结果的实际 bytes。ZIP 保留原 `result.json` 和 model bundle，并增加 normalized model、measurements、quality、data dictionary、采样说明及 SHA-256 manifest；有 stage 证据时，复制全部声明的 stage 工件到 source-stage。
+`export_data` 始终读取封存源结果的实际 bytes，不改写私有原文件。旧渲染 pin 的 `/1` ZIP 保留原 `result.json`、model bundle 和已声明 stage 工件的字节，并增加 normalized model、measurements、quality、data dictionary、采样说明及 SHA-256 manifest。声明 `portable_data=pipeline-data/2` 的新渲染 pin 则导出可移植派生副本：保留数值和原始源摘要，移除本机路径并重新绑定内部工件描述符，source-stage 证据也按该合同投影。它不声称派生 JSON 与私有源文件字节相同，也不是 restart checkpoint。宿主调用固定包的只读验证进程，从封存源和清单独立复算完整 ZIP；ZIP 自报的成员摘要不足以证明派生正确。
 
 | 领域 | CSV 数据 |
 |---|---|
@@ -89,7 +112,12 @@ PCB 则按固定模型重新检查尺寸、网格、时间、功率、有限温�
 
 CSV 标识符安全转义公式前缀，数字符号保持。单位、坐标原点、row 顺序、质量状态和 source 列进入数据字典。未预声明 measurements 时，数据包写 unavailable 原因，仍保留实际已有数据。
 
-ZIP 用排序文件名、固定时间戳、Unix regular-file 权限和 ZIP_STORED，避免压缩库版本造成输出变化。manifest 逐成员记录 bytes/hash，再生成 envelope 和 `data-manifest.json`。输出既检查展开字节预算，也检查完整 ZIP 最终字节预算；超限返回 `export_too_large`，不会抽样或删字段后声称完整。
+ZIP 用排序文件名、固定时间戳和 Unix regular-file 权限；科学数据包先使用 ZIP_STORED，
+超过最终字节预算时可改用无损 DEFLATE，保留所选 `/1` 或 `/2` 合同生成的每个成员及其 bytes/hash；
+`/2` 的成员摘要对应派生字节，原私有文件摘要另行绑定。压缩封装
+字节不代替成员完整性证明；不能承诺跨压缩库版本的压缩 ZIP 字节一致。manifest 逐成员
+记录 bytes/hash，再生成 envelope 和 `data-manifest.json`。展开字节和最终 ZIP 字节
+分别受限；仍超限则返回 `export_too_large`，不会抽样或删字段后声称完整。
 
 发布前 `verify_unchanged` 再计算 result/model/measurements/stage 所有已追踪源哈希。render/export 可以替换自己的呈现产物，但没有权限修改上游数值证据。
 
@@ -108,6 +136,10 @@ render deadline 只消耗宿主给予的剩余时间；null 保持无限时钟�
 模块发布 `simulation.mp4`、`render-manifest.json`、`data.zip`、`data-manifest.json`。render receipt 包含源 result/model 摘要、provider、quality、solver_rerun=false、measurement_source=false、numerical_usable、sampling、warnings、presentation、codec/decode 及产物哈希。
 
 当前任务的成功模拟 checkpoint 经组合验证后，可 `pipeline_render_prepare` → 原 execution 入口走 render_only。它只重新导出/渲染，保持模拟 bytes 和 solver invocation 次数。源结果变化、失效 checkpoint 或跨任务导入被拒绝；修改物理模型则需新 prepare 和数值运行。
+
+该恢复保留原组件 pin；不会自动把旧结果迁移给新 renderer。失败的物理模型不能原样
+重试，不完整阶段目录保留证据而不覆盖。已验证的成功模拟被复用与重跑失败数值任务
+是不同操作，呈现失败不能成为重复求解或缩短请求物理时长的理由。
 
 外部 provider 接入未来需要明确数据上传范围、授权、费用、网络与产物合同。声明式 provider 请求/回执验证只证明来源关联，不代表网络服务启用或产物数值可信。生成艺术演示必须另标 illustrative_only，不能替换科学结果或取消质量门。
 

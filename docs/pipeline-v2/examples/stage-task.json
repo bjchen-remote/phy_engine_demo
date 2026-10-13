@@ -1,0 +1,59 @@
+{
+  "schema_version": "stage-task/2",
+  "job_id": "example-job-001",
+  "run_id": "example-run-001",
+  "stage": "simulation",
+  "plan_id": "example-plan-001",
+  "plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "pin": {
+    "id": "simulation-physics",
+    "version": "0.1.0",
+    "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "api_major": 2
+  },
+  "dependencies": {
+    "engine": {
+      "id": "physics",
+      "version": "1.4.7",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "interface": "physics-python/1"
+    }
+  },
+  "inputs": [
+    {
+      "artifact_ref": "example-model-001",
+      "schema": "ModelBundle/1",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    }
+  ],
+  "input_mounts": [
+    {
+      "artifact": {
+        "artifact_ref": "example-model-001",
+        "schema": "ModelBundle/1",
+        "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "path": "inputs/model",
+      "read_only": true
+    }
+  ],
+  "output_dir": "output",
+  "work_dir": "work",
+  "limits": {
+    "wall_time_seconds": 120,
+    "memory_bytes": 536870912,
+    "work_bytes": 134217728,
+    "output_bytes": 33554432,
+    "max_provider_submissions": 0,
+    "max_cost": 0,
+    "currency": "CNY",
+    "hard_enforced": [
+      "wall_time",
+      "output_bytes"
+    ]
+  },
+  "permissions": {
+    "network": false,
+    "broker_handle": null
+  }
+}

@@ -53,7 +53,7 @@ def main() -> None:
                 result = render_model_preview(**options, engine_root=engine)
             elif request.get("action") == "export":
                 from pipeline_presentation.artifacts import export_data
-                result = export_data(**options)
+                result = export_data(**options, portable=metadata.get('portable_data') == 'pipeline-data/2')
             elif request.get("action") == "render":
                 from pipeline_presentation.rendering import render_simulation
                 result = render_simulation(**options)

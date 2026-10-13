@@ -11,7 +11,7 @@
   },
   {
     "name": "physics_liquid",
-    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for \u6c34, honey for \u8702\u871c, glue for \u80f6\u6c34/\u9ecf\u80f6/\u767d\u80f6, lava for lava/magma, and molten_lead for \u94c5\u6c34/\u7194\u878d\u94c5. The coefficients are model controls rather than calibrated SI properties.",
+    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for 水, honey for 蜂蜜, glue for 胶水/黏胶/白胶, lava for lava/magma, and molten_lead for 铅水/熔融铅. The coefficients are model controls rather than calibrated SI properties. Qualified mesh_volume sources accept water only; this operation changes an existing fluid preset and does not convert solid geometry or simulate melting.",
     "strict": true,
     "input_schema": {
       "type": "object",

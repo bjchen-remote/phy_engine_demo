@@ -314,38 +314,42 @@ class ModelingFlowTests(unittest.TestCase):
 
     def test_decimation_retries_from_source_and_preserves_exact_requested_extent(self):
         config, request = load_config(self.config), load_request(self.request)
-        decimate = Mock(side_effect=[{**TETRAHEDRON, "faces": TETRAHEDRON["faces"][:-1]}, TETRAHEDRON])
+        source, _ = scale_mesh(TETRAHEDRON, request["physical_extent_m"])
+        decimate = Mock(side_effect=[{**source, "faces": source["faces"][:-1]}, source])
         def audit(candidate, simulation=False):
             result = audit_mesh(candidate, simulation=simulation)
-            if candidate is TETRAHEDRON:
+            if candidate is source:
                 result["simulation_budget_passed"] = False
             return result
         with patch.object(runner, "audit_mesh", side_effect=audit), \
                 patch.object(runner, "topology_decimate", decimate), \
-                patch.object(runner.importlib, "import_module", return_value=Mock()):
-            mesh, report = runner._decimate(TETRAHEDRON, Mock(), request)
+                patch.dict(sys.modules, {"pymeshlab": Mock()}):
+            mesh, report = runner._decimate(source, Mock(), request)
         self.assertEqual(report["target_faces"], 8188)
         self.assertEqual(len(report["attempts"]), 2)
         self.assertFalse(report["attempts"][0]["audit"]["simulation_eligible"])
         self.assertTrue(report["attempts"][1]["audit"]["simulation_eligible"])
         self.assertAlmostEqual(max(audit_mesh(mesh)["extent"]), request["physical_extent_m"])
         self.assertEqual(decimate.call_count, 2)
-        self.assertIs(decimate.call_args_list[0].args[0], TETRAHEDRON)
-        self.assertIs(decimate.call_args_list[1].args[0], TETRAHEDRON)
+        self.assertEqual(decimate.call_args_list[0].args[0], source)
+        self.assertEqual(decimate.call_args_list[1].args[0], source)
+        self.assertIsNot(decimate.call_args_list[0].args[0], source)
+        self.assertIsNot(decimate.call_args_list[0].args[0], decimate.call_args_list[1].args[0])
 
     def test_all_decimation_candidates_rejected_with_audit_details(self):
         request = load_request(self.request)
-        decimate = Mock(return_value={**TETRAHEDRON, "faces": TETRAHEDRON["faces"][:-1]})
+        source, _ = scale_mesh(TETRAHEDRON, request["physical_extent_m"])
+        decimate = Mock(return_value={**source, "faces": source["faces"][:-1]})
         def audit(candidate, simulation=False):
             result = audit_mesh(candidate, simulation=simulation)
-            if candidate is TETRAHEDRON:
+            if candidate is source:
                 result["simulation_budget_passed"] = False
             return result
         with patch.object(runner, "audit_mesh", side_effect=audit), \
                 patch.object(runner, "topology_decimate", decimate), \
-                patch.object(runner.importlib, "import_module", return_value=Mock()):
+                patch.dict(sys.modules, {"pymeshlab": Mock()}):
             with self.assertRaises(FlowError) as rejected:
-                runner._decimate(TETRAHEDRON, Mock(), request)
+                runner._decimate(source, Mock(), request)
         self.assertEqual(rejected.exception.code, "simulation_mesh_rejected")
         self.assertEqual(len(rejected.exception.details["attempts"]), 3)
 

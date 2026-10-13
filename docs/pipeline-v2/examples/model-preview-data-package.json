@@ -1,0 +1,31 @@
+{
+  "schema_version": "data-package/1",
+  "run_id": "example-preview-run",
+  "purpose": "model_preview",
+  "model_ref": {
+    "artifact_ref": "example-preview-model",
+    "schema": "ModelBundle/1",
+    "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "files": [
+    {
+      "artifact_id": "example-preview-raw",
+      "role": "geometry",
+      "path": "raw-mesh.json",
+      "media_type": "application/json",
+      "bytes": 128,
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    {
+      "artifact_id": "example-preview-display",
+      "role": "geometry",
+      "path": "display-mesh.json",
+      "media_type": "application/json",
+      "bytes": 128,
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
+  "limitations": [
+    "Fictional shape-only package; no physical data or actual files."
+  ]
+}

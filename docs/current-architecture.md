@@ -2,6 +2,12 @@
 
 项目由私有 QQ 宿主、可独立发布的三阶段 toolbox 和物理引擎组成。QQ 承担通信、权限和交付；建模解释与几何处理、模拟的状态推进、渲染的数据呈现分别由模块承担。当前对 QQ 使用稳定 v1 合同，`docs/pipeline-v2` 中的异步多产物接口是后续设计。
 
+2026-10-13 源码候选为组合 0.4.0、modeling 0.4.0、simulation 0.2.1、rendering 0.4.0
+与 physics 1.5.0。新增持久模型封存/导入、候选内的完整几何审计以及受限网格体积
+液化初态。旧安装和任务 pin 保留；源码验证不表示已部署或已收到 QQ 平台回执。
+
+变更与离线证据见 [候选说明](release-1.5.0.md)。
+
 ```text
 已授权 QQ 事件
   → transport / policy → 持久 inbox + toolbox pin
@@ -20,6 +26,7 @@
 |---|---|---|
 | QQ 宿主 | 独立安装的通信桥接，不随此仓库发布 | 传输认证、授权、去重、队列、附件隔离、受限 Agent、结果检查与回执 |
 | v1 组合适配器 | `toolboxes/pipeline/adapter.py`、`bundle.py`、`worker.py` | 固定组件组合、阶段调用、准备模型一致性和恢复 |
+| 几何液化 | `toolboxes/pipeline/liquefy.py`、`physics_demo/core/volume_sampling.py` | 明确尺度的授权闭合几何与有界确定性水样初态；全场景和数值门独立 |
 | 建模阶段 | `toolboxes/pipeline_stages/modeling.py`；`toolboxes/pipeline/manual/modeling/` | 几何/结构化参数与审计；不代替数值求解，不假设未给定物理尺度 |
 | 模拟阶段 | `toolboxes/pipeline_stages/simulation.py`；`toolboxes/pipeline/manual/simulation/` | 原物理引擎调用、验证与保存数据；不以视频反推测量 |
 | 渲染阶段 | `toolboxes/pipeline_presentation/`；`toolboxes/pipeline/manual/rendering/` | 从已验证结果渲染并导出；不回写求解状态 |
@@ -61,7 +68,7 @@ Mac 本地公开流匹配后端属于可选建模运行时，代码与权重由�
 
 客户端 unittest、模块合同/数值测试、真实 macOS deny-network 沙箱 smoke、公开模型实际推理与 QQ 真实回执验收分别验证不同层。源码变更不能冒充平台上线；本地假服务回执不能冒充 QQ 送达。维护时优先沿用稳定 v1、既有工具与归档格式，新增能力采用可选发现和具体失败结果。
 
-完整数据包可包含经来源 pin 校验的 GLB、OBJ、网格 JSON 与四份第三方许可。大包按需无损压缩，成员原始字节不变，宿主不解压/执行。旧引擎的模型序列化缩进由组合适配器规范化，仍保留原 1 MB 模型限额和 mesh_ref 插入顺序摘要。
+完整数据包可包含经来源 pin 校验的 GLB、OBJ、网格 JSON 与四份第三方许可。大包按需无损压缩。旧 `/1` 保持原始成员字节；新 `/2` 派生可移植文档，保留科学值和原始来源摘要，由固定 pin 的只读 verifier 独立重构复算。宿主流式解压检查 CRC/大小/摘要，不提取到磁盘或执行成员。旧引擎的模型序列化缩进由组合适配器规范化，仍保留原 1 MB 模型限额和 mesh_ref 插入顺序摘要。
 
 ## 历史 0.2.2 维护组合（2026-10-01）
 

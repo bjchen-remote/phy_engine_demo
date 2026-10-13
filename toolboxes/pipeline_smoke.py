@@ -32,13 +32,17 @@ def exercise(package: Path, destination: Path, domain: str, backend: str = "nati
     job = destination / domain
     (job / "work/tmp").mkdir(parents=True)
     (job / "artifacts").mkdir()
-    task = {"schema_version": 1, "task_id": "pipeline-" + domain,
+    task = {"schema_version": 1, "task_id": job.name,
         "request": {"text": "模拟并交付视频和可提取数据", "plan_required": True,
                     "trust": "untrusted_external_input"},
         "limits": {"wall_time_seconds": 60, "max_output_bytes": 16 * 1024 * 1024, "network": False},
         "delivery": {"data_attachments": True, "max_data_bytes": 16 * 1024 * 1024},
         "output_dir": "artifacts", "work_dir": "work"}
     write_json(job / "task.json", task)
+    write_json(job / 'request.json', {'event_id': job.name, 'message': {'text': task['request']['text']}})
+    declaration = manifest(package)
+    write_json(job / 'toolbox-pin.json', {'schema_version': 1, 'id': declaration['id'],
+        'version': declaration['version'], 'digest': package.name, 'registry': str(package.parents[1])})
     found = call(package, job, "pipeline_capabilities", {})
     require(found["engine"]["version"] == manifest(package / "engine")["version"], "wrong engine")
     require(not call(package, job, "pipeline_configure", {"rendering_quality": "deep"})["ok"],
@@ -89,7 +93,13 @@ def exercise(package: Path, destination: Path, domain: str, backend: str = "nati
     with zipfile.ZipFile(job / "artifacts/data.zip") as archive:
         members = archive.namelist()
         require(any(name.endswith(".csv") for name in members), "CSV missing")
-        require(archive.read("result.json") == source.read_bytes(), "ZIP result differs from canonical source")
+        data_manifest = json.loads(archive.read('manifest.json'))
+        if data_manifest.get('schema') == 'pipeline-data/2':
+            require(data_manifest['source_result_sha256'] == sha256(source), 'portable source binding differs')
+            require(delivery['data_attachment'].get('verification') == 'portable-physics-verification/1',
+                    'portable ZIP lacks independent host source verification')
+        else:
+            require(archive.read("result.json") == source.read_bytes(), "ZIP result differs from canonical source")
     result = {"domain": domain, "backend": backend if domain == "physics" else "pcb_finite_volume",
         "passed": True, "elapsed_s": round(time.monotonic() - started, 3),
         "engine": found["engine"], "video": str(job / "artifacts/simulation.mp4"),

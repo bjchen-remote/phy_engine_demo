@@ -13,9 +13,9 @@ from pipeline.bundle import FORMATS, ROLES, digest_tree, supports_model_preview,
 
 ROOT = Path(__file__).resolve().parent
 PIPELINE = ROOT / "pipeline"
-VERSION = "0.2.0"
-COMPOSED_VERSION = "0.3.4"
-ROLE_VERSIONS = {"modeling": "0.3.3", "rendering": "0.3.1"}
+VERSION = "0.2.1"
+COMPOSED_VERSION = "0.4.0"
+ROLE_VERSIONS = {"modeling": "0.4.0", "rendering": "0.4.0"}
 
 
 def copy_tree(source: Path, target: Path) -> None:
@@ -52,8 +52,10 @@ def build_module(role: str, output: Path) -> dict:
     if role == 'modeling':
         info['display_cleanup'] = 'bounded-floaters/1'
         info['surface_cleanup'] = 'bounded-surface/1'
+        info['liquefy'] = 'mesh-volume/1'
     if role == 'rendering':
         info['preview_geometry_scope'] = 'render_input'
+        info['portable_data'] = 'pipeline-data/2'
     write_json(output / "module.json", info)
     # Stage packages can use the existing content-addressed registry as storage.
     write_json(output / "toolbox.json", {"schema_version": 1, "id": info["id"],
@@ -92,10 +94,11 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
             "path": "modules/" + role, "digest": digest_tree(target)}
         if info.get('model_preview') is True:
             lock['modules'][role]['model_preview'] = True
-        for feature in ('display_cleanup', 'preview_geometry_scope', 'surface_cleanup'):
+        for feature in ('display_cleanup', 'preview_geometry_scope', 'surface_cleanup', 'liquefy', 'portable_data'):
             if feature in info:
                 lock['modules'][role][feature] = info[feature]
-    for filename in ("adapter.py", "bundle.py", "image_modeling.py", "model_preview.py", "model_cleanup.py"):
+    for filename in ("adapter.py", "bundle.py", "image_modeling.py", "model_preview.py", "model_cleanup.py",
+                     "liquefy.py", "operation_contracts.py", "operation_contracts.json", "verify_portable.py"):
         shutil.copyfile(PIPELINE / filename, output / filename)
     write_json(output / "bundle-lock.json", lock)
     api = dict(engine_manifest.get("agent_api", {}))
@@ -108,6 +111,10 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
         if (lock['modules']['modeling'].get('display_cleanup') == 'bounded-floaters/1'
                 and lock['modules']['rendering'].get('preview_geometry_scope') == 'render_input'):
             api['operations'] = sorted(set(api['operations']) | {'modeling_preview_cleanup'})
+    if (lock['modules']['modeling'].get('liquefy') == 'mesh-volume/1'
+            and (output / 'engine/physics_release/physics_demo/core/volume_sampling.py').is_file()):
+        api['operations'] = sorted(set(api['operations']) | {'modeling_liquefy'})
+    api['operation_contracts'] = 'pipeline-operation-contracts/1'
     api["execution_operation"] = "physics_simulate"
     # Saved scenes must pass this composed adapter's preparation before probe.
     # Host-readable metadata does not change the original engine/stage bytes.
@@ -152,6 +159,8 @@ def build(engine: Path, output: Path, modules: dict | None = None) -> dict:
     write_json(output / "toolbox.json", {"schema_version": 1, "id": "physics-pipeline",
         "version": COMPOSED_VERSION, "entrypoint": "adapter.py", "requires_data_delivery": True,
         "public_provenance_projection": "portable-provenance/1",
+        **({"portable_physics_data": "pipeline-data/2"}
+           if lock['modules']['rendering'].get('portable_data') == 'pipeline-data/2' else {}),
         "capabilities": ["独立建模、数据模拟、保真视频渲染；机械与 PCB 的 MP4+JSON/CSV 数据 ZIP",
                          "原子组合版本热切换，运行中任务保留原引擎和三个模块版本"],
         "limitations": ["需要支持数据附件的 QQ 宿主；保持原物理引擎能力边界",
