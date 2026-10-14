@@ -11,7 +11,7 @@
   },
   {
     "name": "physics_liquid",
-    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for \u6c34, honey for \u8702\u871c, glue for \u80f6\u6c34/\u9ecf\u80f6/\u767d\u80f6, lava for lava/magma, and molten_lead for \u94c5\u6c34/\u7194\u878d\u94c5. The coefficients are model controls rather than calibrated SI properties.",
+    "description": "Call only after a complete scene_json exists and its target fluid entity ID is known. Resolve a named liquid to exact stable model coefficients, rendering semantics, limitations, and ready-to-use physics_patch operations; the response does not contain scene_json. Use water for 水, honey for 蜂蜜, glue for 胶水/黏胶/白胶, lava for lava/magma, and molten_lead for 铅水/熔融铅. The coefficients are model controls rather than calibrated SI properties. Qualified mesh_volume sources accept water only; this operation changes an existing fluid preset and does not convert solid geometry or simulate melting.",
     "strict": true,
     "input_schema": {
       "type": "object",
@@ -62,7 +62,7 @@
   },
   {
     "name": "physics_mesh",
-    "description": "Build and audit a triangle mesh from a bounded recipe or explicit vertices/triangles. Pass spec_json with type ellipsoid/box/torus/lathe/extrusion/cloth/raw; returns mesh_json and audit. A vision agent must interpret images first and include provenance.source=image with notes stating assumed depth/unseen geometry. Use source=imagined for invented hidden surfaces. Parse mesh_json into entity.mesh, select motion soft/static/kinematic, then prepare the complete scene. Use coupling:{} for supported mixed water/rigid/attachment reactions; standalone meshes keep their existing route. This tool does not read images or execute modeling code.",
+    "description": "Build and audit a triangle mesh from a bounded recipe or explicit vertices/triangles. Pass spec_json with type ellipsoid/box/torus/lathe/extrusion/cloth/raw or clothed_upper_torso; returns mesh_json and audit. clothed_upper_torso is restricted to scope=adult_clothed_non_explicit, requires explicit dimensions, two bounded front soft_regions, and provenance notes, and returns optional pin_hints plus fixed modeling assumptions. A vision agent must interpret images first and include provenance.source=image with notes stating assumed scale, depth, projections, and unseen geometry; never pass pixels, URLs, paths, identity, age guesses, health claims, or material inferences. Use source=imagined for invented hidden surfaces. Parse mesh_json into entity.mesh, select motion soft/static/kinematic, then prepare the complete scene. Use coupling:{} for supported mixed water/rigid/attachment reactions; standalone meshes keep their existing route. This tool does not read images or execute modeling code.",
     "strict": true,
     "input_schema": {
       "type": "object",
@@ -145,7 +145,7 @@
   },
   {
     "name": "physics_validate",
-    "description": "Normalize and semantically validate a complete scene before estimating or simulating it. Pass the scene as a JSON string so the service can report all unit, range, geometry, and capability errors together. Use returned assumptions and warnings in the final answer; correct structured errors and retry no more than twice.",
+    "description": "Normalize and semantically validate a complete scene before estimating or simulating it. Pass the scene as a JSON string so the service can report all unit, range, geometry, and capability errors together. Use returned assumptions and warnings in the final answer; retry a structured error only after a concrete model correction, never with the unchanged failed scene.",
     "strict": true,
     "input_schema": {
       "type": "object",

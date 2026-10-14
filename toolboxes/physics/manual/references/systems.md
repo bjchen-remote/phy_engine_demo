@@ -31,13 +31,13 @@ The initial factories are `pendulum` and `double_pendulum`. They use the existin
 | `angles` | `[0.6]` or `[2.0,2.4]` | Each `[-2π,2π]` rad |
 | `angular_velocities` | 0 per rod | Each `[-500,500]` rad/s; derived bob speed at most 500 m/s |
 | `gravity` | 9.81 | Positive magnitude `[1e-9,250]` m/s² toward world −Y |
-| `duration` | 8 | `[1e-4,30]` s |
+| `duration` | 8 | `[1e-4,60]` s |
 | `dt` | 0.002 | `[1e-4,0.05]` s; preparation still checks resolution/work |
 | `output_fps` | 30 | Integer `[1,60]`; affects video, not observation cadence |
 | `quality` | `balanced` | `preview`, `balanced`, `high` |
 | `wall_time_s` | 60 | `[1,300]` s including video |
 
-Entity IDs are `anchor`, `bob1`, and optionally `bob2`; rod IDs are `rod1` and optionally `rod2`. Built-in query IDs are `bob1-x`, `bob1-y`, `bob1-z`, `bob1-speed`, and the corresponding `bob2-*`. Positions are measured in metres and speed in m/s at t=0 and every completed solver macro step. Additional questions still require declarations before prepare.
+Entity IDs are `anchor`, `bob1`, and optionally `bob2`; rod IDs are `rod1` and optionally `rod2`. Built-in query IDs are `bob1-x`, `bob1-y`, `bob1-z`, `bob1-speed`, and the corresponding `bob2-*`. The single pendulum also declares `bob1-period`, measuring consecutive same-direction crossings of X=0 from positive to negative; this is one complete oscillation, not the first trip to equilibrium. It needs at least two observed intervals for a reliable answer. The double pendulum has no automatic single-period claim. Positions are measured in metres and speed in m/s at t=0 and every completed solver macro step. Additional questions still require declarations before prepare.
 
 ## Agent workflow
 

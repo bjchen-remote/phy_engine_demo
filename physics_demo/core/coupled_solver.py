@@ -25,6 +25,8 @@ from physics_demo.core.native_backend import (
 from physics_demo.core.native_runtime import load_library
 from physics_demo.analysis.observers import unpack_observations
 
+COUPLED_ABI_VERSION = 2
+
 
 class Vec3(C.Structure):
     _fields_ = [(name, C.c_double) for name in ("x", "y", "z")]
@@ -83,7 +85,7 @@ class Simulation(C.Structure):
 class Diagnostics(C.Structure):
     _fields_ = [(name, C.c_int32) for name in (
         "status", "completed", "finite", "frames_written", "observations_written",
-        "steps", "substeps", "max_substeps_used", "contact_count")] + [
+        "steps", "substeps", "max_substeps_used")] + [("contact_count", C.c_uint64)] + [
         (name, C.c_double) for name in (
             "simulated_time_s", "runtime_s", "max_penetration_m", "max_speed_m_s", "max_quaternion_error",
             "contact_impulse_norm", "attachment_impulse_norm", "max_link_constraint_error")] + [
@@ -99,7 +101,7 @@ def _bind_library(library: C.CDLL) -> None:
     library.coupled_simulate.argtypes = [C.POINTER(Simulation), C.POINTER(Diagnostics),
                                        C.POINTER(CDiagnostics), C.POINTER(mesh.Diagnostics)]
     library.coupled_simulate.restype = C.c_int32
-    if library.coupled_abi_version() != 1:
+    if library.coupled_abi_version() != COUPLED_ABI_VERSION:
         raise OSError("incompatible coupled ABI")
 
 
@@ -259,7 +261,7 @@ def _pack(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> tuple
             axes = ["xyz".index(metric["axis"]), 0]
         metrics.append(Metric(kind, a, b, *axes, Vec3(*metric.get("origin", [0, 0, 0]))))
     colliders = _colliders(scene, [])
-    simulation = Simulation(abi=1, points=len(points), rigids=len(rigid_defs), links=len(links),
+    simulation = Simulation(abi=COUPLED_ABI_VERSION, points=len(points), rigids=len(rigid_defs), links=len(links),
         entities=len(entities), metrics=len(metrics), fields=len(fields), colliders=len(colliders),
         substeps=substeps, iterations=iterations, frame_capacity=frames, observation_capacity=observations,
         dt=float(world["dt"]), duration=float(world["duration"]), fps=float(world["output_fps"]),
@@ -348,7 +350,7 @@ def run_scene_coupled(scene: dict[str, Any], plan: dict[str, Any], deadline: flo
                  C.byref(particle_diagnostic), C.byref(mesh_diagnostic)))
     if status in {1, 2, 5}:
         if status == 5:
-            raise NativeResourceLimitError("Coupled native solver exceeded its substep or contact-work limit; refine dt or reduce the prepared scene workload.")
+            raise NativeResourceLimitError("Coupled native solver exceeded its substep or contact-counter capacity; refine dt or reduce the prepared scene workload.")
         raise NativeResourceLimitError("Coupled native solver returned " + STATUS_NAMES[status] + ".")
     if status not in {0, 3, 4}:
         raise NativeSimulationError("Unexpected coupled native solver status: " + str(status))

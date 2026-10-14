@@ -7,14 +7,15 @@
 int main(void) {
     double x[6]={0,0,0,1.2,0,0},velocity[6]={0},mass[2]={1,1};
     int32_t fixed[2]={1,0};uint32_t mask[2]={0};
-    Connection link={0,0,1,1,16,0};ConnectionMetric metric={5,0,0,0};
-    double frames[12],times[2],observations[3],values[3];
+    Connection link={0,0,1,1,16,0,-1};ConnectionMetric metric={5,0,0,0};
+    double frames[12],times[2],observations[3],values[3],break_times[1],break_lengths[1];
     ConnectionSimulation s={.abi=CONNECTIONS_ABI,.nodes=2,.connections=1,.fields=0,.metrics=1,
         .frame_capacity=2,.observation_capacity=3,.iterations=8,.substeps=1,
         .dt=.01,.duration=.01,.fps=24,.deadline_seconds=1,
         .positions=x,.velocities=velocity,.mass=mass,.fixed=fixed,.field_mask=mask,
         .connection=&link,.field=0,.metric=&metric,.frames=frames,.frame_times=times,
-        .observation_times=observations,.observation_values=values};
+        .observation_times=observations,.observation_values=values,
+        .break_times=break_times,.break_lengths=break_lengths};
     ConnectionDiagnostics d;
     assert(connections_simulate(0,&d)==1);
     assert(connections_simulate(&s,0)==1);
@@ -37,5 +38,9 @@ int main(void) {
     fixed[0]=2;assert(connections_simulate(&s,&d)==1);fixed[0]=1;
     velocity[0]=1;assert(connections_simulate(&s,&d)==1);velocity[0]=0;
     link.damping=1e5;assert(connections_simulate(&s,&d)==1);link.damping=0;
+    link.break_tensile_strain=11;assert(connections_simulate(&s,&d)==1);
+    link.break_tensile_strain=-1;
+    s.break_times=0;assert(connections_simulate(&s,&d)==1);s.break_times=break_times;
+    s.break_lengths=0;assert(connections_simulate(&s,&d)==1);s.break_lengths=break_lengths;
     return 0;
 }

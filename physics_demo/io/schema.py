@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import re
 from typing import Any
 
 from physics_demo.agent_contract import PROTOCOL_VERSION
@@ -15,8 +16,10 @@ from physics_demo.limits import (
     MAX_COLLIDERS,
     MAX_ENTITIES,
     MAX_FRAME_PARTICLE_SAMPLES,
+    MAX_PHYSICAL_DURATION_S,
     MAX_FORCE_FIELDS,
     MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
+    NO_DEADLINE_WALL_TIME_S,
     MAX_PARTICLE_SPACING,
     MAX_SCENE_DEPTH,
     MAX_SCENE_NODES,
@@ -107,6 +110,9 @@ CAPABILITIES: dict[str, Any] = {
             "preset_interface": "After a complete scene_json exists, call physics_liquid(preset, entity_id) and apply its operations with physics_patch; the liquid response does not contain scene_json.",
             "preset_coefficients": "viscosity and surface_tension are stable model controls, not calibrated SI material measurements",
             "spacing_range_m": [MIN_PARTICLE_SPACING, MAX_PARTICLE_SPACING],
+            "mesh_volume": "mesh-volume/1",
+            "sources": ["sphere", "box", "mesh_volume"],
+            "mesh_volume_scope": "Instant initial geometry conversion; explicit metres, closed single-component outward manifold, volume error at most 5%, water preset and reference density 1000 kg/m3. No thermal phase change or saved-state restart. Coupled contact clearance uses conservative rotated/contact-thickness AABBs and can reject separated surfaces; it does not certify exact triangle CCD.",
         },
         "granular": {
             "algorithm": "position-based particle contacts with wetness-weakened cohesion",
@@ -114,9 +120,18 @@ CAPABILITIES: dict[str, Any] = {
             "accuracy": "visual proxy; not a geotechnical constitutive model",
         },
         "rigid": {
-            "algorithm": "semi-implicit translation plus positional contacts",
+            "entity_type": "rigid",
+            "algorithm": "Python-reference semi-implicit translation and positional contacts; native particle runs use static rigid geometry",
             "use_for": ["static spheres and boxes", "Python-reference dynamic spheres"],
-            "accuracy": "native runs accept static rigid geometry; no rotational rigid-body solver",
+            "accuracy": "The legacy rigid entity has no rotational solver. Use rigid_body on the coupled backend for quaternion rotation and supported two-way contacts.",
+        },
+        "rigid_body": {
+            "entity_type": "rigid_body",
+            "route": "coupled",
+            "algorithm": "Shared-clock C11 rigid translation and quaternion rotation with finite-mass contact reactions",
+            "use_for": ["torque-free tumble", "gyroscope precession", "rigid-spring pendulum", "supported mixed contact"],
+            "limits": COUPLED_CAPABILITIES["limits"],
+            "scope": COUPLED_CAPABILITIES["scope"],
         },
         "force_field": {
             "algorithm": "targeted analytic acceleration evaluated in the native C11 hot loop",
@@ -151,13 +166,13 @@ CAPABILITIES: dict[str, Any] = {
         "max_force_fields": MAX_FORCE_FIELDS,
         "max_initial_particle_volume_overlap": MAX_INITIAL_PARTICLE_VOLUME_OVERLAP,
         "max_frame_particle_samples": MAX_FRAME_PARTICLE_SAMPLES,
-        "max_physical_duration_s": 30,
+        "max_physical_duration_s": MAX_PHYSICAL_DURATION_S,
         "max_wall_time_s": MAX_WALL_TIME_S,
     },
     "unsupported": [
         "engineering-grade multiphase CFD",
         "air-resolved splash thresholds",
-        "fracture or calibrated soil mechanics",
+        "continuum mesh or rigid-body fracture, and calibrated soil mechanics",
         "cloth/membrane water balloons",
         "general articulated joints",
         "continuous particle emitters or sinks",
@@ -259,7 +274,10 @@ def _particle_properties(entity: dict[str, Any], path: str, errors: list[dict[st
 
 def _check_structure(root: Any) -> dict[str, Any] | None:
     entities = root.get("entities", []) if isinstance(root, dict) else []
-    has_mesh = isinstance(entities, list) and any(isinstance(e, dict) and e.get("type") == "mesh" for e in entities[:MAX_ENTITIES])
+    has_mesh = isinstance(entities, list) and any(
+        isinstance(e, dict) and (e.get("type") == "mesh" or
+        (e.get("type") == "fluid" and isinstance(e.get("shape"), dict)
+         and e["shape"].get("type") == "mesh_volume")) for e in entities[:MAX_ENTITIES])
     node_limit = MAX_MESH_SCENE_NODES if has_mesh else MAX_SCENE_NODES
     stack: list[tuple[Any, int, str]] = [(root, 0, "$")]
     nodes = 0
@@ -370,7 +388,7 @@ def _effective_scene_choices(scene: dict[str, Any]) -> list[str]:
     return choices
 
 
-def normalize_and_validate(raw: Any) -> dict[str, Any]:
+def normalize_and_validate(raw: Any, *, allow_unlimited: bool = False) -> dict[str, Any]:
     errors: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     assumptions: list[str] = []
@@ -413,8 +431,8 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         bounds = world["bounds"] = {"min": [-3.0, 0.0, -3.0], "max": [3.0, 5.0, 3.0]}
     _unknown_fields(bounds, {"min", "max"}, "world.bounds", errors)
     _normalize_fields(bounds, {"min": [-3.0, 0.0, -3.0], "max": [3.0, 5.0, 3.0]}, "world.bounds", errors)
-    if not (0.0 < world["duration"] <= 30.0):
-        errors.append(_issue("duration_range", "world.duration", "duration must be in (0, 30] seconds.", "Use 2.0 for a short demo."))
+    if not (0.0 < world["duration"] <= MAX_PHYSICAL_DURATION_S):
+        errors.append(_issue("duration_range", "world.duration", f"duration must be in (0, {MAX_PHYSICAL_DURATION_S:g}] seconds.", "Use 2.0 for a short demo."))
     if not (1e-4 <= world["dt"] <= 0.05):
         errors.append(_issue("dt_range", "world.dt", "dt must be between 0.0001 and 0.05 seconds.", "Use 0.011111 for particle scenes."))
     if not (1.0 <= world["output_fps"] <= 60.0):
@@ -434,7 +452,7 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
     if not isinstance(budget, dict):
         errors.append(_issue("budget_type", "budget", "budget must be an object."))
         budget = scene["budget"] = {}
-    _unknown_fields(budget, {"wall_time_s", "quality", "backend", "validation"}, "budget", errors)
+    _unknown_fields(budget, {"wall_time_s", "quality", "backend", "validation", "unlimited_runtime"}, "budget", errors)
     _defaults(budget, {
         "wall_time_s": (55.0, "Used a 55 second wall-clock budget."),
         "quality": ("preview", "Used preview quality."),
@@ -447,7 +465,13 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
         errors.append(_issue("backend", "budget.backend", "backend must be auto, native, or python."))
     if "validation" in budget and budget["validation"] not in ("visual", "strict"):
         errors.append(_issue("validation_mode", "budget.validation", "validation must be visual or strict."))
-    if not (1.0 <= budget["wall_time_s"] <= MAX_WALL_TIME_S):
+    unlimited = budget.get("unlimited_runtime", False)
+    if type(unlimited) is not bool:
+        errors.append(_issue("unlimited_runtime", "budget.unlimited_runtime", "unlimited_runtime must be boolean."))
+    if unlimited is True and not allow_unlimited:
+        errors.append(_issue("unlimited_runtime_authorization", "budget.unlimited_runtime",
+                             "Only the host can authorize unlimited runtime."))
+    elif not (allow_unlimited and budget["wall_time_s"] == NO_DEADLINE_WALL_TIME_S and unlimited is True) and not (1.0 <= budget["wall_time_s"] <= MAX_WALL_TIME_S):
         errors.append(_issue("budget_range", "budget.wall_time_s", "wall_time_s must be in [1, 300]."))
 
     entities = scene.setdefault("entities", [])
@@ -524,14 +548,42 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
                     ))
                     entity["preset"] = "water"
             shape = entity.setdefault("shape", {})
-            if not isinstance(shape, dict) or not isinstance(shape.get("type"), str) or shape.get("type") not in {"sphere", "box"}:
-                errors.append(_issue("volume_shape", f"{path}.shape", "Particle volumes require a sphere or box shape."))
+            if not isinstance(shape, dict) or not isinstance(shape.get("type"), str) or shape.get("type") not in {"sphere", "box", "mesh_volume"}:
+                errors.append(_issue("volume_shape", f"{path}.shape", "Particle volumes require sphere, box, or qualified mesh_volume geometry."))
                 continue
-            shape_fields = {"type", "center", "radius"} if shape["type"] == "sphere" else {"type", "center", "size"}
-            _unknown_fields(shape, shape_fields, f"{path}.shape", errors)
-            _normalize_fields(shape, {"center": [0.0, 1.0, 0.0]}, f"{path}.shape", errors)
-            _coordinates(shape["center"], f"{path}.shape.center", "Center", errors)
-            _shape_extent(shape, f"{path}.shape", errors, radius=0.3, size=0.5)
+            if shape["type"] == "mesh_volume":
+                shape_fields = {"type", "mesh", "center", "units", "conversion", "conservation", "reference_density_kg_m3", "source_ref", "receipt_sha256"}
+                _unknown_fields(shape, shape_fields, f"{path}.shape", errors)
+                required = {"mesh", "center", "units", "conversion", "conservation", "reference_density_kg_m3"}
+                for missing in sorted(required - set(shape)):
+                    errors.append(_issue("mesh_volume_required", f"{path}.shape.{missing}", "Mesh-volume conversion requires explicit metres, pose, conversion, conservation and reference density declarations."))
+                if kind != "fluid" or entity.get("preset") != "water":
+                    errors.append(_issue("mesh_volume_material", path, "Mesh-volume conversion currently supports only type=fluid, preset=water."))
+                for field, expected in (("units", "m"), ("conversion", "instant"), ("conservation", "volume"), ("reference_density_kg_m3", 1000)):
+                    if shape.get(field) != expected or (field == "reference_density_kg_m3" and not finite_number(shape.get(field))):
+                        errors.append(_issue("mesh_volume_declaration", f"{path}.shape.{field}", f"Mesh-volume conversion requires {field}={expected!r}; real melting and other reference densities are unavailable."))
+                if "source_ref" in shape or "receipt_sha256" in shape:
+                    for field in ("source_ref", "receipt_sha256"):
+                        if not isinstance(shape.get(field), str) or re.fullmatch(r"[0-9a-f]{64}", shape[field]) is None:
+                            errors.append(_issue("mesh_volume_source_binding", f"{path}.shape.{field}", "Supply source_ref and receipt_sha256 together as 64 lowercase hexadecimal characters."))
+                if "center" in shape:
+                    _normalize_fields(shape, {"center": [0., 0., 0.]}, f"{path}.shape", errors)
+                    _coordinates(shape["center"], f"{path}.shape.center", "Center", errors)
+                try:
+                    from physics_demo.core.volume_sampling import qualify_mesh
+                    shape["mesh"] = qualify_mesh(shape.get("mesh"), units=shape.get("units"))
+                    if "center" in shape and finite_vec(shape["center"]):
+                        for vertex in shape["mesh"]["vertices"]:
+                            _coordinates([vertex[a] + shape["center"][a] for a in range(3)], f"{path}.shape.mesh", "Translated vertex", errors)
+                except (ValueError, TypeError, OverflowError) as error:
+                    errors.append(_issue("mesh_volume_geometry", f"{path}.shape.mesh", str(error)))
+                    shape["mesh"] = {}
+            else:
+                shape_fields = {"type", "center", "radius"} if shape["type"] == "sphere" else {"type", "center", "size"}
+                _unknown_fields(shape, shape_fields, f"{path}.shape", errors)
+                _normalize_fields(shape, {"center": [0.0, 1.0, 0.0]}, f"{path}.shape", errors)
+                _coordinates(shape["center"], f"{path}.shape.center", "Center", errors)
+                _shape_extent(shape, f"{path}.shape", errors, radius=0.3, size=0.5)
             _normalize_fields(entity, {"spacing": 0.12}, path, errors)
             if not (MIN_PARTICLE_SPACING <= entity["spacing"] <= MAX_PARTICLE_SPACING):
                 errors.append(_issue(
@@ -564,6 +616,12 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
 
     if point_masses > 64:
         errors.append(_issue("body_limit", "entities", "At most 64 point masses are supported."))
+    if point_masses and not coupled_enabled(scene) and any(world["gravity"]):
+        warnings.append(_issue(
+            "point_mass_world_gravity_ignored", "world.gravity",
+            "world.gravity does not accelerate point_mass entities on non-coupled routes.",
+            "Use a targeted uniform force field to accelerate those point masses.",
+        ))
     native_only_preset = any(
         LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         if isinstance(entity, dict) and entity.get("type") == "fluid"
@@ -594,11 +652,22 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
             "Use backend 'auto' or 'native'; the Python reference has different viscosity behavior and no equivalent surface-tension model.",
         ))
 
+    mesh_volume_entities = [e for e in entities if isinstance(e, dict) and e.get("type") == "fluid" and isinstance(e.get("shape"), dict) and e["shape"].get("type") == "mesh_volume"]
+    if mesh_volume_entities and (budget.get("backend") == "python" or dynamic_spheres):
+        errors.append(_issue("mesh_volume_native_required", "budget.backend", "Mesh-volume liquid conversion requires native execution; replace legacy moving rigid spheres with coupled rigid_body geometry."))
+
     particle_volumes: list[tuple[list[float], list[float], list[float]]] = []
     for entity in entities:
         if not isinstance(entity, dict) or entity.get("type") not in ("fluid", "granular"):
             continue
         shape = entity.get("shape")
+        if isinstance(shape, dict) and shape.get("type") == "mesh_volume":
+            mesh, translation = shape.get("mesh"), shape.get("center")
+            if isinstance(mesh, dict) and isinstance(mesh.get("vertices"), list) and mesh["vertices"] and finite_vec(translation):
+                lower = [min(v[a] for v in mesh["vertices"]) + translation[a] for a in range(3)]
+                upper = [max(v[a] for v in mesh["vertices"]) + translation[a] for a in range(3)]
+                particle_volumes.append(([(lower[a] + upper[a]) / 2 for a in range(3)], lower, upper))
+            continue
         if not isinstance(shape, dict) or shape.get("type") not in ("sphere", "box"):
             continue
         center = shape.get("center")
@@ -861,6 +930,9 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
                 f"Dynamic rigid spheres {dynamic_spheres!r} select the slower Python reference backend.",
             ))
 
+    if mesh_volume_entities and interactions.get("mutual_gravity") and interactions.get("particle_gravity_density") != 1000:
+        errors.append(_issue("mesh_volume_density", "interactions.particle_gravity_density", "Mesh-volume conversion uses one reference density of 1000 kg/m3, including particle self-gravity."))
+
     if not errors:
         validate_mesh_scene(scene, errors, allow_coupling=coupled_enabled(scene))
         errors.extend(validate_slider_scene(scene))
@@ -885,12 +957,21 @@ def normalize_and_validate(raw: Any) -> dict[str, Any]:
                 if e["type"]=="rigid_body":
                     assumptions.append("Rigid body geometry/pivot: " + repr({k:e[k] for k in ("id","shape","pivot") if k in e}))
         elif scene.get("connections"):
-            assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots, fixed-length rods and inelastic tension-only ropes between point masses. No collision, bending, fracture or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
+            if any("break_tensile_strain" in link for link in scene["connections"]):
+                assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots and optional irreversible one-way tensile strain failure, fixed-length rods and inelastic tension-only ropes between point masses. Failure is sampled at t=0 and completed native substeps; strain is (length-rest_length)/rest_length and failure occurs strictly above break_tensile_strain. This is a link failure proxy, not continuum beam fracture. No collision, bending or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
+            else:
+                assumptions.append("Connection model: ideal massless Hooke springs with axial dashpots, fixed-length rods and inelastic tension-only ropes between point masses. No collision, bending, fracture or water/mesh coupling. World gravity and bounds do not act on these points; only explicit force_fields provide external acceleration.")
             assumptions.append("Effective connections: " + repr(scene["connections"]) + "; requested solver settings: " + repr(scene["connection_settings"]))
+        for e in mesh_volume_entities:
+            assumptions.append(f"Mesh-volume conversion for {e['id']!r}: instant initial geometry conversion, volume conservation within 5%, reference density 1000 kg/m3; no heat, latent heat or phase-change model. Source mesh provenance: " + repr(e["shape"]["mesh"]["metadata"].get("provenance")))
+        if mesh_volume_entities and coupled_enabled(scene):
+            assumptions.append("Mesh-volume initial clearance against coupled rigid bodies, meshes, point collision spheres and solid links uses conservative axis-aligned envelopes, including rotation, particle radius and contact thickness. Intersecting envelopes are refused even if exact surfaces could be separated; this gate is not exact triangle CCD or a solid SDF.")
         if any(e["type"] == "mesh" for e in entities):
             assumptions.append("Mesh model: elastic triangle surface with stretch/bending and closed global volume constraints; no calibrated solid stress, self-collision, cutting or general edge-edge CCD. Effective solver settings: " + repr(scene["mesh_settings"]))
             for e in (e for e in entities if e["type"] == "mesh"):
                 assumptions.append(f"Mesh provenance for {e['id']!r}: " + repr(e["mesh"]["metadata"].get("provenance")) + "; unseen image depth is a modeling assumption, not recovered geometry.")
+                for item in e["mesh"]["metadata"].get("model_assumptions", []):
+                    assumptions.append(f"Mesh scope for {e['id']!r}: {item}")
 
     return {
         "valid": not errors,

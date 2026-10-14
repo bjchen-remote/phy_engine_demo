@@ -17,10 +17,14 @@ from typing import Any
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PACKAGE = SOURCE_ROOT / "physics_demo"
+SOURCE_EXAMPLES = SOURCE_ROOT / "examples"
+SOURCE_MANUAL = SOURCE_ROOT / "agent" / "physics-simulation"
 CANONICAL_SCENE = SOURCE_ROOT / "examples" / "droplet_ground.json"
 RELEASE_ROOT = Path(__file__).resolve().parent / "physics"
 RELEASE_PACKAGE = RELEASE_ROOT / "physics_release" / "physics_demo"
 RELEASE_SCENES = RELEASE_ROOT / "physics_release" / "scenes"
+RELEASE_EXAMPLES = RELEASE_ROOT / "physics_release" / "examples"
+RELEASE_MANUAL = RELEASE_ROOT / "manual"
 PREBUILT = RELEASE_ROOT / "prebuilt"
 MANIFEST = RELEASE_ROOT / "physics_release" / "manifest.json"
 MANAGED_SUFFIXES = {".py", ".c", ".h", ".m"}
@@ -29,6 +33,10 @@ PREBUILT_NAMES = (
     "renderer-h264",
     "renderer-mjpeg",
     "decode-probe",
+)
+PACKAGE_FILES = (
+    "toolbox.json", "toolbox_adapter.py", "modeling.py", "run_simulation.py",
+    "delivery.py", "pcb_thermal.py", "pcb_video.py", "pcb_thermal_demo.json",
 )
 PROFILES = {
     "droplet_ground.json": {
@@ -67,6 +75,46 @@ def _managed_files(root: Path) -> dict[Path, Path]:
         for path in root.rglob("*")
         if path.is_file() and path.suffix in MANAGED_SUFFIXES
     }
+
+
+def _copied_files(root: Path, *, source: bool = False) -> dict[Path, Path]:
+    """Files in a copied documentation/example tree, excluding Python caches."""
+    return {
+        relative: path
+        for path in root.rglob("*")
+        if path.is_file()
+        if (relative := path.relative_to(root)).suffix != ".pyc"
+        and "__pycache__" not in relative.parts
+        and (not source or path.name != ".DS_Store")
+    }
+
+
+def _sync_copy_tree(source_root: Path, target_root: Path) -> None:
+    if not source_root.is_dir():
+        raise ReleaseBuildError(f"missing source directory: {source_root}")
+    source_files = _copied_files(source_root, source=True)
+    target_files = _copied_files(target_root)
+    for relative, source in source_files.items():
+        _atomic_copy(source, target_root / relative)
+    for relative in target_files.keys() - source_files.keys():
+        target_files[relative].unlink()
+
+
+def _verify_copy_tree(
+    label: str, source_root: Path, target_root: Path, failures: list[str]
+) -> None:
+    if not source_root.is_dir():
+        failures.append(f"missing source directory: {source_root}")
+        return
+    source_files = _copied_files(source_root, source=True)
+    target_files = _copied_files(target_root)
+    for relative in sorted(source_files.keys() - target_files.keys()):
+        failures.append(f"missing release {label} file: {relative.as_posix()}")
+    for relative in sorted(target_files.keys() - source_files.keys()):
+        failures.append(f"extra release {label} file: {relative.as_posix()}")
+    for relative in sorted(source_files.keys() & target_files.keys()):
+        if _sha256(source_files[relative]) != _sha256(target_files[relative]):
+            failures.append(f"stale release {label} file: {relative.as_posix()}")
 
 
 def _atomic_copy(source: Path, target: Path, *, executable: bool = False) -> None:
@@ -133,13 +181,16 @@ def _sync_sources() -> None:
     for relative, target in target_files.items():
         if relative not in source_files:
             target.unlink()
-    for filename, scene in _scene_documents().items():
+    scenes = _scene_documents()
+    for filename, scene in scenes.items():
         _atomic_write_json(RELEASE_SCENES / filename, scene)
-    shutil.copytree(SOURCE_ROOT/'examples', RELEASE_ROOT/'physics_release/examples', dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-    shutil.copytree(SOURCE_ROOT/'agent/physics-simulation', RELEASE_ROOT/'manual', dirs_exist_ok=True)
-    for name in ('tools.json', 'scene-v1.schema.json'):
-        _atomic_copy(SOURCE_ROOT/'agent'/name, RELEASE_ROOT/name)
+    for path in RELEASE_SCENES.iterdir():
+        if path.is_file() and path.name not in scenes:
+            path.unlink()
+    _sync_copy_tree(SOURCE_EXAMPLES, RELEASE_EXAMPLES)
+    _sync_copy_tree(SOURCE_MANUAL, RELEASE_MANUAL)
+    for name in ("tools.json", "scene-v1.schema.json"):
+        _atomic_copy(SOURCE_ROOT / "agent" / name, RELEASE_ROOT / name)
 
 
 def _build_prebuilt() -> None:
@@ -190,6 +241,9 @@ def _build_prebuilt() -> None:
             timeout_seconds=30.0,
         )
         _atomic_copy(binary, PREBUILT / name, executable=True)
+    for path in PREBUILT.rglob("*"):
+        if path.is_file() and path.relative_to(PREBUILT).as_posix() not in PREBUILT_NAMES:
+            path.unlink()
 
 
 def _manifest_payload() -> dict[str, Any]:
@@ -199,8 +253,16 @@ def _manifest_payload() -> dict[str, Any]:
     for filename in sorted(_scene_documents()):
         path = RELEASE_SCENES / filename
         files[f"scenes/{filename}"] = _sha256(path)
+    for relative, path in sorted(_copied_files(RELEASE_EXAMPLES).items()):
+        files[f"examples/{relative.as_posix()}"] = _sha256(path)
+    for relative, path in sorted(_copied_files(RELEASE_MANUAL).items()):
+        files[f"manual/{relative.as_posix()}"] = _sha256(path)
+    for name in ("tools.json", "scene-v1.schema.json"):
+        files[name] = _sha256(RELEASE_ROOT / name)
     for name in PREBUILT_NAMES:
         files[f"prebuilt/{name}"] = _sha256(PREBUILT / name)
+    for name in PACKAGE_FILES:
+        files[f"package/{name}"] = _sha256(RELEASE_ROOT / name)
     aggregate = hashlib.sha256()
     for name, digest in sorted(files.items()):
         aggregate.update(name.encode("utf-8"))
@@ -228,7 +290,13 @@ def _verify() -> dict[str, Any]:
         if _sha256(source_files[relative]) != _sha256(target_files[relative]):
             failures.append(f"stale embedded engine file: {relative.as_posix()}")
 
-    for filename, expected in _scene_documents().items():
+    expected_scenes = _scene_documents()
+    actual_scenes = {
+        path.name for path in RELEASE_SCENES.iterdir() if path.is_file()
+    } if RELEASE_SCENES.is_dir() else set()
+    for filename in sorted(actual_scenes - expected_scenes.keys()):
+        failures.append(f"extra release scene: {filename}")
+    for filename, expected in expected_scenes.items():
         path = RELEASE_SCENES / filename
         try:
             actual = json.loads(path.read_text(encoding="utf-8"))
@@ -238,10 +306,29 @@ def _verify() -> dict[str, Any]:
         if actual != expected:
             failures.append(f"stale release scene: {filename}")
 
+    _verify_copy_tree("example", SOURCE_EXAMPLES, RELEASE_EXAMPLES, failures)
+    _verify_copy_tree("manual", SOURCE_MANUAL, RELEASE_MANUAL, failures)
+    for name in ("tools.json", "scene-v1.schema.json"):
+        source = SOURCE_ROOT / "agent" / name
+        target = RELEASE_ROOT / name
+        if not target.is_file():
+            failures.append(f"missing release file: {name}")
+        elif _sha256(source) != _sha256(target):
+            failures.append(f"stale release file: {name}")
+
+    actual_prebuilt = {
+        path.relative_to(PREBUILT).as_posix()
+        for path in PREBUILT.rglob("*") if path.is_file()
+    }
+    for name in sorted(actual_prebuilt - set(PREBUILT_NAMES)):
+        failures.append(f"extra prebuilt asset: {name}")
     for name in PREBUILT_NAMES:
         path = PREBUILT / name
         if not path.is_file() or not os.access(path, os.X_OK):
             failures.append(f"missing executable prebuilt asset: {name}")
+    for name in PACKAGE_FILES:
+        if not (RELEASE_ROOT / name).is_file():
+            failures.append(f"missing package file: {name}")
 
     try:
         actual_manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))

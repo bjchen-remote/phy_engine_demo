@@ -17,6 +17,7 @@ import time
 from typing import Callable
 
 from physics_demo.core.native_backend import NativeBackendUnavailable, NativeSimulationError, _compiler
+from physics_demo.limits import MAX_WALL_TIME_S
 
 
 def load_library(
@@ -30,13 +31,16 @@ def load_library(
     Extra translation units include their sibling headers in the digest;
     dependencies lists any additional included headers, such as rigid math.
     """
-    def timeout(maximum: float) -> float:
+    def timeout() -> float | None:
         remaining = deadline - time.monotonic()
         if remaining < .01:
             raise NativeBackendUnavailable(f"{name} backend deadline exhausted before compilation.")
-        return min(maximum, remaining)
+        # Bounded API calls use their remaining task budget. The host-owned
+        # unlimited path has a much larger sentinel deadline and no compiler
+        # subprocess timeout, including the cold version query and rebuild.
+        return None if remaining > MAX_WALL_TIME_S else remaining
 
-    timeout(5)
+    timeout()
     compiler = _compiler()
     darwin = platform.system() == "Darwin"
     flags = ["-std=c11", "-O3", "-DNDEBUG", "-fPIC", "-fvisibility=hidden", "-ffp-contract=off"]
@@ -45,7 +49,7 @@ def load_library(
         flags.append("-pthread")
     try:
         version = subprocess.run([compiler, "--version"], capture_output=True,
-                                 timeout=timeout(5), check=True).stdout
+                                 timeout=timeout(), check=True).stdout
     except (OSError, subprocess.SubprocessError) as error:
         raise NativeBackendUnavailable(f"{name} C11 compiler could not report its version.") from error
     payload = source.read_bytes() + source.with_suffix(".h").read_bytes()
@@ -58,7 +62,7 @@ def load_library(
     output = cache / (prefix + digest + (".dylib" if darwin else ".so"))
     compiled = 0.0
     for attempt in range(2):
-        timeout(30)
+        timeout()
         if str(output) in libraries:
             return libraries[str(output)], compiled, digest
         if not output.exists():
@@ -69,7 +73,7 @@ def load_library(
             compile_start = time.monotonic()
             try:
                 process = subprocess.run([compiler, *flags, str(source), *(str(p) for p in extra_sources), "-o", str(temporary)],
-                                         capture_output=True, timeout=timeout(30), check=False)
+                                         capture_output=True, timeout=timeout(), check=False)
                 if process.returncode:
                     raise NativeSimulationError(f"{name} C11 compilation failed: "
                                                 + process.stderr.decode(errors="replace")[-1500:])

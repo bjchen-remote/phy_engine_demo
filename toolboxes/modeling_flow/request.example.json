@@ -1,0 +1,13 @@
+{
+  "schema_version": "modeling-flow-request/1",
+  "image_path": "/ABSOLUTE/PATH/isolated-object.png",
+  "seed": 0,
+  "physical_extent_m": 0.2,
+  "scale_axis": "max",
+  "material": {"name": "declared homogeneous polymer", "density_kg_m3": 1000},
+  "num_inference_steps": 30,
+  "guidance_scale": 5,
+  "octree_resolution": 128,
+  "num_chunks": 2000,
+  "allow_decimation": true
+}

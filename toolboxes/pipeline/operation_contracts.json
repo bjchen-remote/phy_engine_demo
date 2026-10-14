@@ -1,0 +1,2242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "pipeline-operation-contracts/1",
+  "protocol": "qq-pipeline-compat/1",
+  "status": "compatibility descriptors; integration must explicitly call the validator; no new runtime operation is registered",
+  "reference_policy": "Task-owned IDs retain their current algorithms. Descriptors never authorize paths or cross-task access.",
+  "$defs": {
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "Handle": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+    },
+    "Producer": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "Dependency": {
+      "type": "object",
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "schema",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "AssetDescriptor": {
+      "type": "object",
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+        },
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "role": {
+          "enum": [
+            "model",
+            "raw_geometry",
+            "display_geometry",
+            "simulation_geometry",
+            "simulation_result",
+            "sampled_state",
+            "solver_observations",
+            "video",
+            "data"
+          ]
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+        },
+        "purpose": {
+          "enum": [
+            "model_preview",
+            "physical_simulation"
+          ]
+        },
+        "units": {
+          "type": "string",
+          "enum": [
+            "m",
+            "model_unit",
+            "not_applicable"
+          ]
+        },
+        "coordinate_frame": {
+          "type": "string",
+          "enum": [
+            "generated_local",
+            "model_local",
+            "scene_world",
+            "display_local",
+            "board_xy",
+            "not_applicable"
+          ]
+        },
+        "producer": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "minLength": 64,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "id",
+            "version",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "dependencies": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifact_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+              },
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "minLength": 64,
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "artifact_ref",
+              "schema",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "topology_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "artifact_ref",
+        "schema",
+        "sha256",
+        "role",
+        "bytes",
+        "task_scope",
+        "purpose",
+        "units",
+        "coordinate_frame",
+        "producer",
+        "dependencies"
+      ],
+      "additionalProperties": false
+    },
+    "GeometryBinding": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "geometry-binding/1"
+        },
+        "mode": {
+          "enum": [
+            "identity",
+            "raw_display_subset",
+            "bounded_surface",
+            "simulation_vertices",
+            "particle_visual_surface"
+          ]
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "target_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "source_topology_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_topology_sha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "units": {
+          "type": "string",
+          "enum": [
+            "m",
+            "model_unit",
+            "not_applicable"
+          ]
+        },
+        "coordinate_frame": {
+          "type": "string",
+          "enum": [
+            "generated_local",
+            "model_local",
+            "scene_world",
+            "display_local",
+            "board_xy",
+            "not_applicable"
+          ]
+        },
+        "receipt_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "schema_version",
+        "mode",
+        "source_ref",
+        "target_ref",
+        "source_sha256",
+        "target_sha256",
+        "source_topology_sha256",
+        "target_topology_sha256",
+        "units",
+        "coordinate_frame",
+        "receipt_sha256"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "operations": {
+    "physics_capabilities": {
+      "name": "physics_capabilities",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_liquid": {
+      "name": "physics_liquid",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "water",
+              "honey",
+              "glue",
+              "lava",
+              "molten_lead"
+            ]
+          },
+          "entity_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "\\S",
+            "description": "The exact target fluid entity id, without the @ selector prefix. Unicode and JSON-Pointer characters are accepted."
+          }
+        },
+        "required": [
+          "preset",
+          "entity_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_system": {
+      "name": "physics_system",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spec_json": {
+            "type": "string",
+            "description": "Strict JSON system parameter object, e.g. {\"type\":\"double_pendulum\",\"lengths\":[1,1],\"masses\":[1,1],\"angles\":[2,2.4],\"duration\":8,\"dt\":0.002}.",
+            "maxLength": 1000000
+          }
+        },
+        "required": [
+          "spec_json"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_mesh": {
+      "name": "physics_mesh",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spec_json": {
+            "type": "string",
+            "maxLength": 1000000,
+            "description": "A finite recipe JSON object; image/imagined provenance requires notes. Coordinates and lengths use metres."
+          }
+        },
+        "required": [
+          "spec_json"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_example": {
+      "name": "physics_example",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "three_body",
+              "droplet_ground",
+              "liquid_preset_showcase",
+              "droplet_pool",
+              "droplet_sphere",
+              "water_blob",
+              "sandcastle_wash",
+              "high_detail_droplet_sphere",
+              "geyser",
+              "sand_blast",
+              "whirlpool",
+              "water_obstacle_course",
+              "zero_g_droplet_collision",
+              "product_pour_tumbler",
+              "fountain_hoop",
+              "flood_bridge_piers",
+              "sand_sculpture_wave",
+              "microgravity_three_drops",
+              "cosmetic_hero_splash",
+              "vehicle_wading_splash",
+              "three_body_queries",
+              "droplet_radius_query",
+              "sliders_separate",
+              "mesh_soft_drop",
+              "mesh_soft_collision",
+              "mesh_ring_insertion",
+              "mesh_cloth_drape",
+              "mesh_image_extrusion",
+              "mesh_imagined_shape",
+              "spring_oscillator",
+              "damped_spring",
+              "coupled_springs",
+              "rod_pendulum",
+              "rope_catch",
+              "spring_chain",
+              "spring_pendulum",
+              "gyroscope_precession",
+              "torque_free_tumble",
+              "spring_rigid_pendulum",
+              "water_spring_reaction",
+              "solid_spring_water",
+              "ghost_spring_water",
+              "water_soft_sheet",
+              "water_sheet_spring_rigid",
+              "self_gravitating_liquid"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_validate": {
+      "name": "physics_validate",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scene_json": {
+            "type": "string",
+            "description": "A complete scene-v1 JSON object serialized as a string."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_estimate": {
+      "name": "physics_estimate",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scene_json": {
+            "type": "string"
+          },
+          "budget_seconds": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 300
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_prepare": {
+      "name": "physics_prepare",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scene_json": {
+            "type": "string",
+            "description": "A complete scene-v1 JSON object serialized as a string."
+          },
+          "budget_seconds": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 300
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_simulate": {
+      "name": "physics_simulate",
+      "owner": "simulation",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scene_json": {
+            "type": "string",
+            "maxLength": 1000000
+          },
+          "spec_json": {
+            "type": "string",
+            "maxLength": 1000000
+          },
+          "output_dir": {
+            "enum": [
+              "artifacts",
+              "work/physics/artifacts"
+            ]
+          },
+          "budget_seconds": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 300
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "not": {
+          "required": [
+            "scene_json",
+            "spec_json"
+          ]
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "frozen_plan",
+        "verified_file_delivery"
+      ],
+      "required_gates": [
+        "domain",
+        "numerical_when_strict"
+      ],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_inspect": {
+      "name": "physics_inspect",
+      "owner": "simulation",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_query": {
+      "name": "physics_query",
+      "owner": "simulation",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "One predeclared query ID, or null for all declared queries."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "physics_patch": {
+      "name": "physics_patch",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scene_json": {
+            "type": "string"
+          },
+          "operations": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "add",
+                    "replace",
+                    "remove"
+                  ]
+                },
+                "path": {
+                  "type": "string",
+                  "maxLength": 1024
+                },
+                "value_json": {
+                  "type": "string",
+                  "maxLength": 1000000,
+                  "description": "The replacement value serialized as JSON; use null for remove."
+                },
+                "mesh_ref": {
+                  "$ref": "#/$defs/Sha256"
+                },
+                "fluid_ref": {
+                  "$ref": "#/$defs/Sha256"
+                }
+              },
+              "required": [
+                "op",
+                "path"
+              ],
+              "additionalProperties": false,
+              "oneOf": [
+                {
+                  "required": [
+                    "value_json"
+                  ],
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "mesh_ref"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "fluid_ref"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "required": [
+                    "mesh_ref"
+                  ],
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "value_json"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "fluid_ref"
+                        ]
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "op": {
+                      "enum": [
+                        "add",
+                        "replace"
+                      ]
+                    },
+                    "path": {
+                      "type": "string",
+                      "pattern": "^/entities/@[^/]+/mesh(?![\\s\\S])"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "fluid_ref"
+                  ],
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "value_json"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "mesh_ref"
+                        ]
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "op": {
+                      "enum": [
+                        "add",
+                        "replace"
+                      ]
+                    },
+                    "path": {
+                      "type": "string",
+                      "pattern": "^/entities/(?:@[^/]+|-)$"
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "op": {
+                      "const": "remove"
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "value_json"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "mesh_ref"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "fluid_ref"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "help": {
+      "name": "help",
+      "owner": "host",
+      "purposes": [
+        "model_preview",
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "context": {
+      "name": "context",
+      "owner": "host",
+      "purposes": [
+        "model_preview",
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pcb_example": {
+      "name": "pcb_example",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pcb_prepare": {
+      "name": "pcb_prepare",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spec_json": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000000
+          }
+        },
+        "required": [
+          "spec_json"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pcb_validate": {
+      "name": "pcb_validate",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spec_json": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000000
+          }
+        },
+        "required": [
+          "spec_json"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pcb_inspect": {
+      "name": "pcb_inspect",
+      "owner": "simulation",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pcb_query": {
+      "name": "pcb_query",
+      "owner": "simulation",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "x_m": {
+            "type": "number",
+            "minimum": 0
+          },
+          "y_m": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "x_m",
+          "y_m"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pipeline_capabilities": {
+      "name": "pipeline_capabilities",
+      "owner": "host",
+      "purposes": [
+        "model_preview",
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "qq-pipeline-compat/1",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pipeline_status": {
+      "name": "pipeline_status",
+      "owner": "host",
+      "purposes": [
+        "model_preview",
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": false,
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "pipeline-state/1",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pipeline_configure": {
+      "name": "pipeline_configure",
+      "owner": "host",
+      "purposes": [
+        "model_preview",
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "modeling_quality": {
+            "type": "string",
+            "enum": [
+              "standard"
+            ],
+            "x-error-code": "unsupported_quality"
+          },
+          "simulation_quality": {
+            "type": "string",
+            "enum": [
+              "inherit",
+              "visual",
+              "strict"
+            ],
+            "x-error-code": "unsupported_quality"
+          },
+          "rendering_quality": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "standard"
+            ],
+            "x-error-code": "unsupported_quality"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [],
+      "required_gates": [],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": null,
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "pipeline_render_prepare": {
+      "name": "pipeline_render_prepare",
+      "owner": "rendering",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "rendering_quality": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "standard"
+            ],
+            "x-error-code": "unsupported_quality"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "verified_simulation_checkpoint",
+        "original_component_pins"
+      ],
+      "required_gates": [
+        "integrity",
+        "unchanged_canonical_state"
+      ],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "pipeline-plan/1",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "modeling_from_image": {
+      "name": "modeling_from_image",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+          },
+          "physical_extent_m": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "num_inference_steps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "guidance_scale": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 20
+          },
+          "octree_resolution": {
+            "type": "integer",
+            "minimum": 16,
+            "maximum": 256
+          },
+          "num_chunks": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 8000
+          },
+          "material": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000-\\u001f]+(?![\\s\\S])"
+              },
+              "density_kg_m3": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 100000
+              }
+            },
+            "required": [
+              "name",
+              "density_kg_m3"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "image_id",
+          "physical_extent_m",
+          "material"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "type": "boolean"
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "type": "boolean"
+          },
+          "numerical_usable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "admitted_current_event_image",
+        "pinned_modeling_runtime"
+      ],
+      "required_gates": [
+        "geometry_only"
+      ],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "modeling-flow-mesh/1",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "modeling_preview_from_image": {
+      "name": "modeling_preview_from_image",
+      "owner": "modeling",
+      "purposes": [
+        "model_preview"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "image_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*(?![\\s\\S])"
+          },
+          "physical_extent_m": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "num_inference_steps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "guidance_scale": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 20
+          },
+          "octree_resolution": {
+            "type": "integer",
+            "minimum": 16,
+            "maximum": 256
+          },
+          "num_chunks": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 8000
+          },
+          "display_cleanup": {
+            "enum": [
+              "conservative",
+              "none",
+              "surface"
+            ]
+          }
+        },
+        "required": [
+          "image_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "const": false
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "const": false
+          },
+          "numerical_usable": {
+            "const": false
+          },
+          "numerical_passed": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "admitted_current_event_image",
+        "pinned_modeling_runtime",
+        "compatible_preview_modules",
+        "verified_file_delivery"
+      ],
+      "required_gates": [
+        "display_geometry",
+        "raw_display_proof"
+      ],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "modeling-flow-display/1",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "modeling_preview_cleanup": {
+      "name": "modeling_preview_cleanup",
+      "owner": "modeling",
+      "purposes": [
+        "model_preview"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model_ref": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "display_cleanup": {
+            "enum": [
+              "conservative",
+              "none",
+              "surface"
+            ]
+          }
+        },
+        "required": [
+          "model_ref"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "const": false
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "const": false
+          },
+          "numerical_usable": {
+            "const": false
+          },
+          "numerical_passed": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "sealed_same_task_model",
+        "original_component_pins",
+        "advertised_cleanup_mode"
+      ],
+      "required_gates": [
+        "raw_display_proof"
+      ],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "modeling-flow-display/1",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "modeling_preview_render": {
+      "name": "modeling_preview_render",
+      "owner": "rendering",
+      "purposes": [
+        "model_preview"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "model_ref": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 960,
+            "multipleOf": 2
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 960,
+            "multipleOf": 2
+          },
+          "fps": {
+            "type": "integer",
+            "minimum": 6,
+            "maximum": 30
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "pitch_degrees": {
+            "type": "number",
+            "minimum": -30,
+            "maximum": 45
+          },
+          "start_yaw_degrees": {
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          }
+        },
+        "required": [
+          "model_ref"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "const": false
+          },
+          "ready_to_preview": {
+            "type": "boolean"
+          },
+          "simulation_performed": {
+            "const": false
+          },
+          "numerical_usable": {
+            "const": false
+          },
+          "numerical_passed": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "sealed_same_task_model",
+        "original_component_pins",
+        "verified_file_delivery"
+      ],
+      "required_gates": [
+        "display_geometry",
+        "raw_display_proof",
+        "full_video_decode",
+        "provenance_archive"
+      ],
+      "validation_scope": "Admission shape only; existing pinned implementation and typed artifact validators remain authoritative.",
+      "payload_contract": "model-preview-result/1|2|3",
+      "response_envelope": "Existing v1 work/toolbox-response.json.result; output_schema validates only shared admission fields. Payload contracts do not replace pinned engine or typed host validators."
+    },
+    "modeling_liquefy": {
+      "name": "modeling_liquefy",
+      "owner": "modeling",
+      "purposes": [
+        "physical_simulation"
+      ],
+      "task_scoped": true,
+      "mutates_task": true,
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "imported_asset_ref": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "model_ref": {
+            "$ref": "#/$defs/Sha256"
+          },
+          "physical_extent_m": {
+            "type": "number",
+            "minimum": 1e-06,
+            "maximum": 1000
+          },
+          "entity_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "position": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          },
+          "velocity": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number",
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          },
+          "spacing_m": {
+            "type": "number",
+            "minimum": 0.0001,
+            "maximum": 0.5
+          },
+          "preset": {
+            "const": "water"
+          },
+          "reference_density_kg_m3": {
+            "const": 1000,
+            "type": "number"
+          },
+          "conversion": {
+            "const": "instant"
+          },
+          "conservation": {
+            "const": "volume"
+          }
+        },
+        "required": [
+          "physical_extent_m",
+          "entity_id"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "imported_asset_ref"
+            ],
+            "not": {
+              "required": [
+                "model_ref"
+              ]
+            }
+          },
+          {
+            "required": [
+              "model_ref"
+            ],
+            "not": {
+              "required": [
+                "imported_asset_ref"
+              ]
+            }
+          }
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ready_to_simulate": {
+            "const": false
+          },
+          "simulation_performed": {
+            "const": false
+          },
+          "fluid_ref": {
+            "$ref": "#/$defs/Sha256"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "required_state": [
+        "sealed_current_model_or_host_import",
+        "compatible_modeling_and_engine_pins"
+      ],
+      "required_gates": [
+        "source_integrity",
+        "closed_solid_geometry",
+        "explicit_scale",
+        "bounded_volume_sampling",
+        "full_scene_preparation"
+      ],
+      "validation_scope": "Admission only; independent source, geometry, conversion and full-scene validators remain authoritative.",
+      "payload_contract": "model-liquefy-response/1",
+      "response_envelope": "Existing v1 toolbox-response.json.result; instant geometric conversion is not a completed simulation."
+    }
+  },
+  "recovery_policy": {
+    "automatic_retry": false,
+    "unchanged_failed_simulation": "do_not_repeat",
+    "presentation_failure": "verify_original_checkpoint_then_pipeline_render_prepare",
+    "unsealed_stage": "retain_for_explicit_recovery",
+    "unknown_delivery": "reconcile_without_resend"
+  }
+}

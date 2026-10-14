@@ -29,7 +29,19 @@ RECIPE_FIELDS = {
     "box": {"size", "subdivisions"}, "torus": {"major_radius", "minor_radius", "segments", "tube_segments"},
     "lathe": {"profile", "segments"}, "extrusion": {"contour", "depth"},
     "cloth": {"size", "subdivisions"},
+    "clothed_upper_torso": {
+        "scope", "width", "height", "depth", "shoulder_scale", "waist_scale",
+        "soft_regions", "rows", "columns",
+    },
 }
+
+TORSO_SCOPE = "adult_clothed_non_explicit"
+TORSO_MODEL_ASSUMPTIONS = [
+    "Adult, non-explicit clothed outer-surface proxy; anatomy and skin are not represented.",
+    "Dimensions and front projections are caller-supplied modeling assumptions, not measurements or facts inferred from an image.",
+    "The mesh has one scene-level soft-body material; it has no tissue layers, medical meaning, or calibrated human material constants.",
+    "Pin hints are optional attachment suggestions and are not applied automatically.",
+]
 
 
 def _number(value: Any, label: str, low: float = EPSILON, high: float = MAX_COORDINATE) -> float:
@@ -59,21 +71,28 @@ def _orient2(a, b, c):
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 
-def _inside2(p, tri, tolerance=EPSILON):
-    signs = [_orient2(tri[i], tri[(i + 1) % 3], p) /
-             math.hypot(*(tri[(i + 1) % 3][k] - tri[i][k] for k in range(2))) for i in range(3)]
+def _inside2(p, tri, tolerance=EPSILON, edge_lengths=None):
+    if edge_lengths is None:
+        edge_lengths = [math.hypot(*(tri[(i + 1) % 3][k] - tri[i][k] for k in range(2)))
+                        for i in range(3)]
+    signs = [_orient2(tri[i], tri[(i + 1) % 3], p) / edge_lengths[i] for i in range(3)]
     return min(signs) >= -tolerance or max(signs) <= tolerance
 
 
-def _segment2(a, b, c, d, tolerance=EPSILON):
+def _segment2(a, b, c, d, tolerance=EPSILON, ab_length=None, cd_length=None):
     """Contact points of two planar segments, including collinear overlap."""
-    def on(p, x, y):
-        return (abs(_orient2(x, y, p)) <= tolerance * math.hypot(y[0] - x[0], y[1] - x[1]) and
+    if ab_length is None:
+        ab_length = math.hypot(b[0] - a[0], b[1] - a[1])
+    if cd_length is None:
+        cd_length = math.hypot(d[0] - c[0], d[1] - c[1])
+
+    def on(p, x, y, length):
+        return (abs(_orient2(x, y, p)) <= tolerance * length and
                 all(min(x[k], y[k]) - tolerance <= p[k] <= max(x[k], y[k]) + tolerance for k in range(2)))
-    contacts = [p for p in (a, b) if on(p, c, d)] + [p for p in (c, d) if on(p, a, b)]
+    contacts = [p for p in (a, b) if on(p, c, d, cd_length)] + [p for p in (c, d) if on(p, a, b, ab_length)]
     u, v = [b[k] - a[k] for k in range(2)], [d[k] - c[k] for k in range(2)]
     denominator = u[0] * v[1] - u[1] * v[0]
-    if abs(denominator) > 1e-14 * math.hypot(*u) * math.hypot(*v):
+    if abs(denominator) > 1e-14 * ab_length * cd_length:
         delta = [c[k] - a[k] for k in range(2)]
         t = (delta[0] * v[1] - delta[1] * v[0]) / denominator
         s = (delta[0] * u[1] - delta[1] * u[0]) / denominator
@@ -82,7 +101,30 @@ def _segment2(a, b, c, d, tolerance=EPSILON):
     return contacts
 
 
-def _triangles_intersect(left, right, shared):
+@dataclass
+class _TriangleGeometry:
+    vertices: list
+    normal: list
+    axis: int
+    axes: list
+    projected: list
+    projected_edges: list
+
+
+def _triangle_geometry(vertices):
+    """Cache geometry that stays fixed while a triangle meets many BVH candidates."""
+    normal = cross(sub(vertices[1], vertices[0]), sub(vertices[2], vertices[0]))
+    length = norm(normal)
+    normal = [n / length for n in normal]
+    axis = max(range(3), key=lambda k: abs(normal[k]))
+    axes = [k for k in range(3) if k != axis]
+    projected = [[p[k] for k in axes] for p in vertices]
+    projected_edges = [math.hypot(*(projected[(i + 1) % 3][k] - projected[i][k] for k in range(2)))
+                       for i in range(3)]
+    return _TriangleGeometry(vertices, normal, axis, axes, projected, projected_edges)
+
+
+def _prepared_triangles_intersect(left_geometry, right_geometry, shared):
     """Detect contact beyond the vertices/edge two triangles intentionally share."""
     def allowed(p, common):
         if any(norm(sub(p, q)) <= EPSILON for q in common):
@@ -93,25 +135,30 @@ def _triangles_intersect(left, right, shared):
             return -EPSILON <= t <= 1 + EPSILON and norm(sub(p, [common[0][k] + t * edge[k] for k in range(3)])) <= EPSILON
         return False
 
-    for source, target in ((left, right), (right, left)):
-        normal = cross(sub(target[1], target[0]), sub(target[2], target[0]))
-        length = norm(normal)
-        normal = [n / length for n in normal]
+    for source_geometry, target_geometry in ((left_geometry, right_geometry),
+                                             (right_geometry, left_geometry)):
+        source, target = source_geometry.vertices, target_geometry.vertices
+        normal = target_geometry.normal
         distances = [dot(sub(p, target[0]), normal) for p in source]
         if min(distances) > EPSILON or max(distances) < -EPSILON:
             return False
-        axis = max(range(3), key=lambda k: abs(normal[k]))
-        axes = [k for k in range(3) if k != axis]
+        axis, axes = target_geometry.axis, target_geometry.axes
         flat = lambda p: [p[k] for k in axes]
-        target2 = [flat(p) for p in target]
+        target2 = target_geometry.projected
         for i, a in enumerate(source):
             b = source[(i + 1) % 3]
             da, db = distances[i], distances[(i + 1) % 3]
-            if abs(da) <= EPSILON and _inside2(flat(a), target2) and not allowed(a, shared):
+            a2 = flat(a)
+            if (abs(da) <= EPSILON and
+                    _inside2(a2, target2, edge_lengths=target_geometry.projected_edges) and
+                    not allowed(a, shared)):
                 return True
             if abs(da) <= EPSILON and abs(db) <= EPSILON:
+                b2 = flat(b)
+                edge_length = math.hypot(b2[0] - a2[0], b2[1] - a2[1])
                 for j in range(3):
-                    for p2 in _segment2(flat(a), flat(b), target2[j], target2[(j + 1) % 3]):
+                    for p2 in _segment2(a2, b2, target2[j], target2[(j + 1) % 3],
+                                        ab_length=edge_length, cd_length=target_geometry.projected_edges[j]):
                         p = list(target[0])
                         p[axes[0]], p[axes[1]] = p2
                         p[axis] = target[0][axis] - sum(normal[k] * (p[k] - target[0][k]) for k in axes) / normal[axis]
@@ -120,9 +167,15 @@ def _triangles_intersect(left, right, shared):
             elif da * db < 0:
                 t = da / (da - db)
                 p = [a[k] + t * (b[k] - a[k]) for k in range(3)]
-                if _inside2(flat(p), target2) and not allowed(p, shared):
+                if _inside2(flat(p), target2,
+                            edge_lengths=target_geometry.projected_edges) and not allowed(p, shared):
                     return True
     return False
+
+
+def _triangles_intersect(left, right, shared):
+    """Standalone exact test, also used by exhaustive geometry diagnostics."""
+    return _prepared_triangles_intersect(_triangle_geometry(left), _triangle_geometry(right), shared)
 
 
 @dataclass
@@ -150,6 +203,7 @@ def _intersection_pair(vertices, triangles, groups=None, stats=None):
     boxes = [(tuple(min(vertices[v][k] for v in face) for k in range(3)),
               tuple(max(vertices[v][k] for v in face) for k in range(3))) for face in triangles]
     centers = [tuple(lo[k] + hi[k] for k in range(3)) for lo, hi in boxes]
+    geometry = [None] * len(triangles)
     counters = stats if stats is not None else {}
     counters.update(node_tests=0, candidate_pairs=0, exact_tests=0)
 
@@ -160,6 +214,13 @@ def _intersection_pair(vertices, triangles, groups=None, stats=None):
             raise ValueError("Mesh intersection audit exceeds its bounded work budget; simplify or split the mesh.")
         if work % 256 == 0 and time.monotonic() > deadline:
             raise ValueError("Mesh intersection audit exceeds its 2-second time budget; simplify or split the mesh.")
+
+    def prepared(index):
+        cached = geometry[index]
+        if cached is None:
+            cached = _triangle_geometry([vertices[v] for v in triangles[index]])
+            geometry[index] = cached
+        return cached
 
     def build(indices):
         box = (tuple(min(boxes[i][0][k] for i in indices) for k in range(3)),
@@ -194,8 +255,8 @@ def _intersection_pair(vertices, triangles, groups=None, stats=None):
                         continue
                     common = set(triangles[index]) & set(triangles[other]) if groups is None else set()
                     counters["exact_tests"] += 1
-                    if _triangles_intersect([vertices[v] for v in triangles[index]],
-                                            [vertices[v] for v in triangles[other]], [vertices[v] for v in common]):
+                    if _prepared_triangles_intersect(prepared(index), prepared(other),
+                                                     [vertices[v] for v in common]):
                         return other, index
         elif a is b:
             pending.extend(((a.left, a.left), (a.left, a.right), (a.right, a.right)))
@@ -386,6 +447,118 @@ def _box(size, divisions):
     return vertices, triangles
 
 
+def _torso_soft_regions(value, width, height, depth):
+    """Validate two bounded, caller-authored front-surface shape regions."""
+    if not isinstance(value, list) or len(value) != 2:
+        raise ValueError("clothed_upper_torso soft_regions must contain exactly two region objects.")
+    regions = []
+    for index, region in enumerate(value):
+        label = f"soft_regions[{index}]"
+        if not isinstance(region, dict) or set(region) != {"center", "radii", "projection"}:
+            raise ValueError(f"{label} accepts exactly center, radii, and projection.")
+        center = _vector(region["center"], 2, f"{label}.center")
+        radii = _vector(region["radii"], 2, f"{label}.radii", True)
+        projection = _number(
+            region["projection"], f"{label}.projection", EPSILON, 0.75 * depth
+        )
+        if not -0.38 * width <= center[0] <= 0.38 * width:
+            raise ValueError(f"{label}.center x must lie within 38% of torso width from the centre.")
+        if not -0.15 * height <= center[1] <= 0.30 * height:
+            raise ValueError(f"{label}.center y must lie in the bounded upper-torso region.")
+        if not 0.04 * width <= radii[0] <= 0.22 * width:
+            raise ValueError(f"{label}.radii x must be between 4% and 22% of torso width.")
+        if not 0.04 * height <= radii[1] <= 0.30 * height:
+            raise ValueError(f"{label}.radii y must be between 4% and 30% of torso height.")
+        if abs(center[0]) + radii[0] > 0.48 * width:
+            raise ValueError(f"{label} extends beyond the bounded front surface laterally.")
+        if center[1] - radii[1] < -0.40 * height or center[1] + radii[1] > 0.45 * height:
+            raise ValueError(f"{label} extends beyond the bounded front surface vertically.")
+        regions.append({"center": center, "radii": radii, "projection": projection})
+    if not regions[0]["center"][0] < 0 < regions[1]["center"][0]:
+        raise ValueError("soft_regions must be ordered left then right, with centres on opposite sides.")
+    if regions[1]["center"][0] - regions[0]["center"][0] < 0.12 * width:
+        raise ValueError("soft_regions centres must be separated by at least 12% of torso width.")
+    return regions
+
+
+def _clothed_upper_torso(spec):
+    """Build a closed stylized garment surface; it is not anatomical reconstruction."""
+    if spec.get("scope") != TORSO_SCOPE:
+        raise ValueError(f"clothed_upper_torso scope must be {TORSO_SCOPE!r}.")
+    required = {
+        "width", "height", "depth", "shoulder_scale", "waist_scale",
+        "soft_regions", "provenance",
+    }
+    missing = sorted(required - set(spec))
+    if missing:
+        raise ValueError(f"clothed_upper_torso requires explicit fields: {missing}.")
+    width = _number(spec["width"], "width", 0.20, 1.50)
+    height = _number(spec["height"], "height", 0.25, 2.00)
+    depth = _number(spec["depth"], "depth", 0.08, 1.00)
+    shoulder = _number(spec["shoulder_scale"], "shoulder_scale", 0.75, 1.35)
+    waist = _number(spec["waist_scale"], "waist_scale", 0.50, 1.10)
+    rows = _integer(spec.get("rows", 12), "rows", 6, 24)
+    columns = _integer(spec.get("columns", 24), "columns", 12, 48)
+    if columns % 4:
+        raise ValueError("columns must be divisible by 4 so front, back, and side landmarks are sampled.")
+    regions = _torso_soft_regions(spec["soft_regions"], width, height, depth)
+    _capacity(rows * columns + 2, 2 * rows * columns)
+
+    def smoothstep(value):
+        return value * value * (3.0 - 2.0 * value)
+
+    vertices = []
+    for row in range(rows):
+        t = row / (rows - 1)
+        y = height * (t - 0.5)
+        if t <= 0.55:
+            width_scale = waist + (1.0 - waist) * smoothstep(t / 0.55)
+        else:
+            width_scale = 1.0 + (shoulder - 1.0) * smoothstep((t - 0.55) / 0.45)
+        half_width = 0.5 * width * width_scale
+        half_depth = 0.5 * depth * (0.88 + 0.12 * math.sin(math.pi * t))
+        for column in range(columns):
+            angle = 2.0 * math.pi * column / columns
+            front_weight = max(0.0, math.sin(angle))
+            x = half_width * math.cos(angle)
+            z = half_depth * math.sin(angle)
+            if front_weight > 0:
+                for region in regions:
+                    dx = (x - region["center"][0]) / region["radii"][0]
+                    dy = (y - region["center"][1]) / region["radii"][1]
+                    distance_squared = dx * dx + dy * dy
+                    if distance_squared < 1.0:
+                        z += (region["projection"] * (1.0 - distance_squared) ** 2 *
+                              front_weight ** 2)
+            vertices.append([x, y, z])
+
+    triangles = []
+    for row in range(rows - 1):
+        lower = row * columns
+        upper = (row + 1) * columns
+        for column in range(columns):
+            following = (column + 1) % columns
+            triangles.extend([
+                [lower + column, upper + column, upper + following],
+                [lower + column, upper + following, lower + following],
+            ])
+    bottom_center = len(vertices)
+    vertices.append([0.0, -0.5 * height, 0.0])
+    top_center = len(vertices)
+    vertices.append([0.0, 0.5 * height, 0.0])
+    top = (rows - 1) * columns
+    for column in range(columns):
+        following = (column + 1) % columns
+        triangles.append([bottom_center, column, following])
+        triangles.append([top + column, top_center, top + following])
+
+    pin_hints = {
+        "upper_back_seam": [top + column for column in range(columns // 2, columns)],
+        "lower_back_seam": [column for column in range(columns // 2, columns)],
+    }
+    return vertices, triangles, pin_hints
+
+
 def _polygon(contour):
     if not isinstance(contour, list) or not 3 <= len(contour) <= 256:
         raise ValueError("Extrusion contour needs 3–256 points without a repeated closing point.")
@@ -431,6 +604,22 @@ def _provenance(provenance):
     return dict(provenance)
 
 
+def _torso_pin_hints(value, vertex_count):
+    if not isinstance(value, dict) or set(value) != {"upper_back_seam", "lower_back_seam"}:
+        raise ValueError("clothed_upper_torso pin_hints require upper_back_seam and lower_back_seam.")
+    normalized = {}
+    for label in ("upper_back_seam", "lower_back_seam"):
+        indices = value[label]
+        if (not isinstance(indices, list) or not indices or
+                any(type(index) is not int or not 0 <= index < vertex_count for index in indices) or
+                len(set(indices)) != len(indices)):
+            raise ValueError(f"pin_hints.{label} must contain unique in-range vertex indices.")
+        normalized[label] = list(indices)
+    if set(normalized["upper_back_seam"]) & set(normalized["lower_back_seam"]):
+        raise ValueError("upper and lower pin hints must be disjoint.")
+    return normalized
+
+
 def normalize_mesh(asset: Any) -> dict[str, Any]:
     """Recompute derived metadata, retaining only declared provenance and recipe.
 
@@ -441,7 +630,8 @@ def normalize_mesh(asset: Any) -> dict[str, Any]:
         raise ValueError("Mesh asset accepts only vertices, triangles, and metadata.")
     metadata = audit_mesh(asset.get("vertices"), asset.get("triangles"))
     old = asset.get("metadata", {})
-    if not isinstance(old, dict) or set(old) - set(metadata) - {"recipe", "provenance", "units"}:
+    extra_fields = {"recipe", "provenance", "units", "pin_hints", "model_assumptions"}
+    if not isinstance(old, dict) or set(old) - set(metadata) - extra_fields:
         raise ValueError("Mesh metadata contains unknown fields.")
     recipe = old.get("recipe", "raw")
     if not isinstance(recipe, str) or recipe not in RECIPE_FIELDS or old.get("units", "metres") != "metres":
@@ -449,6 +639,13 @@ def normalize_mesh(asset: Any) -> dict[str, Any]:
     if metadata["closed"] and metadata["signed_volume"] < 0:
         raise ValueError("Closed mesh winding must point outward; reverse every triangle explicitly.")
     metadata.update({"recipe": recipe, "provenance": _provenance(old.get("provenance")), "units": "metres"})
+    if recipe == "clothed_upper_torso":
+        if old.get("model_assumptions") != TORSO_MODEL_ASSUMPTIONS:
+            raise ValueError("clothed_upper_torso model_assumptions must match the fixed public scope.")
+        metadata["pin_hints"] = _torso_pin_hints(old.get("pin_hints"), len(asset["vertices"]))
+        metadata["model_assumptions"] = list(TORSO_MODEL_ASSUMPTIONS)
+    elif "pin_hints" in old or "model_assumptions" in old:
+        raise ValueError("pin_hints and model_assumptions are reserved for clothed_upper_torso.")
     return {"vertices": [[float(v) for v in p] for p in asset["vertices"]],
             "triangles": [list(face) for face in asset["triangles"]], "metadata": metadata}
 
@@ -456,11 +653,14 @@ def normalize_mesh(asset: Any) -> dict[str, Any]:
 def build_mesh(spec: Any) -> dict[str, Any]:
     """Build a recipe or validate an inline raw asset. See RECIPE_FIELDS."""
     if not isinstance(spec, dict) or not isinstance(spec.get("type"), str) or spec["type"] not in RECIPE_FIELDS:
-        raise ValueError("Mesh type must be raw, ellipsoid, box, torus, lathe, extrusion, or cloth.")
+        raise ValueError("Mesh type must be raw, ellipsoid, box, torus, lathe, extrusion, cloth, or clothed_upper_torso.")
     kind = spec["type"]
     if set(spec) - RECIPE_FIELDS[kind] - {"type", "provenance"}:
         raise ValueError(f"Unknown {kind} mesh fields; accepted recipe fields are {sorted(RECIPE_FIELDS[kind])}.")
     provenance = _provenance(spec.get("provenance"))
+    if kind == "clothed_upper_torso" and not provenance.get("notes", "").strip():
+        raise ValueError("clothed_upper_torso provenance notes must state the supplied or assumed dimensions and hidden geometry.")
+    extra_metadata = {}
     if kind == "raw":
         vertices, triangles = spec.get("vertices"), spec.get("triangles")
     elif kind == "box":
@@ -509,6 +709,12 @@ def build_mesh(spec: Any) -> dict[str, Any]:
         for i in range(count):
             j = (i + 1) % count
             triangles.extend([[i, j, j + count], [i, j + count, i + count]])
+    elif kind == "clothed_upper_torso":
+        vertices, triangles, pin_hints = _clothed_upper_torso(spec)
+        extra_metadata = {
+            "pin_hints": pin_hints,
+            "model_assumptions": list(TORSO_MODEL_ASSUMPTIONS),
+        }
     else:
         size = _vector(spec.get("size", [1, 1]), 2, "size", True)
         divisions = _integer(spec.get("subdivisions", 8), "subdivisions", 1, 63)
@@ -522,4 +728,5 @@ def build_mesh(spec: Any) -> dict[str, Any]:
                 b, c, d = a + divisions + 1, a + divisions + 2, a + 1
                 triangles.extend([[a, c, b], [a, d, c]])
     return normalize_mesh({"vertices": vertices, "triangles": triangles,
-                           "metadata": {"recipe": kind, "provenance": provenance}})
+                           "metadata": {"recipe": kind, "provenance": provenance,
+                                        **extra_metadata}})

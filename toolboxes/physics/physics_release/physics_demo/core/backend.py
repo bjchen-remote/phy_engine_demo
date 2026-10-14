@@ -24,6 +24,7 @@ def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> d
         and LIQUID_PRESETS[entity.get("preset", "water")]["native_required"]
         for entity in scene.get("entities", [])
     )
+    native_mesh_volume = any(e.get("type") == "fluid" and e.get("shape", {}).get("type") == "mesh_volume" for e in scene.get("entities", []))
     if selected == "coupled":
         from physics_demo.core.coupled_solver import run_scene_coupled
         return run_scene_coupled(scene, plan, deadline)
@@ -38,6 +39,8 @@ def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> d
         return run_sliders(scene, plan, deadline)
     if selected == "python" and particle_gravity:
         raise NativeBackendUnavailable("Particle self-gravity requires the native solver; no force-dropping fallback is permitted.")
+    if selected == "python" and native_mesh_volume:
+        raise NativeBackendUnavailable("Mesh-volume liquid conversion requires the native DFSPH solver; no approximation fallback is permitted.")
     if selected == "python" and native_liquid_preset:
         raise NativeBackendUnavailable(
             "Non-water liquid presets require the native C11 liquid solver; "
@@ -48,7 +51,7 @@ def run_scene(scene: dict[str, Any], plan: dict[str, Any], deadline: float) -> d
         try:
             return run_scene_native(scene, plan, deadline)
         except (NativeBackendUnavailable, NativeSimulationError) as error:
-            if requested == "native" or native_liquid_preset or particle_gravity:
+            if requested == "native" or native_liquid_preset or particle_gravity or native_mesh_volume:
                 raise
             fallback_timing = timing_estimate(scene, {**plan, "backend": "python"}, include_video=False)
             remaining = max(0.0, deadline - time.monotonic())

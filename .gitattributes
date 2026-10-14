@@ -1,0 +1,5 @@
+# Preserve the exact upstream license and existing content-pinned package bytes.
+toolboxes/modeling_flow/third_party/Hunyuan3D-LICENSE.txt -whitespace
+toolboxes/modeling_flow/__init__.py whitespace=-blank-at-eof
+toolboxes/pipeline_stages/__init__.py whitespace=-blank-at-eof
+toolboxes/pipeline_stages/common.py whitespace=-blank-at-eof

@@ -684,6 +684,8 @@ BOOL PhyVideoDrawConnections(CGContextRef context, NSDictionary *frame,
     return NO;
   NSMutableDictionary *indices = [NSMutableDictionary dictionary];
   NSMutableDictionary *fixed = [NSMutableDictionary dictionary];
+  NSArray *connectionActive = frame[@"connection_active"];
+  BOOL hasBreakableSpring = NO;
   for (NSUInteger index = 0; index < bodyIDs.count; index++) {
     id identifier = bodyIDs[index];
     if (![identifier isKindOfClass:[NSString class]] || indices[identifier] ||
@@ -712,11 +714,23 @@ BOOL PhyVideoDrawConnections(CGContextRef context, NSDictionary *frame,
         ![rest isKindOfClass:[NSNumber class]] || !isfinite([rest doubleValue]) ||
         [rest doubleValue] <= 0 || [rest doubleValue] > 1000)
       return NO;
+    if (link[@"break_tensile_strain"]) {
+      if (![kind isEqual:@"spring"]) return NO;
+      hasBreakableSpring = YES;
+    }
+  }
+  if (hasBreakableSpring != (connectionActive != nil)) return NO;
+  if (connectionActive) {
+    if (![connectionActive isKindOfClass:[NSArray class]] || connectionActive.count != [links count]) return NO;
+    for (id value in connectionActive)
+      if (CFGetTypeID((__bridge CFTypeRef)value) != CFBooleanGetTypeID()) return NO;
   }
   CGContextSaveGState(context);
   CGContextSetLineCap(context, kCGLineCapRound);
   CGContextSetLineJoin(context, kCGLineJoinRound);
-  for (NSDictionary *link in links) {
+  for (NSUInteger linkIndex = 0; linkIndex < [links count]; linkIndex++) {
+    if (connectionActive && ![connectionActive[linkIndex] boolValue]) continue;
+    NSDictionary *link = links[linkIndex];
     NSArray *ends = link[@"entities"];
     NSArray *a = positions[[indices[ends[0]] unsignedIntegerValue]],
             *b = positions[[indices[ends[1]] unsignedIntegerValue]];
@@ -794,10 +808,10 @@ BOOL PhyVideoDrawConnections(CGContextRef context, NSDictionary *frame,
 static void DrawRigids(CGContextRef context, NSArray *values, NSArray *shapes,
                        PhyVideoCamera camera, int band) {
   for (NSUInteger index = 0; index < values.count; index++) {
+    NSDictionary *shape = index < shapes.count ? shapes[index] : @{};
     CameraPoint p = Project(Vector(values[index]), camera);
     if (DepthBand(p.depth, camera) != band)
       continue;
-    NSDictionary *shape = index < shapes.count ? shapes[index] : @{};
     if ([shape[@"type"] isEqual:@"box"])
       DrawShadedBox(context, values[index], shape[@"size"], camera, NO);
     else

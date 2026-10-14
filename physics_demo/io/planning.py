@@ -10,6 +10,7 @@ from physics_demo.analysis.queries import observation_plan
 from physics_demo.limits import (
     EXACT_SPHERE_COUNT_CELLS,
     MAX_FRAME_PARTICLE_SAMPLES,
+    MAX_PARTICLE_SPACING,
     NBODY_MAX_INITIAL_STEP_RATIO,
     QUALITY_LIMITS,
 )
@@ -87,6 +88,9 @@ def _shape_particle_count(shape: dict[str, Any], spacing: float) -> int:
     """Count a lattice without expanding hostile or very large volumes."""
     if not math.isfinite(spacing) or spacing <= 0.0:
         return _COUNT_OVERFLOW
+    if shape.get("type") == "mesh_volume":
+        from physics_demo.core.volume_sampling import sample_mesh_volume
+        return len(sample_mesh_volume(shape, spacing)["points"])
     if shape.get("type") == "box":
         size = [float(value) for value in shape.get("size", [0.0, 0.0, 0.0])]
         return math.prod(_safe_axis_count(extent, spacing) for extent in size)
@@ -126,14 +130,153 @@ def estimate_particle_count(scene: dict[str, Any], spacing_override: float | Non
         if not isinstance(shape, dict):
             continue
         shape_type = shape.get("type")
-        if not isinstance(shape_type, str) or shape_type not in {"box", "sphere"}:
+        if not isinstance(shape_type, str) or shape_type not in {"box", "sphere", "mesh_volume"}:
             continue
+        spacing = None
         try:
             spacing = float(entity.get("spacing", 0.12)) if spacing_override is None else spacing_override
             total += _shape_particle_count(shape, spacing)
         except (OverflowError, TypeError, ValueError):
+            if shape_type == "mesh_volume":
+                # A conservative requested-resolution estimate is allowed here;
+                # execution planning below must obtain an accepted exact sample.
+                mesh = shape.get("mesh", {})
+                volume = mesh.get("metadata", {}).get("signed_volume") if isinstance(mesh, dict) else None
+                if isinstance(volume, (int, float)) and math.isfinite(volume) and volume > 0 and isinstance(spacing, (int, float)) and math.isfinite(spacing) and spacing > 0:
+                    total += min(_COUNT_OVERFLOW, max(1, math.ceil(volume / spacing**3)))
             continue
     return total
+
+
+def _mesh_volume_layout(scene: dict[str, Any], spacing: float, cap: int):
+    """One exact layout source for planning, initialization and integrity checks."""
+    from physics_demo.core.volume_sampling import sample_mesh_volume
+    from physics_demo.core.engine import sample_shape
+    receipts, bounds, sampled = {}, {}, []
+    count = 0
+    try:
+        for entity in scene["entities"]:
+            if entity["type"] not in {"fluid", "granular"}:
+                continue
+            shape = entity["shape"]
+            if shape["type"] == "mesh_volume":
+                output = sample_mesh_volume(shape, spacing)
+                points = output["points"]
+                receipts[entity["id"]] = output["receipt"]
+                bounds[entity["id"]] = (
+                    [min(p[a] for p in points) - .46 * spacing for a in range(3)],
+                    [max(p[a] for p in points) + .46 * spacing for a in range(3)],
+                )
+                sampled.append((entity["id"], points))
+                count += len(points)
+            else:
+                count += _shape_particle_count(shape, spacing)
+        if count > cap:
+            return count, receipts, bounds, {"code": "mesh_volume_particle_budget", "message": f"Exact resampling produced {count} particles, above cap {cap}."}
+        from physics_demo.core.colliders import project_colliders
+        static_colliders = list(scene["colliders"])
+        static_colliders += [{**e["shape"], "center": e["position"]} for e in scene["entities"] if e["type"] == "rigid" and e.get("mass", 0) == 0]
+        for identifier, points in sampled:
+            for point in points:
+                if project_colliders(list(point), .46 * spacing, static_colliders) > max(1e-12, spacing * 1e-8):
+                    return count, receipts, bounds, {"code": "mesh_volume_initial_contact", "message": f"Mesh-volume source {identifier!r} initially intersects a static collider after the particle radius margin."}
+        for entity in scene["entities"]:
+            if entity["type"] in {"fluid", "granular"} and entity["shape"]["type"] != "mesh_volume":
+                sampled.append((entity["id"], sample_shape(entity["shape"], spacing)))
+        # A common lattice is intrinsically separated within each source. Check
+        # cross-source contacts too, including ordinary analytic volumes.
+        grid, minimum = {}, .75 * spacing
+        for identifier, points in sampled:
+            for point in points:
+                cell = tuple(math.floor(x / minimum) for x in point)
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        for dz in (-1, 0, 1):
+                            for other_id, other in grid.get((cell[0]+dx, cell[1]+dy, cell[2]+dz), ()):
+                                if identifier != other_id and sum((point[a]-other[a])**2 for a in range(3)) < minimum**2:
+                                    return count, receipts, bounds, {"code": "mesh_volume_initial_overlap", "message": f"Particle sources {identifier!r} and {other_id!r} overlap within 0.75 spacing."}
+                grid.setdefault(cell, []).append((identifier, point))
+        return count, receipts, bounds, None
+    except (ValueError, TypeError, OverflowError) as error:
+        return 0, {}, {}, {"code": getattr(error, "code", "mesh_volume_sampling"), "message": str(error)}
+
+
+def _choose_mesh_volume_layout(scene, minimum_spacing, cap, attempts=48):
+    # Counts can increase at a coarser lattice phase; bounded enumeration never
+    # assumes monotonicity and never truncates an accepted source.
+    estimated = estimate_particle_count(scene, minimum_spacing)
+    spacing = minimum_spacing * max(1., (estimated / cap)**(1/3))
+    last_error = {"code": "mesh_volume_resolution", "message": "No accepted resolution candidate."}
+    for attempt in range(attempts):
+        if spacing > MAX_PARTICLE_SPACING:
+            break
+        count, receipts, bounds, error = _mesh_volume_layout(scene, spacing, cap)
+        if error is None:
+            return spacing, count, receipts, bounds, None
+        last_error = error
+        if error["code"] in {"mesh_volume_initial_overlap", "mesh_volume_initial_contact"}:
+            return spacing, 0, {}, {}, error
+        spacing *= 1.02
+    return min(spacing, MAX_PARTICLE_SPACING), 0, {}, {}, {
+        "code": "mesh_volume_sampling_budget", "message": "No bounded resampling candidate satisfies particle cap and the hard conversion gates. Last rejection: " + last_error["message"]}
+
+
+def _coupled_mesh_volume_clearance(scene, spacing):
+    """Conservative initial exclusion against coupled contact envelopes.
+
+    Intersecting AABBs are rejected, even when the exact surfaces could be
+    separated. This is an admission gate, not triangle CCD or a solid SDF.
+    """
+    from physics_demo.core.rigid_body import rotate
+    from physics_demo.core.volume_sampling import sample_mesh_volume
+    from physics_demo.io.coupled import attachment_initial, endpoints
+
+    geometry = []
+    entities = {entity["id"]: entity for entity in scene["entities"]}
+    for entity in scene["entities"]:
+        kind = entity["type"]
+        if kind == "rigid_body":
+            shape, center, orientation = entity["shape"], entity["position"], entity["orientation"]
+            if shape["type"] == "sphere":
+                half = [shape["radius"]] * 3
+            elif shape["type"] == "box":
+                axes = [rotate(orientation, [float(a == k) for a in range(3)]) for k in range(3)]
+                half = [sum(abs(axes[k][a]) * shape["size"][k] / 2 for k in range(3)) for a in range(3)]
+            else:
+                axis = rotate(orientation, [0., 1., 0.])
+                half = [shape["radius"] * math.sqrt(max(0., 1. - axis[a]**2)) + shape["height"] * abs(axis[a]) / 2 for a in range(3)]
+            lower, upper = [center[a] - half[a] for a in range(3)], [center[a] + half[a] for a in range(3)]
+        elif kind == "mesh":
+            vertices, center, thickness = entity["mesh"]["vertices"], entity["position"], entity["thickness"]
+            lower = [min(v[a] for v in vertices) + center[a] - thickness for a in range(3)]
+            upper = [max(v[a] for v in vertices) + center[a] + thickness for a in range(3)]
+        elif kind == "point_mass" and entity.get("collision_radius", 0) > 0:
+            center, radius = entity["position"], entity["collision_radius"]
+            lower, upper = [center[a] - radius for a in range(3)], [center[a] + radius for a in range(3)]
+        else:
+            continue
+        geometry.append((kind + " " + repr(entity["id"]), lower, upper))
+    for link in scene.get("connections", []):
+        if "solid" not in link:
+            continue
+        ends = endpoints(link)
+        points = [attachment_initial(end, entities[end["entity"]])[0] for end in ends]
+        radius = link["solid"]["radius"]
+        geometry.append(("solid connection " + repr(link["id"]),
+                         [min(p[a] for p in points) - radius for a in range(3)],
+                         [max(p[a] for p in points) + radius for a in range(3)]))
+    if not geometry:
+        return None
+    for entity in scene["entities"]:
+        if entity.get("shape", {}).get("type") != "mesh_volume":
+            continue
+        points = sample_mesh_volume(entity["shape"], spacing)["points"]
+        lower = [min(p[a] for p in points) - .46 * spacing for a in range(3)]
+        upper = [max(p[a] for p in points) + .46 * spacing for a in range(3)]
+        for label, other_lower, other_upper in geometry:
+            if all(lower[a] <= other_upper[a] + 1e-12 and other_lower[a] <= upper[a] + 1e-12 for a in range(3)):
+                return {"code": "mesh_volume_initial_contact", "message": f"Mesh-volume source {entity['id']!r} intersects the conservative initial AABB of coupled {label}, including particle radius and contact thickness. Exact surface clearance is unsupported here; separated surfaces can be conservatively rejected."}
+    return None
 
 
 def _vector_magnitude(value: list[float]) -> float:
@@ -300,6 +443,10 @@ def make_plan(
             include_video,
             legacy_video_estimate=legacy_video_estimate,
         )
+        if delegated.get("liquid_volume_fits_limits"):
+            clearance_error = _coupled_mesh_volume_clearance(scene, delegated["effective_spacing"])
+            if clearance_error is not None:
+                delegated.update(liquid_volume_fits_limits=False, liquid_volume_error=clearance_error)
         return (delegated if legacy_video_estimate else
                 _account_for_delegated_liquid_video(scene, delegated, include_video))
     if scene.get("connections"):
@@ -319,16 +466,21 @@ def make_plan(
         default=0.12,
     )
     uniform_requested = estimate_particle_count(scene, requested_spacing)
-    scale = (uniform_requested / particle_limit) ** (1.0 / 3.0) if uniform_requested > particle_limit else 1.0
-    spacing = requested_spacing * max(1.0, scale)
-    actual = estimate_particle_count(scene, spacing)
-    planning_iterations = 0
-    while actual > particle_limit and planning_iterations < 96:
-        spacing *= 1.02
+    mesh_volume = any(entity.get("shape", {}).get("type") == "mesh_volume" for entity in scene["entities"])
+    volume_receipts, volume_bounds, volume_error = {}, {}, None
+    if mesh_volume:
+        spacing, actual, volume_receipts, volume_bounds, volume_error = _choose_mesh_volume_layout(scene, requested_spacing, particle_limit)
+    else:
+        scale = (uniform_requested / particle_limit) ** (1.0 / 3.0) if uniform_requested > particle_limit else 1.0
+        spacing = requested_spacing * max(1.0, scale)
         actual = estimate_particle_count(scene, spacing)
-        planning_iterations += 1
-    if actual > particle_limit:
-        actual = particle_limit
+        planning_iterations = 0
+        while actual > particle_limit and planning_iterations < 96:
+            spacing *= 1.02
+            actual = estimate_particle_count(scene, spacing)
+            planning_iterations += 1
+        if actual > particle_limit:
+            actual = particle_limit
     duration = float(scene["world"]["duration"])
     requested_dt = float(scene["world"]["dt"])
     output_fps = float(scene["world"]["output_fps"])
@@ -348,8 +500,6 @@ def make_plan(
         )
     if spacing > requested_spacing * (1.0 + 1.0e-9):
         adjustments.append(f"Increased particle spacing from {requested_spacing:.6g} m to {spacing:.6g} m to respect the {particle_limit} particle cap.")
-    if sample_limited_render < config["render_particles"]:
-        adjustments.append(f"Reduced rendered particles to keep frame-particle samples below {MAX_FRAME_PARTICLE_SAMPLES}.")
 
     dynamic_rigid = any(entity["type"] == "rigid" and entity.get("mass", 0.0) > 0.0 for entity in scene["entities"])
     selected_backend = "python" if scene["budget"].get("backend") == "python" or dynamic_rigid else "native"
@@ -380,6 +530,10 @@ def make_plan(
         "adjustments": adjustments,
         "note": "The p50/p90 estimate is calibrated on Apple M4; the cooperative hard deadline remains authoritative.",
     }
+    if mesh_volume:
+        plan.update(liquid_volume_fits_limits=volume_error is None, liquid_volume_receipts=volume_receipts,
+                    liquid_volume_error=volume_error,
+                    resolution_policy="single-resolution; deterministically resample the original mesh at every spacing candidate; no truncation; hard 5% volume and source-overlap gates")
     nbody_step_ratio = _nbody_initial_step_ratio(scene)
     plan["nbody_initial_step_ratio"] = nbody_step_ratio
     plan["nbody_timestep_feasible"] = nbody_step_ratio <= NBODY_MAX_INITIAL_STEP_RATIO
@@ -400,8 +554,16 @@ def make_plan(
                 or plan["timing_estimate"]["liquid_surface_p90_s"] < scene["budget"]["wall_time_s"])
            and actual > minimum_particles and budget_iterations < 64):
         old_actual = actual
-        spacing *= 1.10
-        actual = estimate_particle_count(scene, spacing)
+        if mesh_volume:
+            candidate_spacing, candidate_count, candidate_receipts, candidate_bounds, candidate_error = _choose_mesh_volume_layout(scene, spacing * 1.10, particle_limit, attempts=16)
+            if candidate_error is not None or candidate_count >= old_actual:
+                break
+            spacing, actual = candidate_spacing, candidate_count
+            volume_receipts, volume_bounds = candidate_receipts, candidate_bounds
+            plan["liquid_volume_receipts"] = volume_receipts
+        else:
+            spacing *= 1.10
+            actual = estimate_particle_count(scene, spacing)
         budget_iterations += 1
         if actual >= old_actual and actual <= minimum_particles:
             break
@@ -417,6 +579,10 @@ def make_plan(
     if budget_iterations:
         plan["adjustments"].append(
             f"Increased spacing to {spacing:.6g} m so the calibrated runtime approaches the {scene['budget']['wall_time_s']:.3g} s budget."
+        )
+    if render_limit < min(config["render_particles"], actual):
+        plan["adjustments"].append(
+            f"Reduced rendered particles to keep frame-particle samples below {MAX_FRAME_PARTICLE_SAMPLES}."
         )
     interactions = scene["interactions"]
     if actual and interactions["mutual_gravity"]:
@@ -458,7 +624,12 @@ def make_plan(
         if kind in {"fluid", "granular"}:
             shape = entity["shape"]
             center = [float(value) for value in shape["center"]]
-            if shape["type"] == "sphere":
+            if shape["type"] == "mesh_volume":
+                if entity["id"] not in volume_bounds:
+                    continue
+                lower, upper = volume_bounds[entity["id"]]
+                half = None
+            elif shape["type"] == "sphere":
                 radius = float(shape["radius"])
                 lattice_half = 0.5 * spacing * (_safe_axis_count(2.0 * radius, spacing) - 1)
                 sampled_half = min(lattice_half, max(0.0, radius - 0.18 * spacing))
@@ -473,8 +644,9 @@ def make_plan(
                     0.5 * spacing * (_safe_axis_count(float(value), spacing) - 1) + particle_radius
                     for value in shape["size"]
                 ]
-            lower = [center[axis] - half[axis] for axis in range(3)]
-            upper = [center[axis] + half[axis] for axis in range(3)]
+            if half is not None:
+                lower = [center[axis] - half[axis] for axis in range(3)]
+                upper = [center[axis] + half[axis] for axis in range(3)]
         elif (
             kind == "rigid"
             and float(entity.get("mass", 0.0)) > 0.0
@@ -542,6 +714,10 @@ def plan_report(plan: dict[str, Any]) -> dict[str, Any]:
         "adjustments": list(plan["adjustments"]),
         "required_disclosure": "Report this object before simulation; adjustments change discretization or display sampling.",
     }
+    if "liquid_volume_fits_limits" in plan:
+        report.update({key: plan[key] for key in ("liquid_volume_fits_limits", "liquid_volume_receipts", "liquid_volume_error")})
+        if not plan["liquid_volume_fits_limits"]:
+            report["decision"] = "revise_scene"
     if "particle_gravity" in plan:
         report["particle_gravity"] = plan["particle_gravity"]
     if "measurement_plan" in plan:

@@ -27,9 +27,40 @@ This is an illustrative outline, not a claim that the service extracted pixels. 
 | `lathe` | Required `profile:[[radius,y],…]`, 2–64 points, `segments:16`; strictly increasing Y, positive radii except optional axis endpoints; end caps form a solid |
 | `extrusion` | Required simple XY `contour`, 3–256 unique points without repeated endpoint/collinear turns; `depth:0.2` along Z; concavity supported, contour holes unsupported |
 | `cloth` | `size:[1,1]` in XZ, `subdivisions:8` (1–63); open triangle sheet |
+| `clothed_upper_torso` | Garment-like outer surface; explicit `scope`, dimensions, shape scales, exactly two bounded `soft_regions`, and provenance notes; optional `rows:12` (6–24), `columns:24` (12–48, divisible by 4) |
 | `raw` | Required `vertices:[[x,y,z],…]`, `triangles:[[i,j,k],…]`, local zero-based indices; agent supplies topology |
 
 All lengths are positive and at most 1,000 m; local vertex coordinates lie within ±1,000 m. Integer subdivisions are actual integers, not booleans or fractional values. Counts must also satisfy the asset caps below. There are no URL/file/code fields. To replace an asset, call `physics_mesh` again; do not pass a procedural recipe directly as `entity.mesh`.
+
+### Clothed upper-torso surface recipe
+
+This recipe describes a stylized garment-like outer surface. The fixed `scope:"adult_clothed_non_explicit"` value selects this bounded geometry. Interpret the current visible garment outline with explicit assumptions for scale, depth and hidden surfaces. For other silhouettes, use an extrusion or an authored raw mesh through the general workflow above. This recipe does not reconstruct skin, anatomy, health, identity, age, real dimensions, or human material constants.
+
+The local origin is the torso centre, Y points upward, and +Z is the front. `width`, `height`, and `depth` are the full base extents in metres before the two front projections. `shoulder_scale` is 0.75–1.35 and `waist_scale` is 0.50–1.10. Width is 0.20–1.50 m, height is 0.25–2.00 m, and depth is 0.08–1.00 m. Each `soft_regions` item has a local XY `center`, XY `radii`, and +Z `projection`; the builder enforces lateral, vertical, separation, and projection bounds and rejects all extra fields. These are shape controls, not independent materials or anatomical components.
+
+```json
+{
+  "type":"clothed_upper_torso",
+  "scope":"adult_clothed_non_explicit",
+  "width":0.46,
+  "height":0.55,
+  "depth":0.22,
+  "shoulder_scale":1.08,
+  "waist_scale":0.76,
+  "soft_regions":[
+    {"center":[-0.115,0.06],"radii":[0.095,0.11],"projection":0.055},
+    {"center":[0.115,0.06],"radii":[0.095,0.11],"projection":0.055}
+  ],
+  "rows":12,
+  "columns":24,
+  "provenance":{
+    "source":"image",
+    "notes":"Stylized clothed silhouette only; scale, depth, hidden back, and both front projections are assumed. No identity, age, health, or material inference."
+  }
+}
+```
+
+The result is one closed, connected, outward-wound surface. It returns `pin_hints.upper_back_seam` and `pin_hints.lower_back_seam`; the upper set is also offered as `entity_hints.pinned_vertices` with `motion:"soft"`, ready to merge into a soft mesh entity. Pins remain optional. Apply them only if the scene really attaches that seam, and keep any chosen mass, compliance, damping, friction, and collision thickness explicit. The fixed `model_assumptions` survive scene normalization. Never copy the source image, a chat excerpt, identity data, a URL, or a local path into the recipe or public toolbox.
 
 ## Scene contract
 
@@ -91,7 +122,7 @@ Without `coupling` or `rigid_body`, mesh scenes remain standalone: only mesh ent
 | Mesh scene JSON traversal | 160,000 values, depth 32; tool JSON string still ≤ 1 MB |
 | Video handoff | 600,000 vertex-frame samples; all mesh vertices retained |
 | Solver settings | `mesh_settings.substeps` and `.iterations`, integers 1–32 |
-| Physical timeline / work | duration 0.0001–30 s; at most 250,000 macro steps and 2 billion planned constraint work units |
+| Physical timeline / work | duration 0.0001–60 s; at most 250,000 macro steps and 2 billion planned constraint work units |
 | Default substeps / iterations | preview 4 / 6; balanced 8 / 8; high 12 / 10 |
 
 The geometry audit also bounds intersection work; complex folded geometry may be rejected below nominal vertex limits. `prepare` reports mesh counts, work, memory, output size and a provisional p50/p90 estimate. It never silently decimates topology. Mesh estimates require calibration on the target machine; report actual runtime and keep the normal 60 s ceiling. More triangles, contact candidates, substeps, iterations or video frames increase cost.
@@ -119,3 +150,7 @@ The delivery gate checks finite/completed state, exact prepared topology, frame 
 The supplied ring example fixes its outer rim while an oversized plug prescribes motion through it. This can store large model constraint energy and release into fast local recoil; smaller timesteps do not by themselves establish a physical peak speed. Treat it as an insertion/deformation demonstration. Compare recorded trajectories and query histories with `benchmarks/benchmark_meshes.py --refine`; report visible timestep sensitivity instead of describing a passed gate as convergence.
 
 Algorithm sources: [XPBD](https://mmacklin.com/xpbd.pdf) supplies compliance-based constraints; [Small Steps](https://mmacklin.com/smallsteps.pdf) motivates substep refinement. The implemented distance-bending/global-volume model is narrower than the general methods in those papers.
+
+## Task-owned QQ geometry handoff
+
+The QQ adapter additionally returns `mesh_ref` from `physics_mesh`. Insert that exact reference with `physics_patch` using `{ "op": "replace", "path": "/entities/@ID/mesh", "mesh_ref": "RETURNED_REF" }`. The reference names only geometry generated in this task, never a filesystem path. `physics_example`, `physics_system`, successful `physics_patch`, `physics_validate` and `physics_prepare` save the current authored draft. The adapter accepts omitted `scene_json` for `physics_patch`, `physics_validate`, `physics_estimate` and `physics_prepare` to use that draft. Large geometry/scene JSON is omitted from responses after saving. Edit the actual reference-specific scene, prepare it, then execute and queue its verified video. These are adapter extensions; the direct engine API continues to accept ordinary scene JSON.

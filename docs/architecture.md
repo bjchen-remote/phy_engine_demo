@@ -1,6 +1,6 @@
 # Demo 架构与扩展地图
 
-本仓库独立提供物理求解、渲染和 Agent 接口，不依赖其他研究工程。外部语言/视觉 agent 解释描述或图片，本服务执行有界几何构建、结构化场景与预声明查询。公共入口为十二个工具、CLI 和 `build_system / run_system / load_run` Python 接口；网格与连接网络各采用独立 C ABI，原粒子/N-body ABI 保持版本 5。
+本仓库独立提供物理求解、渲染和 Agent 接口，不依赖其他研究工程。外部语言/视觉 agent 解释描述或图片，本服务执行有界几何构建、结构化场景与预声明查询。公共入口为结构化工具、CLI 和 `build_system / run_system / load_run` Python 接口。核心 C 实现在 [physics_demo/core/native](../physics_demo/core/native/README.md)，粒子、网格、连接和耦合各有独立 ABI。
 
 ## 数据流
 
@@ -37,7 +37,7 @@ physics_demo/
 ├── io/              # JSON / scene 校验 / 预算规划 / MP4 编码与渲染
 ├── analysis/        # 完整状态观测、查询、结果验证及系统分析
 ├── runner.py        # prepare / simulate / inspect 的公共编排
-├── api.py           # 十二个严格工具的分发
+├── api.py           # 严格工具分发
 └── __init__.py      # build_system / run_system / load_run
 
 docs/                # 开发与 Agent 使用指南
@@ -50,7 +50,7 @@ examples/            # 可复现的场景配置，不充当求解器实现
 | `systems/__init__.py` / `systems/pendulum.py` | 注册系统类型，校验物理参数并构造初态、连接、外场和观测；没有自己的时间循环 |
 | `core/engine.py` / `core/backend.py` | Python 参考求解、后端路由和有预算的 fallback |
 | `core/native_backend.py` / `core/native_runtime.py` | ABI packing、源码哈希编译缓存、原子发布、加载和求解调用 |
-| `core/native/physics_native.*` | 粒子/N-body ABI 5、DFSPH、接触、Verlet、线程与观测归约 |
+| `core/native/physics_native.*` | 粒子/N-body ABI、DFSPH、接触、Verlet、线程与观测归约 |
 | `core/mesh_solver.py` / `core/native/mesh_native.*` | 网格 ABI、XPBD、持久 MeshContext、BVH 和双向 barycentric 接触 |
 | `core/connections_solver.py` / `core/native/connections_native.*` | 独立点质量弹簧/杆/绳积分及约束；单双摆系统复用此实现 |
 | `core/coupled_solver.py` / `core/native/coupled_native.*` | 统一共享时钟及粒子/网格 context，刚体姿态、附着与有限质量接触反作用 |
@@ -102,7 +102,7 @@ mixed帧另含 `q`（与 `r` 一一对应的wxyz姿态），同时保留 `p/g/r/
 
 ## C ABI 与内存
 
-原粒子ABI 5与网格/连接ABI 1均保留；v0.8.0新增独立 `COUPLED_ABI=1`。原粒子ABI 5同时定义于 `PHY_ABI_VERSION` 和 Python `ABI_VERSION`；一次调用入口保留：
+当前粒子、网格、连接和耦合 ABI 分别为 6、1、3、2，以各 C 头文件常量及对应 Python 桥接为准；粒子版本同时定义于 `PHY_ABI_VERSION` 和 `native_backend.ABI_VERSION`。一次调用入口为：
 
 ```c
 uint32_t phy_abi_version(void);
@@ -121,7 +121,7 @@ int phy_simulate(PhySimulation *simulation, PhyDiagnostics *diagnostics);
 
 本机共享库缓存 key 包含 C/H 源码、编译器版本和 flags。粒子后端使用 C11、`-O3`、PIC、pthread、本机 CPU 优化；macOS 使用 `-dynamiclib -ffp-contract=off`，不启用全局 `-ffast-math`。缓存位于系统临时目录，不作为跨架构分发产物。
 
-网格与连接桥接只保留各自的 ctypes 布局、ABI 绑定和运行逻辑，共用 `core/native_runtime.py` 的编译/加载流程。共享实现保留原 hash 配方与 `libmesh-` / `libconnections-` 缓存前缀，通过唯一临时文件和原子替换支持并发构建；加载损坏或 ABI 不兼容的磁盘条目时最多重建一次。桥接 `_load_library(deadline)` 入口与独立库引用仍保留，原粒子 `core/native_backend.py` 与 ABI 5 不改动。
+网格、连接和耦合桥接保留各自的 ctypes 布局、ABI 绑定和运行逻辑，共用 `core/native_runtime.py` 的编译/加载流程。共享实现保留各库的源码摘要配方与缓存前缀，通过唯一临时文件和原子替换支持并发构建；加载损坏或 ABI 不兼容的磁盘条目时最多重建一次。桥接 `_load_library(deadline)` 入口与独立库引用保留；粒子 `core/native_backend.py` 维护自己的编译和预编译库加载路径。
 
 网格 ABI 由 `MESH_ABI` 和 `core/mesh_solver.py` 独立管理，导出 `mesh_abi_version` / `mesh_simulate`。沿用同步借用缓冲与 C scratch 清理规则；状态和观测为 double，展示顶点为 float。新增网格能力不往原粒子 ABI 塞入未使用字段；未显式启用coupling仍保持独立路由。
 

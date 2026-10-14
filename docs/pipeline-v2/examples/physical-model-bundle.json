@@ -1,0 +1,154 @@
+{
+  "schema_version": "bundle-manifest/1",
+  "kind": "ModelBundle/1",
+  "bundle_id": "example-model-001",
+  "run_id": "example-run-001",
+  "producer": {
+    "id": "modeling-basic",
+    "version": "0.1.0",
+    "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "api_major": 2
+  },
+  "inputs": [],
+  "files": [
+    {
+      "artifact_id": "example-physical-model",
+      "role": "model",
+      "path": "model.json",
+      "media_type": "application/json",
+      "bytes": 128,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "quality": {
+    "requested": {
+      "modeling": "standard"
+    },
+    "actual": {
+      "modeling": "standard"
+    }
+  },
+  "validation": {
+    "integrity": "passed",
+    "domain": "passed",
+    "numerical": "not_applicable",
+    "checks": [
+      "example-fixture-only"
+    ],
+    "warnings": []
+  },
+  "metadata": {
+    "purpose": "physical_simulation",
+    "domain": "mechanical",
+    "model_schema": "scene-v1",
+    "units": {
+      "length": "m",
+      "mass": "kg",
+      "time": "s",
+      "temperature": "K"
+    },
+    "coordinates": {
+      "handedness": "right",
+      "up_axis": "Y",
+      "frame": "local",
+      "origin": [
+        0,
+        0,
+        0
+      ]
+    },
+    "entity_ids": [
+      "bob1"
+    ],
+    "requirements": [
+      {
+        "field": "length_m",
+        "description": "One-metre ideal pendulum; fictional fixture.",
+        "source": "user",
+        "status": "met"
+      }
+    ],
+    "assumptions": [
+      "Ideal point mass and massless rod."
+    ],
+    "simulation_asset": {
+      "artifact_id": "example-physical-model",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "representation": "parameterized",
+      "role": "simulation_mesh",
+      "units": "m",
+      "coordinates": {
+        "handedness": "right",
+        "up_axis": "Y",
+        "frame": "local",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "topology_sha256": null
+    },
+    "render_asset": {
+      "artifact_id": "example-physical-model",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "representation": "parameterized",
+      "role": "display",
+      "units": "m",
+      "coordinates": {
+        "handedness": "right",
+        "up_axis": "Y",
+        "frame": "local",
+        "origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "topology_sha256": null
+    },
+    "binding": {
+      "kind": "identity",
+      "source": {
+        "artifact_id": "example-physical-model",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "topology_sha256": null
+      },
+      "target": {
+        "artifact_id": "example-physical-model",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "topology_sha256": null
+      },
+      "mapping_ref": null,
+      "transform": null,
+      "error_report": {
+        "status": "passed",
+        "metric": "identity",
+        "unit": "m",
+        "value": 0,
+        "tolerance": 0,
+        "limitations": [
+          "Fictional fixture; no actual geometry files or proof."
+        ]
+      }
+    },
+    "geometry_quality": {
+      "reference": "analytical template",
+      "tolerance_m": null,
+      "measured_error_m": null,
+      "verified": false,
+      "limitations": [
+        "Not tolerance-certified CAD."
+      ]
+    },
+    "consumer_requirements": [
+      "mechanical rigid positions"
+    ],
+    "engine_dependency": {
+      "id": "physics",
+      "version": "1.4.7",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "interface": "physics-python/1"
+    }
+  }
+}

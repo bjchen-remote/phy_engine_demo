@@ -1,0 +1,123 @@
+{
+  "schema_version": "bundle-manifest/1",
+  "kind": "RenderBundle/1",
+  "bundle_id": "example-preview-render",
+  "run_id": "example-preview-run",
+  "producer": {
+    "id": "rendering-fast",
+    "version": "0.1.0",
+    "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+    "api_major": 2
+  },
+  "inputs": [
+    {
+      "artifact_ref": "example-preview-model",
+      "schema": "ModelBundle/1",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ],
+  "files": [
+    {
+      "artifact_id": "example-video",
+      "role": "video",
+      "path": "simulation.mp4",
+      "media_type": "video/mp4",
+      "bytes": 2048,
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  ],
+  "quality": {
+    "requested": {
+      "modeling": "standard",
+      "rendering": "standard"
+    },
+    "actual": {
+      "modeling": "standard",
+      "rendering": "standard"
+    }
+  },
+  "validation": {
+    "integrity": "passed",
+    "domain": "passed",
+    "numerical": "not_applicable",
+    "checks": [
+      "example-fixture-only"
+    ],
+    "warnings": []
+  },
+  "metadata": {
+    "purpose": "model_preview",
+    "model_ref": {
+      "artifact_ref": "example-preview-model",
+      "schema": "ModelBundle/1",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "provider": {
+      "id": "local-fast",
+      "version": "example-1"
+    },
+    "engine_dependency": null,
+    "binding": {
+      "kind": "identity",
+      "source": {
+        "artifact_id": "example-preview-raw",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "topology_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "target": {
+        "artifact_id": "example-preview-display",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "topology_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "mapping_ref": null,
+      "transform": null,
+      "error_report": {
+        "status": "passed",
+        "metric": "identity",
+        "unit": "model_unit",
+        "value": 0,
+        "tolerance": 0,
+        "limitations": [
+          "Fictional fixture; no actual geometry files or proof."
+        ]
+      }
+    },
+    "fidelity": "shape_only",
+    "physical_interval_s": null,
+    "playback_duration_s": 3,
+    "width_px": 960,
+    "height_px": 540,
+    "fps": 30,
+    "frame_count": 90,
+    "frame_map_ref": null,
+    "simulation_performed": false,
+    "measurement_source": false,
+    "reproducibility": "best_effort",
+    "limitations": [
+      "Fictional fixture; no video or delivery evidence."
+    ],
+    "presentation": {
+      "provider": "local-fast",
+      "width_px": 960,
+      "height_px": 540,
+      "fps": 30,
+      "playback_duration_s": 3,
+      "style": "scientific",
+      "fidelity": "shape_only",
+      "template_id": "shape-orbit",
+      "parameters": {
+        "camera_azimuth_deg": 30.0,
+        "key_light_intensity": 1.0
+      }
+    },
+    "execution": {
+      "renderer": "example-renderer",
+      "version": "example-1",
+      "device": "example-cpu",
+      "seed": 0,
+      "processing": [
+        "Fictional fixture; no rendering performed."
+      ]
+    }
+  }
+}

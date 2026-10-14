@@ -64,6 +64,9 @@ def _axis_values(center: float, extent: float, spacing: float) -> list[float]:
 
 
 def sample_shape(shape: dict[str, Any], spacing: float) -> list[list[float]]:
+    if shape["type"] == "mesh_volume":
+        from physics_demo.core.volume_sampling import sample_mesh_volume
+        return sample_mesh_volume(shape, spacing)["points"]
     center = [float(x) for x in shape["center"]]
     if shape["type"] == "box":
         size = [float(x) for x in shape["size"]]

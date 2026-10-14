@@ -1,0 +1,6 @@
+# Optional CPU foreground inference closure added to requirements-mlx.lock.txt.
+onnxruntime==1.24.4
+flatbuffers==25.12.19
+protobuf==7.36.2
+sympy==1.13.1
+mpmath==1.3.0

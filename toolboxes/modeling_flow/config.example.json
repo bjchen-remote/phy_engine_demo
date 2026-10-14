@@ -1,0 +1,17 @@
+{
+  "schema_version": "modeling-flow-config/1",
+  "backend": "hunyuan3d_mlx",
+  "device": "metal",
+  "dtype": "float16",
+  "upstream_root": "/ABSOLUTE/OPERATOR/INSTALL/Hunyuan3D-Swift/python/shape",
+  "upstream_commit": "292331f4d26ddb80b9dcea6bcb5629ff82f12b82",
+  "weights_root": "/ABSOLUTE/OPERATOR/INSTALL/weights",
+  "checkpoint_id": "tencent/Hunyuan3D-2mini",
+  "checkpoint_revision": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+  "model_subfolder": "hunyuan3d-dit-v2-mini",
+  "variant": "fp16",
+  "weight_files": [
+    {"path": "hunyuan3d-dit-v2-mini/config.yaml", "sha256": "REPLACE_WITH_VERIFIED_LOCAL_SHA256"},
+    {"path": "hunyuan3d-dit-v2-mini/model.fp16.safetensors", "sha256": "REPLACE_WITH_VERIFIED_LOCAL_SHA256"}
+  ]
+}

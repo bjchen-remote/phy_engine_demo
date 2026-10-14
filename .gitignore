@@ -12,10 +12,26 @@ build/
 dist/
 .DS_Store
 
-# Messaging hosts and private runtime data are not part of this project
-qq-simulator*/
+# Private runtime data
 runtime*/
 .env
 .env.*
 *.sqlite3
 *.sqlite3-*
+
+# Local generative model weights, inference caches and outputs
+*.safetensors
+*.onnx
+*.ckpt
+*.pt
+*.pth
+.cache/
+.huggingface/
+weights/
+checkpoints/
+modeling-output/
+
+# Private host installations and identity/credential configuration
+qq-simulator*/
+*.local.json
+runtime-onebot/

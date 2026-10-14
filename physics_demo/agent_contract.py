@@ -155,8 +155,10 @@ def guide_tool_result(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
             ],
         ))
     if tool == "physics_mesh":
-        return guided(payload, "mesh_ready", tool_action(
-            "physics_patch", "Use mesh_json as value_json for /entities/@ID/mesh on a mesh example; preserve provenance and then prepare the complete scene."))
+        reason = "Use mesh_json as value_json for /entities/@ID/mesh on a mesh example; preserve provenance and then prepare the complete scene."
+        if payload.get("audit", {}).get("recipe") == "clothed_upper_torso":
+            reason += " Apply entity_hints only when the intended attachment matches; pin hints are optional and material parameters remain explicit scene choices."
+        return guided(payload, "mesh_ready", tool_action("physics_patch", reason))
     if tool == "physics_system":
         return guided(payload, "system_built", tool_action(
             "physics_prepare", "Pass scene_json unchanged to prepare; system construction does not run or approve a simulation."))

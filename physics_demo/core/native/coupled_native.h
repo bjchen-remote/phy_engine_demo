@@ -3,7 +3,7 @@
 #include "physics_native.h"
 #include "mesh_native.h"
 #include "rigid_math.h"
-#define COUPLED_ABI 1u
+#define COUPLED_ABI 2u
 typedef struct { rm_vec3 position,velocity; double inverse_mass,radius; uint32_t field_mask; } CoupledPoint;
 typedef struct {
     rm_body body;
@@ -39,7 +39,8 @@ typedef struct {
     double *point_frames,*rigid_frames,*frame_times,*observation_times,*observation_values;
 } CoupledSimulation;
 typedef struct {
-    int32_t status,completed,finite,frames_written,observations_written,steps,substeps,max_substeps_used,contact_count;
+    int32_t status,completed,finite,frames_written,observations_written,steps,substeps,max_substeps_used;
+    uint64_t contact_count;
     double simulated_time_s,runtime_s,max_penetration_m,max_speed_m_s,max_quaternion_error;
     double contact_impulse_norm,attachment_impulse_norm,max_link_constraint_error;
     rm_vec3 initial_momentum,final_momentum,support_impulse;

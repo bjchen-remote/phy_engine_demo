@@ -1,0 +1,175 @@
+{
+  "schema_version": "agent-result/2",
+  "ok": true,
+  "status": "plan_ready",
+  "stage": "host",
+  "summary": "协议示例：计划可提交；不是实际执行结果。",
+  "data": {
+    "plan": {
+      "plan_id": "example-preview-plan",
+      "kind": "pipeline",
+      "request_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "lock": {
+        "schema_version": "pipeline-lock/2",
+        "lock_id": "example-lock-001",
+        "bundle_revision": "example-bundle-001",
+        "modules": {
+          "modeling": {
+            "id": "modeling-basic",
+            "version": "0.1.0",
+            "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+            "api_major": 2
+          },
+          "rendering": {
+            "id": "rendering-fast",
+            "version": "0.1.0",
+            "digest": "3333333333333333333333333333333333333333333333333333333333333333",
+            "api_major": 2
+          }
+        },
+        "policy_revision": "example-local-policy",
+        "created_at": "2026-09-26T00:00:00Z",
+        "dependencies": {}
+      },
+      "input_refs": [
+        {
+          "artifact_ref": "example-admitted-image",
+          "schema": "ImportedAsset/1",
+          "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "quality_requested": {
+        "modeling": "standard",
+        "rendering": "standard"
+      },
+      "state_plan": null,
+      "estimate": {
+        "p50_seconds": 15,
+        "p90_seconds": 35,
+        "cost_upper_bound": 0,
+        "currency": "CNY",
+        "working_bytes": 67108864,
+        "output_bytes": 16777216
+      },
+      "expires_at": "2026-09-26T00:10:00Z",
+      "assumptions": [
+        "理想点质量、无质量杆、无阻尼；此处为协议示例。"
+      ],
+      "adjustments": [],
+      "idempotency_key": "example-submit-001",
+      "permitted_stages": [
+        "modeling",
+        "rendering"
+      ],
+      "quality_resolved": {
+        "modeling": "standard",
+        "rendering": "standard"
+      },
+      "effective_arguments": {
+        "request": {
+          "schema_version": "pipeline-request/2",
+          "intent": "协议示例：只生成并展示三维形状，不模拟。",
+          "model": {
+            "purpose": "model_preview",
+            "template_id": "single-image-shape",
+            "parameters": {},
+            "input_refs": [
+              {
+                "artifact_ref": "example-admitted-image",
+                "schema": "ImportedAsset/1",
+                "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            ],
+            "geometry_tolerance_m": null,
+            "assumptions": [
+              "Single image; hidden surfaces inferred; no measured dimensions."
+            ]
+          },
+          "render": {
+            "provider": "local-fast",
+            "width_px": 960,
+            "height_px": 540,
+            "fps": 30,
+            "playback_duration_s": 3,
+            "style": "scientific",
+            "fidelity": "shape_only",
+            "template_id": "shape-orbit",
+            "parameters": {
+              "camera_azimuth_deg": 30.0,
+              "key_light_intensity": 1.0
+            }
+          },
+          "quality": {
+            "modeling": "standard",
+            "rendering": "standard"
+          },
+          "delivery": {
+            "required_roles": [
+              "video",
+              "data"
+            ],
+            "include_model": true,
+            "data_formats": [
+              "json"
+            ],
+            "allow_partial": false
+          },
+          "requested_budget": {
+            "wall_time_seconds": 120,
+            "max_output_bytes": 33554432,
+            "max_cost": 0,
+            "currency": "CNY"
+          },
+          "allow_adjustments": [
+            "render_compression"
+          ],
+          "reuse": {
+            "model_ref": null,
+            "simulation_ref": null,
+            "render_ref": null
+          },
+          "permitted_stages": [
+            "modeling",
+            "rendering"
+          ],
+          "purpose": "model_preview"
+        }
+      },
+      "effective_limits": {
+        "wall_time_seconds": 120,
+        "memory_bytes": 536870912,
+        "work_bytes": 134217728,
+        "output_bytes": 33554432,
+        "max_provider_submissions": 0,
+        "max_cost": 0,
+        "currency": "CNY",
+        "hard_enforced": [
+          "wall_time",
+          "output_bytes"
+        ]
+      },
+      "delivery": {
+        "required_roles": [
+          "video",
+          "data"
+        ],
+        "include_model": true,
+        "data_formats": [
+          "json"
+        ],
+        "allow_partial": false
+      },
+      "purpose": "model_preview"
+    }
+  },
+  "errors": [],
+  "next_action": {
+    "kind": "call_tool",
+    "tool": "pipeline_submit",
+    "arguments": {
+      "plan_id": "example-preview-plan",
+      "idempotency_key": "example-submit-001"
+    },
+    "poll_after_ms": null
+  }
+}
